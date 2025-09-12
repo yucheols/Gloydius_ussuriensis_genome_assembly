@@ -14,4 +14,4 @@
 source ~/.bash_profile
 conda activate mytools
 
-hifiasm -o home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/hifiasm/out/Gloydius_ussuriensis_v1.asm -t /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/24GUHW001.hifireads.fastq.gz
+hifiasm -o /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/hifiasm/out/Gloydius_ussuriensis_v1.asm -t /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/24GUHW001.hifireads.fastq.gz
