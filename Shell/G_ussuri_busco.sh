@@ -17,4 +17,4 @@ conda activate mytools
 cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/busco/out
 
 G_ussuriensis_assembly="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/hifiasm/out/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa"
-busco -m genome -i $G_ussuriensis_assembly -o G_ussuriensis_BUSCO -l /home/yshin/mendel-nas1/snake_genome_ass/busco/sauropsida_odb10 -f --metauk --offline --download_path /home/yshin/mendel-nas1/snake_genome_ass/busco
+busco -m genome -i $G_ussuriensis_assembly -o G_ussuriensis_BUSCO -l /home/yshin/mendel-nas1/snake_genome_ass/busco/sauropsida_odb10 -f --metaeuk --offline --download_path /home/yshin/mendel-nas1/snake_genome_ass/busco
