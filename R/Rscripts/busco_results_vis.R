@@ -1,0 +1,18 @@
+#####  visualize BUSCO results in R
+
+# clean working environment
+rm(list = ls(all.names = T))
+gc()
+
+# load packages
+library(cogeqc)
+library(ggplot2)
+
+### load BUSCO results
+busco <- cogeqc::read_busco('Rdata/busco/')
+print(busco)
+
+# plot
+plot_busco(busco) +
+  theme(axis.text = element_text(size = 14),
+        axis.title = element_text(size = 18))
