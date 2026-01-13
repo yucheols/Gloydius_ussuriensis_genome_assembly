@@ -1,17 +1,21 @@
 #!/bin/sh
-#SBATCH --job-name=yshin_hifiasm_G_ussuri
+#SBATCH --job-name=ussuriensis_hifi
 #SBATCH --nodes=1
-#SBATCH --mem=120G
+#SBATCH --mem=200G
+#SBATCH --partition=compute
 #SBATCH --cpus-per-task=32
-#SBATCH --time=72:00:00
+#SBATCH --time=144:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/hifiasm/out/yshin_hifiasm_G_ussuri_%j-%x.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/hifiasm/err/yshin_hifiasm_G_ussuri_%j-%x.err
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/%x_%j.err
 
-#conda init
-
+# initiate conda and activate the conda environment
 source ~/.bash_profile
 conda activate mytools
 
-hifiasm -o /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/hifiasm/out/Gloydius_ussuriensis_v1.asm -t 30 /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/24GUHW001.hifireads.fastq.gz
+# set taxon name as a variable
+name="Gloydius_ussuriensis"
+
+# run hifiasm - put results in their own directory named after the species
+hifiasm -o ${name}/${name} -t 30 /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ/AMNH_21010_HiFi.fastq.gz
