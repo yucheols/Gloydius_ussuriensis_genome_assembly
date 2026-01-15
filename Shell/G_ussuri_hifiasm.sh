@@ -1,8 +1,8 @@
 #!/bin/sh
 #SBATCH --job-name=ussuriensis_hifi
 #SBATCH --nodes=1
-#SBATCH --mem=512G
-#SBATCH --partition=compute
+#SBATCH --mem=650G
+#SBATCH --partition=bigmem
 #SBATCH --cpus-per-task=12
 #SBATCH --time=3-00:00:00
 #SBATCH --mail-type=ALL
