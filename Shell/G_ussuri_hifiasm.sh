@@ -1,10 +1,10 @@
 #!/bin/sh
-#SBATCH --job-name=ussuriensis_hifi
+#SBATCH --job-name=hifi_ussuri
 #SBATCH --nodes=1
 #SBATCH --mem=650G
 #SBATCH --partition=bigmem
-#SBATCH --cpus-per-task=12
-#SBATCH --time=3-00:00:00
+#SBATCH --cpus-per-task=48
+#SBATCH --time=7-00:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/%x_%j.out
