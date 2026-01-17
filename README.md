@@ -1,5 +1,5 @@
-# Whole-genome assembly of the Ussuri mamushi (*Gloydius ussuriensis*)
-PacBio HiFi genome assembly of the Ussuri mamushi (*Gloydius ussuriensis*)
+# Whole-genome assembly of the Ussuri Pitviper (*Gloydius ussuriensis*)
+PacBio HiFi genome assembly of the Ussuri Pitviper (*Gloydius ussuriensis*)
 
 ![snake](etc/large.jpg)
 
