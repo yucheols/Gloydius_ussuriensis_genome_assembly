@@ -18,4 +18,4 @@ conda activate mytools
 name="Gloydius_ussuriensis"
 
 # run hifiasm - put results in their own directory named after the species
-hifiasm -o ${name}/${name} -t 30 /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ/AMNH_21010_HiFi.fastq.gz
+hifiasm -o ${name}/${name} -t ${SLURM_CPUS_PER_TASK} /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ/AMNH_21010_HiFi.fastq.gz
