@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #SBATCH --job-name=hifi_ussuri
 #SBATCH --nodes=1
 #SBATCH --mem=650G
