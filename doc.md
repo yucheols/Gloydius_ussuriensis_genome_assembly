@@ -123,7 +123,7 @@ hifiasm -o ${name}/${name} -t ${SLURM_CPUS_PER_TASK} /home/yshin/mendel-nas1/sna
 ## 5) Genome assembly stats with QUAST
 
 ## 6) Genome annotation
-   - __RNA read QC__
+   - __RNA read QC:__
    Run FastQC on raw, untrimmed reads.
 
 ```sh
@@ -153,11 +153,11 @@ hifiasm -o ${name}/${name} -t ${SLURM_CPUS_PER_TASK} /home/yshin/mendel-nas1/sna
    fastqc -o ${out_dir} ${path_to_seq}/AMNH_21010_Ht_1.fastq.gz ${path_to_seq}/AMNH_21010_Ht_2.fastq.gz ${path_to_seq}/AMNH_21010_Ky_1.fastq.gz ${path_to_seq}/AMNH_21010_Ky_2.fastq.gz ${path_to_seq}/AMNH_21010_Lg_1.fastq.gz ${path_to_seq}/AMNH_21010_Lg_2.fastq.gz ${path_to_seq}/AMNH_21010_Lr_1.fastq.gz ${path_to_seq}/AMNH_21010_Lr_2.fastq.gz ${path_to_seq}/AMNH_21010_Me_1.fastq.gz ${path_to_seq}/AMNH_21010_Me_2.fastq.gz ${path_to_seq}/AMNH_21010_Skin_1.fastq.gz ${path_to_seq}/AMNH_21010_Skin_2.fastq.gz
 ```
 
-   - __Adapter trimming__ 
+   - __Adapter trimming:__ 
    Use trimmomatic to trim adapters and then run FastQC on the trimmed reads.
 
 
-   - __Structural annotation__
-   - __Functional annotation__
-   
+   - __Structural annotation:__
+   - __Functional annotation:__
+
 ## 7) Scaffolding through Hi-C data incorporation
