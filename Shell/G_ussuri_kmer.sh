@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=kmer_ussuri
 #SBATCH --nodes=1
-#SBATCH --mem=650G
-#SBATCH --partition=bigmem
+#SBATCH --mem=300G
+#SBATCH --partition=compute
 #SBATCH --cpus-per-task=24
 #SBATCH --time=7-00:00:00
 #SBATCH --mail-type=ALL
