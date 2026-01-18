@@ -11,7 +11,7 @@
 ## 1) *k*-mer analysis of raw reads using jellyfish
 Conduct a *k*-mer count analysis on the raw reads using jellyfish. This can be useful to estimate the genome size, heterozygosity, etc. Use the following script to submit a job to the AMNH Mendel HPC cluster. 
 
-```
+```sh
 #!/bin/bash
 #SBATCH --job-name=kmer_ussuri
 #SBATCH --nodes=1
@@ -46,7 +46,7 @@ jellyfish histo -t ${SLURM_CPUS_PER_TASK} ${outdir}/Gloydius_ussuriensis_kmer.jf
 ## 2) Draft genome assembly using hifiasm
 Use the following script to submit a hifiasm job to the Mendel cluster. The estimated coverage for this sample is very high (~87x) and the FASTQ file of raw reads is very big (503 Gb). Use the bigmem partition and request sufficient amount of CPUs and walltime to assemble this genome.
 
-``` 
+```sh
 #!/bin/bash
 #SBATCH --job-name=hifi_ussuri
 #SBATCH --nodes=1
