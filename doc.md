@@ -7,8 +7,8 @@ __Workflow__
 1. __Raw read QC with *FastQC*__
 2. __*k*-mer analysis of raw reads using *jellyfish*__
 3. __Draft genome assembly using *hifiasm*__
-4. __BUSCO completeness__
-5. __Genome stats with *QUAST*__
+4. __Genome completeness using BUSCO__
+5. __Genome assembly stats with *QUAST*__
 6. __Genome annotation__
    - __RNA read QC__
    - __Adapter trimming__ 
@@ -107,4 +107,4 @@ name="Gloydius_ussuriensis"
 hifiasm -o ${name}/${name} -t ${SLURM_CPUS_PER_TASK} /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ/AMNH_21010_HiFi.fastq.gz
 ``` 
 
-## 4) BUSCO completeness
+## 4) Genome completeness using BUSCO
