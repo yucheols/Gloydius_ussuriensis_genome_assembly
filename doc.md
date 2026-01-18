@@ -7,7 +7,7 @@
 4. __Genome stats with QUAST__
 
 ## 2) Genome assembly using hifiasm
-Use the following script to submit a hifiasm job to Mendel. The estimated coverage for this sample is very high (~87x) and the FASTQ file is very big. Use the bigmem partition and request sufficient amount of CPUs to assemble this genome.
+Use the following script to submit a hifiasm job to Mendel. The estimated coverage for this sample is very high (~87x) and the FASTQ file is very big. Use the bigmem partition and request sufficient amount of CPUs and walltime to assemble this genome.
 
 ``` 
 #!/bin/bash
