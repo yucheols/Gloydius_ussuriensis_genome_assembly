@@ -120,7 +120,7 @@ hifiasm -o ${name}/${name} -t ${SLURM_CPUS_PER_TASK} /home/yshin/mendel-nas1/sna
 
 ## 4) Genome completeness using BUSCO
 
-## 5) Genome assembly stats with *QUAST*
+## 5) Genome assembly stats with QUAST
 
 ## 6) Genome annotation
    - __RNA read QC__
@@ -159,4 +159,5 @@ hifiasm -o ${name}/${name} -t ${SLURM_CPUS_PER_TASK} /home/yshin/mendel-nas1/sna
 
    - __Structural annotation__
    - __Functional annotation__
+   
 ## 7) Scaffolding through Hi-C data incorporation
