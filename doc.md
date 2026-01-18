@@ -76,7 +76,7 @@ jellyfish histo ${outdir}/Gloydius_ussuriensis_kmer.jf -t ${SLURM_CPUS_PER_TASK}
 ```
 
 ## 3) Draft genome assembly using hifiasm
-Use the following script to submit a hifiasm job to the Mendel cluster. The estimated coverage for this sample is very high (~87x) and the FASTQ file of raw reads is very big (503 Gb). Use the bigmem partition and request sufficient amount of CPUs and walltime to assemble this genome.
+Hifiasm (https://github.com/chhylp123/hifiasm) is a fast, haplotype-resolved assembler for PacBio long-read sequencing data. Use the following script to submit a hifiasm job to the Mendel cluster. The estimated coverage for this sample is very high (~87x) and the FASTQ file of raw reads is very big (503 Gb). Use the bigmem partition and request sufficient amount of CPUs and walltime to assemble this genome.
 
 ```sh
 #!/bin/bash
