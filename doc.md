@@ -9,9 +9,10 @@
 6. __Scaffolding through Hi-C data incorporation__
 
 ## 1) *k*-mer analysis of raw reads using jellyfish
+Conduct a *k*-mer count analysis on the raw reads using jellyfish. This can be useful to estimate the genome size, heterozygosity, etc. Use the following script to submit a job to the AMNH Mendel HPC cluster. 
 
 ## 2) Genome assembly using hifiasm
-Use the following script to submit a hifiasm job to Mendel. The estimated coverage for this sample is very high (~87x) and the FASTQ file is very big. Use the bigmem partition and request sufficient amount of CPUs and walltime to assemble this genome.
+Use the following script to submit a hifiasm job to the Mendel cluster. The estimated coverage for this sample is very high (~87x) and the FASTQ file of raw reads is very big (503 Gb). Use the bigmem partition and request sufficient amount of CPUs and walltime to assemble this genome.
 
 ``` 
 #!/bin/bash
@@ -19,23 +20,22 @@ Use the following script to submit a hifiasm job to Mendel. The estimated covera
 #SBATCH --nodes=1
 #SBATCH --mem=650G
 #SBATCH --partition=bigmem
-#SBATCH --cpus-per-task=48
+#SBATCH --cpus-per-task=24
 #SBATCH --time=7-00:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%j_%x.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%j_%x.err
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
 
 # initiate conda and activate the conda environment
 source ~/.bash_profile
-conda activate mytools
+conda activate genome_assembly
 
 # set taxon name as a variable
 name="Gloydius_ussuriensis"
 
 # run hifiasm - put results in their own directory named after the species
 hifiasm -o ${name}/${name} -t ${SLURM_CPUS_PER_TASK} /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ/AMNH_21010_HiFi.fastq.gz
-
 ``` 
 
 ## 3) BUSCO
