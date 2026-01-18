@@ -9,7 +9,9 @@ __Workflow__
 3. __Draft genome assembly using *hifiasm*__
 4. __BUSCO completeness__
 5. __Genome stats with *QUAST*__
-6. __Genome annotation__ 
+6. __Genome annotation__
+   - __RNA read QC__
+   - __Adapter trimming__ 
    - __Structural annotation__
    - __Functional annotation__
 7. __Scaffolding through Hi-C data incorporation__
