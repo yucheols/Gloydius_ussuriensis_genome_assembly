@@ -9,6 +9,8 @@ The individual used for this genome assembly is accessioned at the AMNH Herpetol
 4. __BUSCO completeness__
 5. __Genome stats with QUAST__
 6. __Genome annotation__ 
+   - __Structural annotation__
+   - __Functional annotation__
 7. __Scaffolding through Hi-C data incorporation__
 
 ## 1) Raw read QC with FastQC
