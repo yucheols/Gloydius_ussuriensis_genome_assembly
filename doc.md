@@ -4,11 +4,11 @@
 The individual used for this genome assembly is accessioned at the AMNH Herpetology Collections under the voucher number AMNH 21010.
 
 __Workflow__
-1. __Raw read QC with FastQC__
-2. __*k*-mer analysis of raw reads using jellyfish__
-3. __Draft genome assembly using hifiasm__
+1. __Raw read QC with *FastQC*__
+2. __*k*-mer analysis of raw reads using *jellyfish*__
+3. __Draft genome assembly using *hifiasm*__
 4. __BUSCO completeness__
-5. __Genome stats with QUAST__
+5. __Genome stats with *QUAST*__
 6. __Genome annotation__ 
    - __Structural annotation__
    - __Functional annotation__
