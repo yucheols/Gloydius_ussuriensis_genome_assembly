@@ -7,26 +7,31 @@
 4. __Genome stats with QUAST__
 
 ## 2) Genome assembly using hifiasm
-Use the following script to submit a hifiasm job to Mendel
+Use the following script to submit a hifiasm job to Mendel. The estimated coverage for this sample is very high (~87x) and the FASTQ file is very big. Use the bigmem partition and request sufficient amount of CPUs to assemble this genome
 
 ``` 
-#!/bin/sh
-#SBATCH --job-name=yshin_hifiasm_G_ussuri
+#!/bin/bash
+#SBATCH --job-name=hifi_ussuri
 #SBATCH --nodes=1
-#SBATCH --mem=120G
-#SBATCH --cpus-per-task=32
-#SBATCH --time=72:00:00
+#SBATCH --mem=650G
+#SBATCH --partition=bigmem
+#SBATCH --cpus-per-task=48
+#SBATCH --time=7-00:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/hifiasm/out/yshin_hifiasm_G_ussuri_%j-%x.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/hifiasm/err/yshin_hifiasm_G_ussuri_%j-%x.err
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%j_%x.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%j_%x.err
 
-#conda init
-
+# initiate conda and activate the conda environment
 source ~/.bash_profile
 conda activate mytools
 
-hifiasm -o home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/hifiasm/out/Gloydius_ussuriensis_v1.asm -t /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/24GUHW001.hifireads.fastq.gz
+# set taxon name as a variable
+name="Gloydius_ussuriensis"
+
+# run hifiasm - put results in their own directory named after the species
+hifiasm -o ${name}/${name} -t ${SLURM_CPUS_PER_TASK} /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ/AMNH_21010_HiFi.fastq.gz
+
 ``` 
 
 ## 3) BUSCO
