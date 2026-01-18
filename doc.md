@@ -3,8 +3,12 @@
 
 1. __*k*-mer analysis of raw reads using jellyfish__
 2. __Genome assembly using hifiasm__
-3. __BUSCO__
+3. __BUSCO completeness__
 4. __Genome stats with QUAST__
+5. __Genome annotation__ 
+6. __Scaffolding through Hi-C data incorporation__
+
+## 1) *k*-mer analysis of raw reads using jellyfish
 
 ## 2) Genome assembly using hifiasm
 Use the following script to submit a hifiasm job to Mendel. The estimated coverage for this sample is very high (~87x) and the FASTQ file is very big. Use the bigmem partition and request sufficient amount of CPUs and walltime to assemble this genome.
