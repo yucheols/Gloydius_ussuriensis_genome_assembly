@@ -43,7 +43,7 @@ jellyfish count -m 21 -s 1G -o ${outdir}/Gloydius_ussuriensis_kmer.jf $TMPDIR/AM
 jellyfish histo -t ${SLURM_CPUS_PER_TASK} ${outdir}/Gloydius_ussuriensis_kmer.jf > ${outdir}/Gloydius_ussuriensis_kmer.histo
 ```
 
-## 2) Genome assembly using hifiasm
+## 2) Draft genome assembly using hifiasm
 Use the following script to submit a hifiasm job to the Mendel cluster. The estimated coverage for this sample is very high (~87x) and the FASTQ file of raw reads is very big (503 Gb). Use the bigmem partition and request sufficient amount of CPUs and walltime to assemble this genome.
 
 ``` 
@@ -70,4 +70,4 @@ name="Gloydius_ussuriensis"
 hifiasm -o ${name}/${name} -t ${SLURM_CPUS_PER_TASK} /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ/AMNH_21010_HiFi.fastq.gz
 ``` 
 
-## 3) BUSCO
+## 3) BUSCO completeness
