@@ -4,11 +4,11 @@
 The individual used for this genome assembly is accessioned at the AMNH Herpetology Collections under the voucher number AMNH 21010.
 
 __Workflow__
-1. __Raw read QC with *FastQC*__
-2. __*k*-mer analysis of raw reads using *jellyfish*__
-3. __Draft genome assembly using *hifiasm*__
+1. __Raw read QC with FastQC__
+2. __*k*-mer analysis of raw reads using jellyfish__
+3. __Draft genome assembly using hifiasm__
 4. __Genome completeness using BUSCO__
-5. __Genome assembly stats with *QUAST*__
+5. __Genome assembly stats with QUAST__
 6. __Genome annotation__
    - __RNA read QC__
    - __Adapter trimming__ 
@@ -111,11 +111,14 @@ Hifiasm (https://github.com/chhylp123/hifiasm) is a fast, haplotype-resolved ass
 source ~/.bash_profile
 conda activate genome_assembly
 
+# set output directory
+out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/hifiasm
+
 # set taxon name as a variable
 name="Gloydius_ussuriensis"
 
 # run hifiasm - put results in their own directory named after the species
-hifiasm -o ${name}/${name} -t ${SLURM_CPUS_PER_TASK} /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ/AMNH_21010_HiFi.fastq.gz
+hifiasm -o ${out_dir}/${name}_v1.asm -t ${SLURM_CPUS_PER_TASK} /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ/AMNH_21010_HiFi.fastq.gz
 ``` 
 
 ## 4) Genome completeness using BUSCO
