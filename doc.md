@@ -160,7 +160,7 @@ hifiasm -o ${out_dir}/${name}_v1.asm -t ${SLURM_CPUS_PER_TASK} /home/yshin/mende
    - __Adapter trimming:__ 
    Use trimmomatic to trim adapters and then run FastQC on the trimmed reads.
 
-   - __Transcriptome assembly__
+   - __Transcriptome assembly:__
 
    - __Structural annotation:__
    - __Functional annotation:__
