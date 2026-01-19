@@ -12,6 +12,7 @@ __Workflow__
 6. __Genome annotation__
    - __RNA read QC__
    - __Adapter trimming__ 
+   - __Transcriptome assembly__
    - __Structural annotation__
    - __Functional annotation__
 7. __Scaffolding through Hi-C data incorporation__
@@ -159,6 +160,7 @@ hifiasm -o ${out_dir}/${name}_v1.asm -t ${SLURM_CPUS_PER_TASK} /home/yshin/mende
    - __Adapter trimming:__ 
    Use trimmomatic to trim adapters and then run FastQC on the trimmed reads.
 
+   - __Transcriptome assembly__
 
    - __Structural annotation:__
    - __Functional annotation:__
