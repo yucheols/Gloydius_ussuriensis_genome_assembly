@@ -27,7 +27,8 @@ path_to_mitoref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/Pa
 out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_out
 
 # set mapping quality score
-mq=30
+# set this to 60 to drop numts and other crap that we do not want
+mq=60
 
 
 ################
@@ -38,9 +39,11 @@ mq=30
 echo "start mapping reads to reference..."
 
 # run minimap2
-minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${path_to_mitoref}/NC_026553.1.fa ${path_to_hifi}/AMNH_21010_HiFi.fastq.gz | samtools sort -@ 8 -o ${out_dir}/mito_map.bam
+minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${path_to_mitoref}/NC_026553.1.fa \
+  ${path_to_hifi}/AMNH_21010_HiFi.fastq.gz | \
+  samtools view -@ 8 -b -F 4 | \
+  samtools sort -@ 8 -T ${out_dir}/tmp.mito -o ${out_dir}/mito_map.bam
 samtools index ${out_dir}/mito_map.bam
-
 
 #############################
 #  3. extract mapped reads  #
@@ -57,7 +60,7 @@ samtools view -h ${out_dir}/mito_map.bam | \
 samtools index ${out_dir}/mito_map.MQ.bam
 
 # Convert to FASTQ for assembly
-samtools fastq -@ 8 ${out_dir}/mito_map.MQ.bam | gzip > ${out_dir}/mito_reads.MQ.fastq.gz
+samtools fastq ${out_dir}/mito_map.MQ.bam | gzip > ${out_dir}/mito_reads.MQ.fastq.gz
 
 # print out this message
 echo "mito reads written as FASTQ: mito_reads.MQ.fastq.gz"

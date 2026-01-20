@@ -94,7 +94,7 @@ The results suggest:
 
 
 ## 3) Draft genome assembly using hifiasm
-Hifiasm (https://github.com/chhylp123/hifiasm) is a fast, haplotype-resolved assembler for PacBio long-read sequencing data. Use the following script to submit a hifiasm job to the Mendel cluster. The estimated coverage for this sample is very high (~87x) and the fastq.gz file of raw reads is very big (503 Gb). Use the bigmem partition and request a sufficient amount of CPUs and walltime to assemble this genome.
+Hifiasm (https://github.com/chhylp123/hifiasm) is a fast, haplotype-resolved assembler for PacBio long-read sequencing data. Use the following script to submit a hifiasm job to the Mendel cluster. The estimated coverage for this sample is very high (~87x) and the fastq.gz file of raw reads is very big (63 GB). Use the bigmem partition and request a sufficient amount of CPUs and walltime to assemble this genome.
 
 ```sh
 #!/bin/bash
@@ -169,9 +169,9 @@ hifiasm -o ${out_dir}/${name}_v1.asm -t ${SLURM_CPUS_PER_TASK} /home/yshin/mende
 ## 7) Scaffolding through Hi-C data incorporation
 
 ## 8) Mitogenome assembly
-Because PacBio HiFi reads are long and highly contiguous, it is possible to assemble a full mitogenome as a bycatch. There is already a conspecific reference available on GenBank. We can fetch this mitogenome like so:
+Because PacBio HiFi reads are long and highly contiguous, it is possible to assemble a full mitogenome as a bycatch. This can be done easily using some existing tools and a reference mitogenome to "fish out" the mitochondrial contigs from HiFi reads. There is already a conspecific mitogenome reference available on GenBank (NC_026553.1). We can fetch this mitogenome like so:
 
-```
+```txt
 # create working directory for mitogenome assembly
 mkdir -p /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref
 cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref
@@ -190,7 +190,7 @@ efetch -db nucleotide -id ${ref_acc} -format gbwithparts > ${ref_acc}.gb
 
 Then, create a conda environment for mitogenome assembly and install some packages that will be used.
 
-```
+```txt
 # create conda environment for mitogenome assembly
 conda create -n mito_assembly
 conda activate mito_assembly
@@ -231,7 +231,8 @@ path_to_mitoref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/Pa
 out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_out
 
 # set mapping quality score
-mq=30
+# set this to 60 to drop numts and other crap that we do not want
+mq=60
 
 
 ################
@@ -242,9 +243,11 @@ mq=30
 echo "start mapping reads to reference..."
 
 # run minimap2
-minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${path_to_mitoref}/NC_026553.1.fa ${path_to_hifi}/AMNH_21010_HiFi.fastq.gz | samtools sort -@ 8 -o ${out_dir}/mito_map.bam
+minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${path_to_mitoref}/NC_026553.1.fa \
+  ${path_to_hifi}/AMNH_21010_HiFi.fastq.gz | \
+  samtools view -@ 8 -b -F 4 | \
+  samtools sort -@ 8 -T ${out_dir}/tmp.mito -o ${out_dir}/mito_map.bam
 samtools index ${out_dir}/mito_map.bam
-
 
 #############################
 #  3. extract mapped reads  #
@@ -261,7 +264,7 @@ samtools view -h ${out_dir}/mito_map.bam | \
 samtools index ${out_dir}/mito_map.MQ.bam
 
 # Convert to FASTQ for assembly
-samtools fastq -@ 8 ${out_dir}/mito_map.MQ.bam | gzip > ${out_dir}/mito_reads.MQ.fastq.gz
+samtools fastq ${out_dir}/mito_map.MQ.bam | gzip > ${out_dir}/mito_reads.MQ.fastq.gz
 
 # print out this message
 echo "mito reads written as FASTQ: mito_reads.MQ.fastq.gz"
@@ -320,4 +323,12 @@ minimap2 -x asm5 ${path_to_mitoref}/NC_026553.1.fa ${mito_asm} > ${out_dir}/mito
 ###################################
 echo "mitochondrial genome assembly pipeline complete!"
 
+```
+
+Once this is done, run a quick sanity check:
+
+```txt
+# run this in the directory containing the assembly.fasta file (which is the "flye_mito" folder)
+seqkit stats assembly.fasta
+grep -c "^>" assembly.fasta
 ```
