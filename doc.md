@@ -168,7 +168,37 @@ hifiasm -o ${out_dir}/${name}_v1.asm -t ${SLURM_CPUS_PER_TASK} /home/yshin/mende
 ## 7) Scaffolding through Hi-C data incorporation
 
 ## 8) Mitogenome assembly
-Because PacBio HiFi reads are long and highly contiguous, it is possible to assemble a full mitogenome as a bycatch.
+Because PacBio HiFi reads are long and highly contiguous, it is possible to assemble a full mitogenome as a bycatch. There is already a conspecific reference available on GenBank. We can fetch this mitogenome like so:
+
+```
+# create working directory for mitogenome assembly
+mkdir -p /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref
+
+# install entrez to fetch seq from ncbi
+conda activate genome_assembly
+conda install -y -c bioconda entrez-direct
+
+# fetch seq and annotation
+ref_acc=NC_026553.1
+echo ${ref_acc}
+
+efetch -db nucleotide -id ${ref_acc} -format fasta > ${ref_acc}.fa
+efetch -db nucleotide -id ${ref_acc} -format gbwithparts > ${ref_acc}.gb
+```
+
+Then, create a conda environment for mitogenome assembly and install some packages that will be used.
+
+```
+# create conda environment for mitogenome assembly
+conda create -n mito_assembly
+conda activate mito_assembly
+
+# install some packages
+conda install -y -c bioconda minimap2 samtools flye
+```
+
+Once everything is prepared, use the pipeline below to assemble a mitogenome. 
 
 ```sh
 #!/bin/bash
