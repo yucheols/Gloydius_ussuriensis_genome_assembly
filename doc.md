@@ -491,7 +491,7 @@ Use the following settings:
 ```
 
 MITOS2 can be run through the run on the Galaxy Server. The window looks something like this:
-![alt text](mitos2.PNG)
+![alt text](etc/mitos2.PNG)
 
 After MITOS2 run is complete, run a quick sanity check on the output GFF (annotation) file
 ```txt
@@ -629,4 +629,4 @@ Gloydius_ussuriensis_mitogenome mitos   region  1       17211   .       +       
 ```
 
 Awesome! this can now be imported into Geneious for visualization.
-![alt text](geneious_vis.PNG)
+![alt text](/etc/geneious_vis.PNG)
