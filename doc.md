@@ -476,6 +476,7 @@ sed 's/^>.*/>Gloydius_ussuriensis_mitogenome/' ussuri_mitogenome.fasta > ussuri_
 >Gloydius_ussuriensis_mitogenome
 ACAGTCCCGCTTTTCACGTCCATATATTGTAACTCCTCCCGTCTATGTCCTTTCCAAGGC 
 ```
+__*The following steps are (mostly) run on a local device*__
 
 Now that this step is done, we can annotate the assembled mitogenome using MITOS2 (https://usegalaxy.org/root?tool_id=toolshed.g2.bx.psu.edu%2Frepos%2Fiuc%2Fmitos2%2Fmitos2%2F2.1.3%20galaxy0).
 
@@ -491,3 +492,141 @@ Use the following settings:
 
 MITOS2 can be run through the run on the Galaxy Server. The window looks something like this:
 ![alt text](mitos2.PNG)
+
+After MITOS2 run is complete, run a quick sanity check on the output GFF (annotation) file
+```txt
+(base) yshin@DESKTOP-43QC882:~/Gloydius_ussuriensis_genome_assembly/outfiles/mito_assembly/mitos2$ grep -v "^#" "Galaxy6-[MITOS2 on dataset 1_ GFF].gff" | cut -f3 | sort | uniq -c
+
+ 37 exon
+ 13 gene
+ 24 ncRNA_gene
+ 2 rRNA
+ 1 region
+ 22 tRNA
+
+```
+Looks good! Also check if the names of all 13 protein-coding genes:
+```
+grep -v "^#" "Galaxy6-[MITOS2 on dataset 1_ GFF].gff" | awk -F'\t' '$3=="gene"{print $9}' | \
+  grep -Eo 'cox1|cox2|cox3|cob|cytb|atp6|atp8|nad1|nad2|nad3|nad4l|nad4|nad5|nad6' | sort | uniq -c
+
+      3 atp6
+      3 atp8
+      3 cob
+      3 cox1
+      3 cox2
+      3 cox3
+      3 nad1
+      3 nad2
+      3 nad3
+      3 nad4
+      3 nad4l
+      3 nad5
+      3 nad6
+```
+
+Sweet. Now let's rotate the mitogenome FASTA based on the location of tRNA-Phe (trnF)
+```txt
+$ grep -i -E "trnF|tRNA-Phe|phenylalanine" "Galaxy6-[MITOS2 on dataset 1_ GFF].gff" Gloydius_ussuriensis_mitogenome mitfi   ncRNA_gene      692     755     .       +       .       ID=gene_trnF;Name=trnF;gene_id=trnF Gloydius_ussuriensis_mitogenome mitfi   tRNA    692     755     .       +       .       ID=transcript_trnF(gaa);Name=trnF(gaa);Parent=gene_trnF(gaa);gene_id=trnF(gaa) Gloydius_ussuriensis_mitogenome mitfi   exon    692     755     1.100000021625469e-10   +       .       Parent=transcript_trnF;Name=trnF
+```
+
+We can see that trnF starts at position 692 on the (+) strand. Now we can rotate the sequence based on this information. To do so, first install the "rotate" package under the mendel-nas1 directory:
+
+```txt
+###  this is run on the cluster
+# install
+git clone https://github.com/richarddurbin/rotate.git ; cd rotate ; make
+
+# to run, cd into the folder containing rotate and then run:
+./rotate
+
+### run rotate with the input sequence
+# path to seq
+path_to_seq=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_cleanup/flye_mito_2
+
+# make sure the path prints out
+echo ${path_to_seq}
+
+# run rotate. run this in the rotate directory under mendel-nas1/
+./rotate -x 692 ${path_to_seq}/ussuri_mitogenome.fasta > ${path_to_seq}/ussuri_mt_rotated.fasta
+
+# check stats
+seqkit stats ${path_to_seq}/ussuri_mt_rotated.fasta
+
+# the output
+file                     format  type  num_seqs  sum_len  min_len  avg_len  max_len
+ussuri_mt_rotated.fasta  FASTA   DNA          1   17,211   17,211   17,211   17,211
+```
+
+Awesome. Now re-run MITOS2 to get GFF of the rotated FASTA. Once this is done, run some final checks
+
+```txt
+###  this is run on a local device
+# cd into mito assembly directory
+cd outfiles/mito_assembly/rotated/
+
+# make directory for the final output files
+mkdir final
+
+# copy files output from MITOS2 to the final folder
+cp *.gff final/
+cp 'Galaxy40-[ussuri_mt_rotated.fasta].fasta' final/
+
+# cd into final folder and change file names
+mv 'Galaxy40-[ussuri_mt_rotated.fasta].fasta' ussuri_mt_rotated.fasta
+mv 'Galaxy42-[MITOS2 on dataset 40_ GFF].gff' annotation_rotated.gff
+
+# confirm gene content again
+grep -v "^#" *.gff | cut -f3 | sort | uniq -c
+
+# the output
+ 37 exon
+ 13 gene
+ 24 ncRNA_gene
+ 2 rRNA
+ 1 region
+ 22 tRNA
+
+# check trnF position
+grep -i -E "gene_trnF|Name=trnF|trnF" *.gff
+
+# the output
+contig_3        mitfi   ncRNA_gene      17211   17274   .       +       .       ID=gene_trnF;Name=trnF;gene_id=trnF
+contig_3        mitfi   tRNA    17211   17274   .       +       .       ID=transcript_trnF(gaa);Name=trnF(gaa);Parent=gene_trnF(gaa);gene_id=trnF(gaa)
+contig_3        mitfi   exon    17211   17274   1.100000021625469e-10   +       .       Parent=transcript_trnF;Name=trnF
+```
+
+The trnF is shown to span 17,211 bp - 17,274 bp. Since this mitogenome is 17,211 long, the position shown here actually means that the trnF is at the start of the circularized sequence.
+
+When we check the sequence, we can see that the FASTA header shows 'contig_3.' This is because we used a file that had the original contig name for rotation. 
+
+```txt
+head ussuri_mt_rotated.fasta
+>contig_3
+TTGCCTGTAGCTTAAGCCTAAAGTATAGCACTGAAAATGCTAAGATGGTAAAACCCTACAACAAAGGTCTTGGTCCTAAACCTCACATTACCTAAAATCATCTGTTTA
+```
+
+Change the name as such (run on the file stored locally):
+
+```txt
+# change name
+sed 's/^>.*/>Gloydius_ussuriensis_mitogenome/' ussuri_mt_rotated.fasta > ussuri_mt_rotated_final.fasta
+
+# check
+$ head ussuri_mt_rotated_final.fasta 
+>Gloydius_ussuriensis_mitogenome
+TTGCCTGTAGCTTAAGCCTAAAGTATAGCACTGAAAATGCTAAGATGGTAAAACCCTACAACAAAGGTCTTGGTCCTAAACCTCACATTACCTAAAATCATCTGTTTA
+
+# also change the sequence name in the .gff file
+sed 's/^contig_3[[:space:]]/Gloydius_ussuriensis_mitogenome\t/' \
+  annotation_rotated.gff > annotation_rotated_final.gff
+
+# check
+$ head annotation_rotated_final.gff 
+##gff-version 3
+#!gff-spec-version 1.21
+Gloydius_ussuriensis_mitogenome mitos   region  1       17211   .       +       .       ID=contig_3:1..17211;Is_circular=True;Name=contig_3;genome=mitochondrion;mol_type=genomic DNA
+```
+
+Awesome! this can now be imported into Geneious for visualization.
+![alt text](geneious_vis.PNG)
