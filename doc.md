@@ -462,4 +462,24 @@ file                     format  type  num_seqs  sum_len  min_len  avg_len  max_
 ussuri_mitogenome.fasta  FASTA   DNA          1   17,211   17,211   17,211   17,211
 ```
 
-Now that this step is done, we can annotate the assembled mitogenome using MITOS2.
+Let's check the FASTA header:
+```txt
+(mito_assembly) [yshin@mendel-head flye_mito_2]$ head ussuri_mitogenome.fasta 
+>contig_3
+ACAGTCCCGCTTTTCACGTCCATATATTGTAACTCCTCCCGTCTATGTCCTTTCCAAGGC
+```
+
+This is not ideal; change the header with species name:
+```txt
+sed 's/^>.*/>Gloydius_ussuriensis_mitogenome/' ussuri_mitogenome.fasta > ussuri_mitogenome_ann.fasta
+(mito_assembly) [yshin@mendel-head flye_mito_2]$ head ussuri_mitogenome_ann.fasta 
+>Gloydius_ussuriensis_mitogenome
+ACAGTCCCGCTTTTCACGTCCATATATTGTAACTCCTCCCGTCTATGTCCTTTCCAAGGC 
+```
+
+Now that this step is done, we can annotate the assembled mitogenome using MITOS2 (https://usegalaxy.org/root?tool_id=toolshed.g2.bx.psu.edu%2Frepos%2Fiuc%2Fmitos2%2Fmitos2%2F2.1.3%20galaxy0).
+
+Use the following settings:
+```txt
+
+```
