@@ -16,6 +16,7 @@ __Workflow__
    - __Structural annotation__
    - __Functional annotation__
 7. __Scaffolding through Hi-C data incorporation__
+8. __Mitogenome assembly__
 
 ## 1) Raw read QC with FastQC
 Run QC on the raw PacBio HiFi reads using FastQC. This is only meant to be a "sanity check" and not the actual quality assessment because FastQC assumes short Illumina reads as an input.
