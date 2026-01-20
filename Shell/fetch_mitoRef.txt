@@ -1,0 +1,25 @@
+######  fetch G.ussuriensis reference mitogenome (NC_026553.1) from GenBank
+
+###  1. fetch sequences and annotation info
+# create working directory for mitogenome assembly
+mkdir -p /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref
+
+# install entrez to fetch seq from ncbi
+conda activate genome_assembly
+conda install -y -c bioconda entrez-direct
+
+# fetch seq and annotation
+ref_acc=NC_026553.1
+echo ${ref_acc}
+
+efetch -db nucleotide -id ${ref_acc} -format fasta > ${ref_acc}.fa
+efetch -db nucleotide -id ${ref_acc} -format gbwithparts > ${ref_acc}.gb
+
+###  2. install mitohifi and other stuff
+# create conda environment for mitogenome assembly
+conda create -n mito_assembly
+conda activate mito_assembly
+
+# install some packages
+conda install -y -c bioconda minimap2 samtools flye
