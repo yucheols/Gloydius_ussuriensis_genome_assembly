@@ -481,5 +481,13 @@ Now that this step is done, we can annotate the assembled mitogenome using MITOS
 
 Use the following settings:
 ```txt
-
+1) Input file: ussuri_mitogenome_ann.fasta
+2) In file uploads, use "auto-detect" and do not specify the reference
+3) Use "Vertebrate (2)" genetic code and "RefSeq63 Metazoa" for reference data
+4) Select BED, GFF, and nucleotide FASTA as outputs
+5) Turn on email notification
+6) Turn on "Attempt to re-use jobs with identical parameters?"
 ```
+
+MITOS2 can be run through the run on the Galaxy Server. The window looks something like this:
+![alt text](mitos2.PNG)
