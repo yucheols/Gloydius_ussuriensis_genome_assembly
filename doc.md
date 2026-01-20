@@ -325,10 +325,141 @@ echo "mitochondrial genome assembly pipeline complete!"
 
 ```
 
-Once this is done, run a quick sanity check:
+Once this is done, run a quick check to see what we've got:
 
 ```txt
+# make sure you are in the "mito_assembly" conda environment
 # run this in the directory containing the assembly.fasta file (which is the "flye_mito" folder)
 seqkit stats assembly.fasta
 grep -c "^>" assembly.fasta
 ```
+
+The seqkit run will print out:
+
+```txt
+file            format  type  num_seqs  sum_len  min_len   avg_len  max_len
+assembly.fasta  FASTA   DNA          3  107,365   17,211  35,788.3   45,823
+```
+
+This is not expected; The ideal outcome is having one clean contig containing the mitogenome.
+Instead, there are three contigs. The longest one is 45,823 bp and the shortest one is 17,211 bp long. The shortest contig is likely to be the actual mitogenome, but we need to run some additional clean-up steps to confirm this.
+
+Run the following pipeline to remap & reassemble the mitogenome:
+
+```sh
+#!/bin/bash
+#SBATCH --job-name=mitoCleanup_ussuri
+#SBATCH --partition=compute
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=120G
+#SBATCH --time=72:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# activate conda environment
+source ~/.bash_profile
+conda activate mito_assembly
+
+# make the run fail loudly if something is broken
+set -euo pipefail
+
+# set paths as variables
+wkdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_cleanup
+path_to_hifi=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ
+path_to_mitoref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref
+path_to_assembly=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_cleanup
+
+# cd into working directory
+cd ${wkdir}
+
+
+####################################
+#  1. identify likely mito contig  #
+####################################
+
+# print this message when starting
+echo "ID likely mito contig..."
+
+# list contigs by size
+seqkit fx2tab -n -l ${path_to_assembly}/assembly.fasta | sort -k2,2n > contig_len.txt
+cat contig_len.txt
+
+# pick contig that is within the exptected size range of snake mitogenome
+mito_contig=$(awk '$2>=16000 && $2<=19000 {print $1}' contig_len.txt)
+
+if [[ -z $mito_contig ]]; then
+  echo "ERROR! No contig in expected mitogenome size range"
+  exit 1
+fi
+
+echo "selected likely mito contig: ${mito_contig}, moving on..."
+
+# extract the selected contig
+seqkit grep -n -p ${mito_contig} ${path_to_assembly}/assembly.fasta > mito_extract.fasta
+seqkit stats mito_extract.fasta
+
+# validate against the reference
+minimap2 -x asm5 ${path_to_mitoref}/NC_026553.1.fa mito_extract.fasta > validate.paf
+head validate.paf
+
+
+###########################
+#  2. remap & reassemble  #
+###########################
+
+# print this message when starting
+echo "remap and reassemble..."
+
+# mkdir for flye output
+mkdir -p flye_mito_2
+
+# remap raw hifi reads to extracted mito contig
+minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi mito_extract.fasta ${path_to_hifi}/AMNH_21010_HiFi.fastq.gz | \
+  samtools view -b -F 4 -q 60 -o mito_remap.bam
+
+samtools fastq mito_remap.bam | gzip > mito_remap.fastq.gz
+
+# reassemble
+flye --pacbio-hifi mito_remap.fastq.gz \
+  --out-dir flye_mito_2 \
+  --genome-size 20k \
+  -t ${SLURM_CPUS_PER_TASK}
+
+# print this when flye run is complete
+echo "reassembly stats"
+seqkit flye_mito_2/assembly.fasta
+
+### print this message when all runs are complete
+echo "remap and reassembly completed"
+
+```
+
+Run "seqkit stats" again on the assembly file
+```txt
+(mito_assembly) [yshin@mendel-head flye_mito_2]$ seqkit stats assembly.fasta
+file            format  type  num_seqs  sum_len  min_len   avg_len  max_len
+assembly.fasta  FASTA   DNA          3  107,365   17,211  35,788.3   45,823
+```
+The output still shows 3 sequences after remapping and reassembly. This means that the shortest contig (17,211 bp) is likely to be the actual mitogenome. This is about the same size as the reference mitogenome (17,208 bp). Let's extract this shortest contig. First identify the contig names:
+
+```txt
+# run this on the command line in the directory containing the flye output
+(mito_assembly) [yshin@mendel-head flye_mito_2]$ seqkit fx2tab -n -l assembly.fasta | sort -k2,2n
+contig_3        17211
+contig_1        44331
+contig_2        45823
+```
+
+Contig 3 is our mitogenome. Extract this contig:
+```txt
+seqkit grep -n -p contig_3 assembly.fasta > ussuri_mitogenome.fasta
+seqkit stats ussuri_mitogenome.fasta
+
+file                     format  type  num_seqs  sum_len  min_len  avg_len  max_len
+ussuri_mitogenome.fasta  FASTA   DNA          1   17,211   17,211   17,211   17,211
+```
+
+Now that this step is done, we can annotate the assembled mitogenome using MITOS2.
