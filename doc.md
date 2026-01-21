@@ -123,7 +123,7 @@ name="Gloydius_ussuriensis"
 hifiasm -o ${out_dir}/${name}_v1.asm -t ${SLURM_CPUS_PER_TASK} /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ/AMNH_21010_HiFi.fastq.gz
 ``` 
 This will take approximately 22 hours to run on Mendel. The output files should look something like this:
-![alt text](hifiasm.PNG)
+![alt text](etc/hifiasm.PNG)
 
 Among all these files the "bp.p_ctg.gfa" file contains the assembly graph of primary contigs and this is the file we will use in all downstream stuff.
 
