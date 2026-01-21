@@ -128,13 +128,22 @@ This will take approximately 22 hours to run on Mendel. The output files should 
 Among all these files the "bp.p_ctg.gfa" file contains the assembly graph of primary contigs and this is the file we will use in all downstream stuff.
 
 ## 4) Genome completeness using BUSCO
-Now let's assess genome completeness using BUSCO (Benchmarking Universal Single-Copy Orthologs). The installation of BUSCO within the "genome_assembly" conda environment will not work because of clashing python version dependencies. So let's create a new conda environment dedicated to busco and install the latest version of busco in it:
+Now let's assess the completeness of our draft assembly output from hifiasm. BUSCO (Benchmarking Universal Single-Copy Orthologs) is a common metric to assess genome completeness. The installation of BUSCO within the "genome_assembly" conda environment will not work because of clashing python version dependencies. So let's create a new conda environment dedicated to busco and install the latest version of busco in it. Let's also download the BUSCO dataset for eukaryotes. This is needed because Mendel is not connected to the internet. So it is easier to just have the BUSCO dataset downloaded and give the job a path to the dataset.
 
 ```txt
+# create conda environment and install busco
 conda create -n busco
 conda activate busco
 conda install bioconda::busco
+
+# download busco eukaryote dataset
+# the path to download the dataset is: "/home/yshin/mendel-nas1/snake_genome_ass/busco"
+busco --download "eukaryota"
+
 ``` 
+
+Now that this is done, we can run BUSCO on Mendel:
+
 
 ## 5) Genome assembly stats with QUAST
 
