@@ -125,7 +125,11 @@ hifiasm -o ${out_dir}/${name}_v1.asm -t ${SLURM_CPUS_PER_TASK} /home/yshin/mende
 This will take approximately 22 hours to run on Mendel. The output files should look something like this:
 ![alt text](etc/hifiasm.PNG)
 
-Among all these files the "bp.p_ctg.gfa" file contains the assembly graph of primary contigs and this is the file we will use in all downstream stuff.
+Among all these files the "bp.p_ctg.gfa" file contains the assembly graph of primary contigs and this is the file we will use in all downstream stuff. However, some packages take .fa as input, not .gfa. So we first need to convert the .gfa file of primary contigs into .fa file. Run the line below in the directory containing the hifiasm output files:
+
+```txt
+awk '$1=="S"{print ">"$2"\n"$3}' Gloydius_ussuriensis_v1.asm.bp.p_ctg.gfa > Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
+```
 
 ## 4) Genome completeness using BUSCO
 Now let's assess the completeness of our draft assembly output from hifiasm. BUSCO (Benchmarking Universal Single-Copy Orthologs) is a common metric to assess genome completeness. The installation of BUSCO within the "genome_assembly" conda environment will not work because of clashing python version dependencies. So let's create a new conda environment dedicated to busco and install the latest version of busco in it. Let's also download the BUSCO dataset for eukaryotes. This is needed because Mendel is not connected to the internet. So it is easier to just have the BUSCO dataset downloaded and give the job a path to the dataset.
@@ -144,8 +148,79 @@ busco --download "eukaryota"
 
 Now that this is done, we can run BUSCO on Mendel:
 
+``` sh
+#!/bin/bash
+#SBATCH --job-name=busco_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=100G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=24
+#SBATCH --time=12:00:00
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# initiate conda and activate the conda environment
+source ~/.bash_profile
+conda activate busco
+
+# handle java memory issues before starting busco
+export _JAVA_OPTIONS="-Xms2g -Xmx64g"
+
+# path to assembly
+path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/hifiasm
+
+# output path
+out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/busco
+
+# path to busco lineage database
+path_to_busco=/home/yshin/mendel-nas1/snake_genome_ass/busco_db/lineages/sauropsida_odb12
+
+# run busco
+busco -m genome -i ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
+  -l ${path_to_busco} -o ${out_dir} -f --metaeuk --offline \
+  --download_path /home/yshin/mendel-nas1/snake_genome_ass/busco_db
+``` 
+
 
 ## 5) Genome assembly stats with QUAST
+QUAST is a quality assessment tool for genome assemblies. Installing QUAST in the "genome_assembly" conda environment is not possible because of python version clashes - we need to create a separate conda environment for this package.
+
+Install QUAST:
+```txt
+conda create -n quast
+conda activate quast
+conda install bioconda::quast
+``` 
+
+When this is done, run QUAST with the script below:
+
+```sh
+#!/bin/bash
+#SBATCH --job-name=quast_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=60G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=24
+#SBATCH --time=12:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# initiate conda and activate the quast conda environment
+source ~/.bash_profile
+conda activate quast
+
+# path to assembly
+path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/hifiasm
+
+# output directory
+out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/quast
+
+# run quast
+quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa -o ${out_dir} 
+```
 
 ## 6) Genome annotation
    - __RNA read QC:__

@@ -1,20 +1,31 @@
-#!/bin/sh
-#SBATCH --job-name=yshin_G_ussuri_busco
+#!/bin/bash
+#SBATCH --job-name=busco_ussuri
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=30
-#SBATCH --mem=100gb
-#SBATCH --time=100:00:00
-#SBATCH --mail-type=ALL
+#SBATCH --mem=100G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=24
+#SBATCH --time=12:00:00
 #SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/busco/out/busco-%j-%x.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/busco/err/busco-%j-%x.err
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
 
-# conda init
-
+# initiate conda and activate the conda environment
 source ~/.bash_profile
-conda activate mytools
+conda activate busco
 
-cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/busco/out
+# handle java memory issues before starting busco
+export _JAVA_OPTIONS="-Xms2g -Xmx64g"
 
-G_ussuriensis_assembly="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis/Shell/outfiles/hifiasm/out/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa"
-busco -m genome -i $G_ussuriensis_assembly -o G_ussuriensis_BUSCO -l /home/yshin/mendel-nas1/snake_genome_ass/busco/sauropsida_odb10 -f --metaeuk --offline --download_path /home/yshin/mendel-nas1/snake_genome_ass/busco
+# path to assembly
+path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/hifiasm
+
+# output path
+out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/busco
+
+# path to busco lineage database
+path_to_busco=/home/yshin/mendel-nas1/snake_genome_ass/busco_db/lineages/sauropsida_odb12
+
+# run busco
+busco -m genome -i ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
+  -l ${path_to_busco} -o ${out_dir} -f --metaeuk --offline \
+  --download_path /home/yshin/mendel-nas1/snake_genome_ass/busco_db
