@@ -122,8 +122,19 @@ name="Gloydius_ussuriensis"
 # run hifiasm - put results in their own directory named after the species
 hifiasm -o ${out_dir}/${name}_v1.asm -t ${SLURM_CPUS_PER_TASK} /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ/AMNH_21010_HiFi.fastq.gz
 ``` 
+This will take approximately 22 hours to run on Mendel. The output files should look something like this:
+![alt text](hifiasm.PNG)
+
+Among all these files the "bp.p_ctg.gfa" file contains the assembly graph of primary contigs and this is the file we will use in all downstream stuff.
 
 ## 4) Genome completeness using BUSCO
+Now let's assess genome completeness using BUSCO (Benchmarking Universal Single-Copy Orthologs). The installation of BUSCO within the "genome_assembly" conda environment will not work because of clashing python version dependencies. So let's create a new conda environment dedicated to busco and install the latest version of busco in it:
+
+```txt
+conda create -n busco
+conda activate busco
+conda install bioconda::busco
+``` 
 
 ## 5) Genome assembly stats with QUAST
 
