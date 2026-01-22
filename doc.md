@@ -4,6 +4,7 @@
 The individual used for this genome assembly is accessioned at the AMNH Herpetology Collections under the voucher number AMNH 21010.
 
 __Workflow__
+
 0. __Quick sanity check on the dataset__
 1. __Raw read QC with FastQC__
 2. __*k*-mer analysis of raw reads using jellyfish__
