@@ -4,6 +4,7 @@
 The individual used for this genome assembly is accessioned at the AMNH Herpetology Collections under the voucher number AMNH 21010.
 
 __Workflow__
+0. __Quick sanity check on the dataset__
 1. __Raw read QC with FastQC__
 2. __*k*-mer analysis of raw reads using jellyfish__
 3. __Draft genome assembly using hifiasm__
@@ -17,6 +18,22 @@ __Workflow__
    - __Functional annotation__
 7. __Scaffolding through Hi-C data incorporation__
 8. __Mitogenome assembly__
+
+## 0) Quick sanity check on the dataset
+Even before doing anything, let's do a very quick sanity check on the HiFi data to check the reads we have are actually from our target species. Let's take a chunk from the HiFi FASTQ file, after cd'ing into the directory containing the fastq.gz file:
+
+```txt
+zcat AMNH_21010_HiFi.fastq.gz | head -n 2
+```
+
+When you run the line above you will get a string of sequence read printed out:
+![alt text](etc/seqchunk.PNG)
+
+Let's copy the whole chunk and paste it into NCBI BLAST. The result  will look something like this:
+![alt text](etc/blast.PNG)
+
+We can see that the top hits are from the Tiger Rattlesnake (*Crotalus tigris*). This is the expected result, although the species itself is not *Gloydius*. This is because our target species (*G. ussuriensis*) only have isolated, Sanger-sequenced mitochondrial and nuclear markers accessioned in GenBank. Since *C. tigris* is in the same subfamily as Gloydius, this means that our FASTQ file contains actual genome sequence reads from *G. ussuriensis*. 
+
 
 ## 1) Raw read QC with FastQC
 Run QC on the raw PacBio HiFi reads using FastQC. This is only meant to be a "sanity check" and not the actual quality assessment because FastQC assumes short Illumina reads as an input.
@@ -152,10 +169,10 @@ Now that this is done, we can run BUSCO on Mendel:
 #!/bin/bash
 #SBATCH --job-name=busco_ussuri
 #SBATCH --nodes=1
-#SBATCH --mem=100G
+#SBATCH --mem=200G
 #SBATCH --partition=compute
 #SBATCH --cpus-per-task=24
-#SBATCH --time=12:00:00
+#SBATCH --time=7-00:00:00
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
