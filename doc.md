@@ -33,7 +33,7 @@ When you run the line above you will get a string of sequence read printed out:
 Let's copy the whole chunk and paste it into NCBI BLAST. The result  will look something like this:
 ![alt text](etc/blast.PNG)
 
-We can see that the top hits are from the Tiger Rattlesnake (*Crotalus tigris*). This is the expected result, although the species itself is not *Gloydius*. This is because our target species (*G. ussuriensis*) only have isolated, Sanger-sequenced mitochondrial and nuclear markers accessioned in GenBank. Since *C. tigris* is in the same subfamily as Gloydius, this means that our FASTQ file contains actual genome sequence reads from *G. ussuriensis*. 
+We can see that the top hits are from the Tiger Rattlesnake (*Crotalus tigris*). This is the expected result, although the species itself is not in the genus *Gloydius*. This is because our target species (*G. ussuriensis*) only have isolated, Sanger-sequenced mitochondrial and nuclear markers accessioned in GenBank. Since *C. tigris* is in the same subfamily as *Gloydius*, this means that our FASTQ file contains actual genome sequence reads from *G. ussuriensis*. 
 
 
 ## 1) Raw read QC with FastQC
