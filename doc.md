@@ -5,24 +5,24 @@ The individual used for this genome assembly is accessioned at the AMNH Herpetol
 
 __Workflow__
 
-0. __Quick sanity check on the dataset__
+0. __A quick sanity check on the dataset__
 1. __Raw read QC with FastQC__
 2. __*k*-mer analysis of raw reads using jellyfish__
 3. __Draft genome assembly using hifiasm__
 4. __Genome completeness using BUSCO__
 5. __Genome assembly stats with QUAST__
-6. __Genome annotation__
+6. __Scaffolding through Hi-C data incorporation__
+7. __Genome annotation__
    - __RNA read QC__
+   - __Repeat annotation__
    - __Adapter trimming__ 
    - __Transcriptome assembly__
    - __Structural annotation__
    - __Functional annotation__
-7. __Scaffolding through Hi-C data incorporation__
 8. __Mitogenome assembly__
 
-## 0) Quick sanity check on the dataset
+## 0) A quick sanity check on the dataset
 Even before doing anything, let's do a very quick sanity check on the HiFi data to check the reads we have are actually from our target species. Let's take a chunk from the HiFi FASTQ file, after cd'ing into the directory containing the fastq.gz file:
-
 ```txt
 zcat AMNH_21010_HiFi.fastq.gz | head -n 2
 ```
@@ -150,7 +150,7 @@ awk '$1=="S"{print ">"$2"\n"$3}' Gloydius_ussuriensis_v1.asm.bp.p_ctg.gfa > Gloy
 ```
 
 ## 4) Genome completeness using BUSCO
-Now let's assess the completeness of our draft assembly output from hifiasm. BUSCO (Benchmarking Universal Single-Copy Orthologs) is a common metric to assess genome completeness. The installation of BUSCO within the "genome_assembly" conda environment will not work because of clashing python version dependencies. So let's create a new conda environment dedicated to busco and install the latest version of busco in it. Let's also download the BUSCO dataset for eukaryotes. This is needed because Mendel is not connected to the internet. So it is easier to just have the BUSCO dataset downloaded and give the job a path to the dataset.
+Now let's assess the completeness of our draft assembly output from hifiasm. BUSCO (Benchmarking Universal Single-Copy Orthologs) is a common metric to assess genome completeness. It uses a lineage-specific dataset to search for the presence/absence of highly conserved genes for that lineage in your genome assembly. The installation of BUSCO within the "genome_assembly" conda environment will not work because of clashing python version dependencies. So let's create a new conda environment dedicated to busco and install the latest version of busco in it. Let's also download the BUSCO lineage dataset for eukaryotes. This is needed because Mendel is not connected to the internet. So it is easier to just have the BUSCO dataset downloaded and give the job a path to the dataset.
 
 ```txt
 # create conda environment and install busco
@@ -164,7 +164,7 @@ busco --download "eukaryota"
 
 ``` 
 
-Now that this is done, we can run BUSCO on Mendel:
+Now that this is done, we can run BUSCO on Mendel. We will use the Saurposidea lineage dataset to assess the BUSCO completeness:
 
 ``` sh
 #!/bin/bash
@@ -240,7 +240,28 @@ out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Rev
 quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa -o ${out_dir} 
 ```
 
-## 6) Genome annotation
+## 6) Scaffolding through Hi-C data incorporation
+
+## 7) Genome annotation
+    - __Setup__
+    Let's create new conda environments for packages to be used in genome annotation. Trimmomatic will be used for trimming Illumina adaptera. The funannotation package provides an automated pipeline for gene prediction, annotation, and comparison. The Earl Grey package automates transposable element annotation.
+```
+    ### create a conda environment and install funannotate
+    # add channels
+    conda config --add channels defaults
+    conda config --add channels bioconda
+    conda config --add channels conda-forge
+
+    # create a conda env for trimmomatic and install it
+    conda create -n trimmomatic -c conda-forge -c bioconda trimmomatic
+
+    # create a conda env for funannotate and install it
+    conda create -n funannotate "python>=3.6,<3.9" funannotate
+
+    # create a conda environment for Earl Grey and install it
+    conda create -n earlgrey -c conda-forge -c bioconda earlgrey=7.0.1
+```
+
    - __RNA read QC:__
    Run FastQC on raw, untrimmed reads.
 
@@ -269,17 +290,73 @@ quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp
 
    # run FastQC
    fastqc -o ${out_dir} ${path_to_seq}/AMNH_21010_Ht_1.fastq.gz ${path_to_seq}/AMNH_21010_Ht_2.fastq.gz ${path_to_seq}/AMNH_21010_Ky_1.fastq.gz ${path_to_seq}/AMNH_21010_Ky_2.fastq.gz ${path_to_seq}/AMNH_21010_Lg_1.fastq.gz ${path_to_seq}/AMNH_21010_Lg_2.fastq.gz ${path_to_seq}/AMNH_21010_Lr_1.fastq.gz ${path_to_seq}/AMNH_21010_Lr_2.fastq.gz ${path_to_seq}/AMNH_21010_Me_1.fastq.gz ${path_to_seq}/AMNH_21010_Me_2.fastq.gz ${path_to_seq}/AMNH_21010_Skin_1.fastq.gz ${path_to_seq}/AMNH_21010_Skin_2.fastq.gz
-```
+``` 
+   - __Repeat masking__
 
    - __Adapter trimming:__ 
-   Use trimmomatic to trim adapters and then run FastQC on the trimmed reads.
+   Use trimmomatic to trim adapters and then run FastQC on the trimmed reads. The RNA sequencing was done on Illumina NovaSeq X in a paired-end mode. We will use trimmomatic to trim the Illumina adapters. Since we did paired end sequencing on six different tissues, there are a total of 12 FASTQ files. Repeating trimmomatic independently for each tissue type is not very effective. We can instead run a for loop to do the trimming in one go:
 
+```sh
+   #!/bin/bash
+   #SBATCH --job-name=adapterTrim_ussuri
+   #SBATCH --nodes=1
+   #SBATCH --mem=100G
+   #SBATCH --partition=compute
+   #SBATCH --cpus-per-task=30
+   #SBATCH --time=7-00:00:00
+   #SBATCH --mail-type=ALL
+   #SBATCH --mail-user=yshin@amnh.org
+   #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+   #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+   # initiate conda and activate the conda environment
+   source ~/.bash_profile
+   conda activate trimmomatic
+
+   # paths to input forward & reverse reads, adapters, and output trimmed reads 
+   path_to_seq=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FASTQ
+   adapters=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/custom_adapters.fa
+   out_path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/trimmed
+
+   # loop through the read files in the directory and run trimmomatic
+   # first check if the forward reads correctly correspond to reverse reads
+   for f_read in ${path_to_seq}/*_1.fastq.gz; do
+     echo "$f_read  ==  ${f_read/_1.fastq.gz/_2.fastq.gz}"
+   done
+
+   # loop through the file in the directory and run trimmomatic
+  for f_read in ${path_to_seq}/*_1.fastq.gz; do
+  
+    # designate reverse read
+    r_read=${f_read/_1.fastq.gz/_2.fastq.gz}
+
+    # print out a message on the type of tissue being processed
+    tissue=${f_read%_1.fastq.gz}
+    echo "Start adapter trimming ${tissue} reads..."
+
+  # run trimmomatic
+    trimmomatic PE -threads ${SLURM_CPUS_PER_TASK} -phred33 \
+      ${f_read} ${r_read} \
+      ${tissue}_R1_paired.fastq.gz ${tissue}_R1_unpaired.fastq.gz \
+      ${tissue}_R2_paired.fastq.gz ${tissue}_R2_unpaired.fastq.gz \
+      ILLUMINACLIP:${adapters}:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36 
+
+    # move trimmed files to the output directory
+    mv ${path_to_seq}/*_R1_paired.fastq.gz ${out_path}
+    mv ${path_to_seq}/*_R2_paired.fastq.gz ${out_path}
+    mv ${path_to_seq}/*_R1_unpaired.fastq.gz ${out_path}
+    mv ${path_to_seq}/*_R2_unpaired.fastq.gz ${out_path}
+
+    echo "Trimming on all tissue types finished successfully"
+  done
+```
+  This run will result in a total of 24 files, two files (paired & unpaired) for each read.
+  
    - __Transcriptome assembly:__
 
    - __Structural annotation:__
    - __Functional annotation:__
 
-## 7) Scaffolding through Hi-C data incorporation
 
 ## 8) Mitogenome assembly
 Because PacBio HiFi reads are long and highly contiguous, it is possible to assemble a full mitogenome as a bycatch. This can be done easily using some existing tools and a reference mitogenome to "fish out" the mitochondrial contigs from HiFi reads. There is already a conspecific mitogenome reference available on GenBank (NC_026553.1). We can fetch this mitogenome like so:
