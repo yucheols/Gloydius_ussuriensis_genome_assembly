@@ -35,6 +35,11 @@ Let's copy the whole chunk and paste it into NCBI BLAST. The result  will look s
 
 We can see that the top hits are from the Tiger Rattlesnake (*Crotalus tigris*). This is the expected result, although the species itself is not in the genus *Gloydius*. This is because our target species (*G. ussuriensis*) only have isolated, Sanger-sequenced mitochondrial and nuclear markers accessioned in GenBank. Since *C. tigris* is in the same subfamily as *Gloydius*, this means that our FASTQ file contains actual genome sequence reads from *G. ussuriensis*. 
 
+Let's do the same for the RNA seq reads:
+```txt
+zcat AMNH_21010_Ht_1.fastq.gz | head -n 2
+```
+Repeat this for each tissue type and read, and you will see that all the hits come out to be snake mRNA genes. For the skin RNA reads, using the regular megablast option to optimize for highly similar sequences will print out a warning "No significant similarity found." However, switch to optimization for somewhat similar sequences (blastn) will print out hits for snake genes (from *Thamnophis* and *Candoia*)   
 
 ## 1) Raw read QC with FastQC
 Run QC on the raw PacBio HiFi reads using FastQC. This is only meant to be a "sanity check" and not the actual quality assessment because FastQC assumes short Illumina reads as an input.
@@ -173,7 +178,8 @@ Now that this is done, we can run BUSCO on Mendel. We will use the Saurposidea l
 #SBATCH --mem=200G
 #SBATCH --partition=compute
 #SBATCH --cpus-per-task=24
-#SBATCH --time=7-00:00:00
+#SBATCH --time=5:00:00
+#SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
@@ -196,10 +202,44 @@ path_to_busco=/home/yshin/mendel-nas1/snake_genome_ass/busco_db/lineages/saurops
 
 # run busco
 busco -m genome -i ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
-  -l ${path_to_busco} -o ${out_dir} -f --metaeuk --offline \
+  -l ${path_to_busco} -o ussuriensis_BUSCO --out_path ${out_dir} -f --metaeuk --offline \
   --download_path /home/yshin/mendel-nas1/snake_genome_ass/busco_db
 ``` 
 
+Can also use *compleasm* (https://github.com/huangnengCSU/compleasm) to assess genome completeness. This provides a faster alternative to BUSCO for large genome assemblies.
+```txt
+# create a conda environment for compleasm and install it
+conda create -n compleasm -c conda-forge -c bioconda compleasm
+conda activate compleasm
+compleasm -h
+```
+
+Run compleasm on Mendel with this script:
+```sh
+#!/bin/bash
+#SBATCH --job-name=compleasm_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=200G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=24
+#SBATCH --time=12:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# initiate conda and activate the conda environment
+source ~/.bash_profile
+conda activate compleasm
+
+# set paths as variables
+path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/hifiasm
+out_path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/compleasm
+
+# run compleasm
+compleasm run -a ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa -o ${out_path} \
+  -t ${SLURM_CPUS_PER_TASK} -l sauropsida --odb odb12
+```
 
 ## 5) Genome assembly stats with QUAST
 QUAST is a quality assessment tool for genome assemblies. Installing QUAST in the "genome_assembly" conda environment is not possible because of python version clashes - we need to create a separate conda environment for this package.
