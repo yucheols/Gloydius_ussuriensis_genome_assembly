@@ -153,6 +153,14 @@ Among all these files the "bp.p_ctg.gfa" file contains the assembly graph of pri
 ```txt
 awk '$1=="S"{print ">"$2"\n"$3}' Gloydius_ussuriensis_v1.asm.bp.p_ctg.gfa > Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
 ```
+Also, let's estimate the mean sequencing depth ("coverage") we got. We can get the coverage based on the number of bp in our FASTQ file divided by the estimated genome size. We already have an estimated haploid genome size output from GenomeScope (1.18 Gb). We can also use the genome size of related species as a proxy - we will use the Prairie Rattlesnake (*Crotalus viridis*) reference genome for this purpose (1.3 Gb). 
+
+```txt
+# get the number of bp
+zcat AMNH_21010_HiFi.fastq.gz | awk 'NR%4==2{bp+=length($0)} END{print bp/1e9 " Gb"}'
+```
+The output is 134.449 Gb. If we used the GenomeScope estimate, then the coverage would be 134.449/1.18, so roughly 113.94x coverage. If we use the C. viridis ref genome, then the coverage 134.449/1.3 = 103x coverage.
+
 
 ## 4) Genome completeness using BUSCO
 Now let's assess the completeness of our draft assembly output from hifiasm. BUSCO (Benchmarking Universal Single-Copy Orthologs) is a common metric to assess genome completeness. It uses a lineage-specific dataset to search for the presence/absence of highly conserved genes for that lineage in your genome assembly. The installation of BUSCO within the "genome_assembly" conda environment will not work because of clashing python version dependencies. So let's create a new conda environment dedicated to busco and install the latest version of busco in it. Let's also download the BUSCO lineage dataset for eukaryotes. This is needed because Mendel is not connected to the internet. So it is easier to just have the BUSCO dataset downloaded and give the job a path to the dataset.
