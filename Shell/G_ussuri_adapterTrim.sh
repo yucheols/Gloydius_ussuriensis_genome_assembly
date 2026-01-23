@@ -42,11 +42,12 @@ for f_read in ${path_to_seq}/*_1.fastq.gz; do
     ${tissue}_R2_paired.fastq.gz ${tissue}_R2_unpaired.fastq.gz \
     ILLUMINACLIP:${adapters}:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36 
 
-  # move trimmed files to the output directory
-  mv ${path_to_seq}/*_R1_paired.fastq.gz ${out_path}
-  mv ${path_to_seq}/*_R2_paired.fastq.gz ${out_path}
-  mv ${path_to_seq}/*_R1_unpaired.fastq.gz ${out_path}
-  mv ${path_to_seq}/*_R2_unpaired.fastq.gz ${out_path}
-
   echo "Trimming on all tissue types finished successfully"
 done
+
+# move trimmed files to the output directory
+mv ${path_to_seq}/*_R1_paired.fastq.gz ${out_path}
+mv ${path_to_seq}/*_R2_paired.fastq.gz ${out_path}
+mv ${path_to_seq}/*_R1_unpaired.fastq.gz ${out_path}
+mv ${path_to_seq}/*_R2_unpaired.fastq.gz ${out_path}
+
