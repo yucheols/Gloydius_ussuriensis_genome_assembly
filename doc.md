@@ -241,6 +241,9 @@ compleasm run -a ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa -o ${out
   -t ${SLURM_CPUS_PER_TASK} -l sauropsida --odb odb12
 ```
 
+Compleasm is actually a lot faster than busco. The script above should take only about 35 minutes to run. The results are:
+![alt text](etc/busco_compleasm.PNG)
+
 ## 5) Genome assembly stats with QUAST
 QUAST is a quality assessment tool for genome assemblies. Installing QUAST in the "genome_assembly" conda environment is not possible because of python version clashes - we need to create a separate conda environment for this package.
 
