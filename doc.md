@@ -350,7 +350,7 @@ quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp
     echo "Trimming on all tissue types finished successfully"
   done
 ```
-  This run will result in a total of 24 files, two files (paired & unpaired) for each read.
+   This run will result in a total of 24 files, two files (paired & unpaired) for each read.
 
    - __Transcriptome assembly:__
 
