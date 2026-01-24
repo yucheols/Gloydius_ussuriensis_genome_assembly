@@ -114,7 +114,7 @@ The results suggest:
   - Estimated repeat content of 21.3%
   - High homozygosity (~99%)
   - Very low read error rate (~0.15%) 
-
+  - Very high sequencing coverage/depth (~100x)
 
 ## 3) Draft genome assembly using hifiasm
 Hifiasm (https://github.com/chhylp123/hifiasm) is a fast, haplotype-resolved assembler for PacBio long-read sequencing data. Use the following script to submit a hifiasm job to the Mendel cluster. The estimated coverage for this sample is very high (~87x) and the fastq.gz file of raw reads is very big (63 GB). Use the bigmem partition and request a sufficient amount of CPUs and walltime to assemble this genome.
@@ -159,62 +159,13 @@ Also, let's estimate the mean sequencing depth ("coverage") we got. We can get t
 # get the number of bp
 zcat AMNH_21010_HiFi.fastq.gz | awk 'NR%4==2{bp+=length($0)} END{print bp/1e9 " Gb"}'
 ```
-The output is 134.449 Gb. If we used the GenomeScope estimate, then the coverage would be 134.449/1.18, so roughly 113.94x coverage. If we use the C. viridis ref genome, then the coverage 134.449/1.3 = 103x coverage.
+The output is 134.449 Gb. If we use the genome size estimated from GenomeScope, then the coverage would be 134.449/1.18, so roughly 113.94x coverage. If we use the *C. viridis* ref genome size, then the coverage would be 134.449/1.3 = 103x.
 
 
 ## 4) Genome completeness using BUSCO
-Now let's assess the completeness of our draft assembly output from hifiasm. BUSCO (Benchmarking Universal Single-Copy Orthologs) is a common metric to assess genome completeness. It uses a lineage-specific dataset to search for the presence/absence of highly conserved genes for that lineage in your genome assembly. The installation of BUSCO within the "genome_assembly" conda environment will not work because of clashing python version dependencies. So let's create a new conda environment dedicated to busco and install the latest version of busco in it. Let's also download the BUSCO lineage dataset for eukaryotes. This is needed because Mendel is not connected to the internet. So it is easier to just have the BUSCO dataset downloaded and give the job a path to the dataset.
+Now let's assess the completeness of our draft assembly output from hifiasm. BUSCO (Benchmarking Universal Single-Copy Orthologs) is a common metric to assess genome completeness. It uses a lineage-specific dataset to search for the presence/absence of highly conserved genes for that lineage in your genome assembly. We will use *compleasm* (https://github.com/huangnengCSU/compleasm) to assess genome completeness. This provides a faster alternative to the regular BUSCO package for large genome assemblies.
 
-```txt
-# create conda environment and install busco
-conda create -n busco
-conda activate busco
-conda install bioconda::busco
-
-# download busco eukaryote dataset
-# the path to download the dataset is: "/home/yshin/mendel-nas1/snake_genome_ass/busco"
-busco --download "eukaryota"
-
-``` 
-
-Now that this is done, we can run BUSCO on Mendel. We will use the Saurposidea lineage dataset to assess the BUSCO completeness:
-
-``` sh
-#!/bin/bash
-#SBATCH --job-name=busco_ussuri
-#SBATCH --nodes=1
-#SBATCH --mem=200G
-#SBATCH --partition=compute
-#SBATCH --cpus-per-task=24
-#SBATCH --time=5:00:00
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
-
-# initiate conda and activate the conda environment
-source ~/.bash_profile
-conda activate busco
-
-# handle java memory issues before starting busco
-export _JAVA_OPTIONS="-Xms2g -Xmx64g"
-
-# path to assembly
-path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/hifiasm
-
-# output path
-out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/busco
-
-# path to busco lineage database
-path_to_busco=/home/yshin/mendel-nas1/snake_genome_ass/busco_db/lineages/sauropsida_odb12
-
-# run busco
-busco -m genome -i ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
-  -l ${path_to_busco} -o ussuriensis_BUSCO --out_path ${out_dir} -f --metaeuk --offline \
-  --download_path /home/yshin/mendel-nas1/snake_genome_ass/busco_db
-``` 
-
-Can also use *compleasm* (https://github.com/huangnengCSU/compleasm) to assess genome completeness. This provides a faster alternative to BUSCO for large genome assemblies.
+First, create a conda environment for *compleasm* and install the package:
 ```txt
 # create a conda environment for compleasm and install it
 conda create -n compleasm -c conda-forge -c bioconda compleasm
@@ -249,7 +200,7 @@ compleasm run -a ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa -o ${out
   -t ${SLURM_CPUS_PER_TASK} -l sauropsida --odb odb12
 ```
 
-Compleasm is actually a lot faster than busco. The script above should take only about 35 minutes to run. The results are:
+The script above should take only about 35 minutes to run. The results are:
 ![alt text](etc/busco_compleasm.PNG)
 
 ## 5) Genome assembly stats with QUAST
