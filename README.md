@@ -13,7 +13,7 @@ __*Gloydius ussuriensis* (AMNH 21010) collected from Hwacheon, South Korea (coll
 - QUAST
 - trimmomatic
 - Earl Grey
-- HiSat2s
+- HiSat2
 - funannotate
 - minimap2
 
