@@ -1,0 +1,48 @@
+######  visualize compleasem output
+
+# clean working environment
+rm(list = ls(all.names = T))
+gc()
+
+# load packages
+library(ggplot2)
+
+
+######   compleasm result categories
+
+# S (Single Copy Complete Genes): The BUSCO genes that can be entirely aligned in the assembly, with only one copy present.
+# D (Duplicated Complete Genes): The BUSCO genes that can be completely aligned in the assembly, with more than one copy present.
+# F (Fragmented Genes, subclass 1): The BUSCO genes which only a portion of the gene is present in the assembly, and the rest of the gene cannot be aligned.
+# I (Fragmented Genes, subclass 2): The BUSCO genes in which a section of the gene aligns to one position in the assembly,
+#                                   while the remaining part aligns to another position.
+# M (Missing Genes): The BUSCO genes with no alignment present in the assembly.
+
+
+######   compleasm result dataframe
+compl_res <- data.frame(category = c('S', 'M', 'D', 'F'),
+                        count = c(5764, 285, 50, 19))
+
+print(compl_res)
+
+######   calculate proportion
+compl_res$percentage <- round((compl_res$count / sum(compl_res$count)) * 100, digits = 2) 
+print(compl_res)
+
+######   plotting order
+compl_res$category <- factor(compl_res$category, levels = c('S', 'D', 'F', 'M'))
+
+
+######   plot
+ggplot(compl_res, aes(x = 2, y = percentage, fill = category)) +
+  geom_col(width = 1, color = 'white') +
+  xlim(0.1, 3.5) +
+  coord_polar(theta = 'y') +
+  scale_fill_manual(values = c(S = '#B3E2CD',
+                               D = '#FDCDAC',
+                               F = "#FFF2AE",
+                               M = '#CBD5E8')) +
+  theme_void() +
+  theme(legend.position = 'none')
+
+######  export plot
+ggsave('Rplots/compleasm_result.png', width = 21, height = 20, dpi = 800, units = 'cm')
