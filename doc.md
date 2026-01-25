@@ -447,6 +447,9 @@ quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp
    # print when completed
    echo "FastQC on all files completed"
 ```
+   Let's compare pre-trimming and post-trimming FastQC results, focusing on adapter content.
+   Let's open up the results for heart RNA reads:
+  ![alt text](etc/adapters.png)
 
 
    - __Transcriptome assembly:__
