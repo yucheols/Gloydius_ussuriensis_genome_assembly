@@ -21,9 +21,9 @@ path_to_trimmed=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RN
 out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FastQC/posttrim
 
 # run FastQC
-for file in ${path_to_trimmed}/*.fastq.gz; do
-  echo "run FastQC on ${file##*/}..."
-  fastqc -o ${out_dir} ${file}
+for file in ${path_to_trimmed}/*_paired.fastq.gz; do
+  echo "running FastQC on $(basename "${file}")..."
+  fastqc -o ${out_dir} -t ${SLURM_CPUS_PER_TASK} ${file}
   echo "FastQC on ${file##*/} completed"
 done
 

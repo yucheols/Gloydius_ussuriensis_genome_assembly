@@ -340,6 +340,7 @@ quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp
 
      # run trimmomatic
      trimmomatic PE -threads ${SLURM_CPUS_PER_TASK} -phred33 \
+       -Xmx80g \
        ${f_read} ${r_read} \
        ${tissue}_R1_paired.fastq.gz ${tissue}_R1_unpaired.fastq.gz \
        ${tissue}_R2_paired.fastq.gz ${tissue}_R2_unpaired.fastq.gz \

@@ -39,6 +39,7 @@ for f_read in ${path_to_seq}/*_1.fastq.gz; do
 
   # run trimmomatic
   trimmomatic PE -threads ${SLURM_CPUS_PER_TASK} -phred33 \
+    -Xmx80g \
     ${f_read} ${r_read} \
     ${tissue}_R1_paired.fastq.gz ${tissue}_R1_unpaired.fastq.gz \
     ${tissue}_R2_paired.fastq.gz ${tissue}_R2_unpaired.fastq.gz \
