@@ -11,15 +11,16 @@ __Workflow__
 3. __Draft genome assembly using hifiasm__
 4. __Genome completeness using BUSCO__
 5. __Genome assembly stats with QUAST__
-6. __Scaffolding through Hi-C data incorporation__
-7. __Genome annotation__
+6. __Genome cleanup__
+7. __Scaffolding through Hi-C data incorporation__
+8. __Genome annotation__
    - __RNA read QC__
    - __Repeat annotation__
    - __Adapter trimming__ 
    - __Transcriptome assembly__
    - __Structural annotation__
    - __Functional annotation__
-8. __Mitogenome assembly__
+9. __Mitogenome assembly__
 
 ## 0) A quick sanity check on the dataset
 Even before doing anything, let's do a very quick sanity check on the HiFi data to check the reads we have are actually from our target species. Let's take a chunk from the HiFi FASTQ file, after cd'ing into the directory containing the fastq.gz file:
@@ -105,7 +106,7 @@ zcat ${path_to_seq}/AMNH_21010_HiFi.fastq.gz | awk 'NR%4==1{print ">"substr($0,2
 jellyfish histo ${outdir}/Gloydius_ussuriensis_kmer.jf -t ${SLURM_CPUS_PER_TASK} > ${outdir}/Gloydius_ussuriensis_kmer.histo
 ```
 
-The output .histo can be fed into GenomeScope 2.0 (http://genomescope.org/genomescope2.0/) to visualize the results, which look something like: 
+The output .histo file can be fed into GenomeScope 2.0 (http://genomescope.org/genomescope2.0/) to visualize the results, which look something like: 
 
 ![alt text](etc/genomescope_result_summary.png)
 
@@ -117,7 +118,7 @@ The results suggest:
   - Very high sequencing coverage/depth (~100x)
 
 ## 3) Draft genome assembly using hifiasm
-Hifiasm (https://github.com/chhylp123/hifiasm) is a fast, haplotype-resolved assembler for PacBio long-read sequencing data. Use the following script to submit a hifiasm job to the Mendel cluster. The estimated coverage for this sample is very high (~87x) and the fastq.gz file of raw reads is very big (63 GB). Use the bigmem partition and request a sufficient amount of CPUs and walltime to assemble this genome.
+Hifiasm (https://github.com/chhylp123/hifiasm) is a fast, haplotype-resolved assembler for PacBio long-read sequencing data. Use the following script to submit a hifiasm job to the Mendel cluster. The estimated coverage for this sample is very high (100x ~ 114x) and the fastq.gz file of raw reads is very big (63 GB). Use the bigmem partition and request a sufficient amount of CPUs and walltime to assemble this genome.
 
 ```sh
 #!/bin/bash
@@ -294,9 +295,39 @@ out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Rev
 quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa -o ${out_dir} 
 ```
 
-## 6) Scaffolding through Hi-C data incorporation
+## 6) Genome cleanup
+We calculated all the above metrics using the "raw" PacBio HiFi contigs. However, these contigs likely contain mtDNA contigs and/or potential contaminants. So, it is always a good idea to check for these and "clean up" the genome before finalizing the assembly and publishing it. Let's setup the workspace for this clean up step:
+```
+# make a directory for clean up work
+mkdir genome_cleanup
 
-## 7) Genome annotation
+# copy the draft assembly from its directory to the clean up workspace
+cp Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
+
+# install some stuff that we will need to use
+conda activate genome_assembly
+conda install seqkit
+conda install minimap2
+conda install samtools
+conda install bioconda::diamond
+
+# download db for diamond
+diamond makedb \
+  --taxonmap prot.accession2taxid.gz \
+  --taxonnodes nodes.dmp \
+  --taxonnames names.dmp \
+  -d nr
+```
+
+Let's start by getting the "pre-cleanup" stats
+```
+seqkit stats Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa > preclean_stats.txt
+```
+
+
+## 7) Scaffolding through Hi-C data incorporation
+
+## 8) Genome annotation
   - __Setup__
     Let's create new conda environments for packages to be used in genome annotation. Trimmomatic will be used for trimming Illumina adaptera. The funannotation package provides an automated pipeline for gene prediction, annotation, and comparison. The Earl Grey package automates transposable element annotation.
 ```
@@ -451,6 +482,29 @@ quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp
    Let's open up the results for heart RNA reads:
   ![alt text](etc/adapters.png)
    We can see that the adapters are basically gone after trimming.
+   
+   It can be annoying to look through all the different .html files containing QC results for each tissue type. MultiQC (https://github.com/MultiQC/MultiQC) is a really neat tool that enables the user to merge outputs from different bioinformatics software to generate one, clean QC output.
+
+   Install MultiQC:
+   ```txt
+   conda create -n multiqc -c conda-forge multiqc
+   conda activate multiqc
+   multiqc --help
+   ```
+
+   You only need to supply MultiQC some options and path to the files you want to merge (e.g., path to multiple FastQC outputs).
+   ```sh
+   # set directories as variables
+   outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FastQC/multiqc
+   indir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FastQC
+
+   # run multiqc == can run this on the head node because it runs very fast
+   multiqc -o ${outdir} --filename "posttrim_QC" ${indir}/posttrim
+   ```
+   ![alt text](etc/multiqc.PNG)
+
+   The MultiQC output gives a single, neatly organized .html file:
+   ![alt text](etc/multiqc_out.PNG) 
 
    - __Transcriptome assembly:__
 
@@ -458,7 +512,7 @@ quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp
    - __Functional annotation:__
 
 
-## 8) Mitogenome assembly
+## 9) Mitogenome assembly
 Because PacBio HiFi reads are long and highly contiguous, it is possible to assemble a full mitogenome as a bycatch. This can be done easily using some existing tools and a reference mitogenome to "fish out" the mitochondrial contigs from HiFi reads. There is already a conspecific mitogenome reference available on GenBank (NC_026553.1). We can fetch this mitogenome like so:
 
 ```txt

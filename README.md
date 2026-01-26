@@ -9,6 +9,7 @@ __*Gloydius ussuriensis* (AMNH 21010) collected from Hwacheon, South Korea (coll
 - AMNH Mendel HPC
 - hifiasm
 - fastqc
+- multiqc
 - compleasm
 - QUAST
 - trimmomatic
@@ -16,4 +17,6 @@ __*Gloydius ussuriensis* (AMNH 21010) collected from Hwacheon, South Korea (coll
 - HiSat2
 - funannotate
 - minimap2
+- seqkit
+- diamond
 
