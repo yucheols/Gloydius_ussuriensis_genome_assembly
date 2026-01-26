@@ -328,7 +328,7 @@ seqkit stats Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa > preclean_stats.txt
 ## 7) Scaffolding through Hi-C data incorporation
 
 ## 8) Genome annotation
-  - __Setup__
+  - __Setup:__
     Let's create new conda environments for packages to be used in genome annotation. Trimmomatic will be used for trimming Illumina adaptera. The funannotation package provides an automated pipeline for gene prediction, annotation, and comparison. The Earl Grey package automates transposable element annotation.
 ```
     ### create a conda environment and install funannotate
