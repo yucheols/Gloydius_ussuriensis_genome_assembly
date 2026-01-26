@@ -1,12 +1,11 @@
 # Whole-genome assembly of the Ussuri Pitviper (*Gloydius ussuriensis*)
-*Gloydius ussuriensis* PacBio HiFi genome assembly. Workflow adapted from: https://github.com/danielagarciacobos4/PacBio_GenomeAssembly_annotation and https://github.com/amandamarkee/actias-luna-genome
+*Gloydius ussuriensis* PacBio HiFi genome assembly. Workflow adapted from: https://github.com/danielagarciacobos4/PacBio_GenomeAssembly_annotation, https://github.com/amandamarkee/onigra_genome, and https://github.com/amandamarkee/actias-luna-genome
 
 The individual used for this genome assembly is accessioned at the AMNH Herpetology Collections under the voucher number AMNH 21010.
 
 __Workflow__
 
-0. __A quick sanity check on the dataset__
-1. __Raw read QC with FastQC__
+1. __A quick sanity check on the dataset__
 2. __*k*-mer analysis of raw reads using jellyfish__
 3. __Draft genome assembly using hifiasm__
 4. __Genome completeness using BUSCO__
@@ -22,7 +21,7 @@ __Workflow__
    - __Functional annotation__
 9. __Mitogenome assembly__
 
-## 0) A quick sanity check on the dataset
+## 1) A quick sanity check on the dataset
 Even before doing anything, let's do a very quick sanity check on the HiFi data to check the reads we have are actually from our target species. Let's take a chunk from the HiFi FASTQ file, after cd'ing into the directory containing the fastq.gz file:
 ```txt
 zcat AMNH_21010_HiFi.fastq.gz | head -n 2
@@ -41,36 +40,6 @@ Let's do the same for the RNA seq reads:
 zcat AMNH_21010_Ht_1.fastq.gz | head -n 2
 ```
 Repeat this for each tissue type and read, and you will see that all the hits come out to be snake mRNA genes. For the skin RNA reads, using the regular megablast option to optimize for highly similar sequences will print out a warning "No significant similarity found." However, switching to optimization for somewhat similar sequences (blastn) will print out hits for snake genes (from *Thamnophis* and *Candoia*)   
-
-## 1) Raw read QC with FastQC
-Run QC on the raw PacBio HiFi reads using FastQC. This is only meant to be a "sanity check" and not the actual quality assessment because FastQC assumes short Illumina reads as an input.
-
-```sh
-#!/bin/bash
-#SBATCH --job-name=fastQC_ussuri
-#SBATCH --nodes=1
-#SBATCH --mem=200G
-#SBATCH --partition=compute
-#SBATCH --cpus-per-task=24
-#SBATCH --time=10:00:00
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
-
-# initiate conda and activate the conda environment
-source ~/.bash_profile
-conda activate genome_assembly
-
-# path to the fastq file
-path_to_seq=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ
-
-# output directory
-out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FastQC
-
-# run FastQC
-fastqc -o ${out_dir} ${path_to_seq}/AMNH_21010_HiFi.fastq.gz
-```
 
 ## 2) *k*-mer analysis of raw reads using jellyfish
 Conduct a *k*-mer count analysis on the raw reads using jellyfish. This can be useful to estimate the genome size, heterozygosity, etc. Use the following script to submit a job to the AMNH Mendel HPC cluster. The "zcat [...]" line first unpacks the HiFi fastq.gz file (without permanently extracting the content, because this file is massive), converts it into the FASTA format (dropping quality scores, etc.), and pipes that into jellyfish. The output .jf file is then fed into the "jellyfish histo" command to produce the .histo file for viewing.
@@ -296,7 +265,9 @@ quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp
 ```
 
 ## 6) Genome cleanup
-We calculated all the above metrics using the "raw" PacBio HiFi contigs. However, these contigs likely contain mtDNA contigs and/or potential contaminants. So, it is always a good idea to check for these and "clean up" the genome before finalizing the assembly and publishing it. Let's setup the workspace for this clean up step:
+We calculated all the above metrics using the "raw" PacBio HiFi contigs. However, these contigs likely contain mtDNA contigs and/or potential microbial contaminants. So, it is always a good idea to check for these and "clean up" the genome before finalizing the assembly and publishing it. This section is based on https://github.com/amandamarkee/actias-luna-genome
+
+Let's setup the workspace for this clean up step.
 ```
 # make a directory for clean up work
 mkdir genome_cleanup
@@ -304,24 +275,37 @@ mkdir genome_cleanup
 # copy the draft assembly from its directory to the clean up workspace
 cp Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
 
-# install some stuff that we will need to use
-conda activate genome_assembly
-conda install seqkit
-conda install minimap2
-conda install samtools
-conda install bioconda::diamond
+# create a conda env for blobtools
+conda create -n blobtools
+conda activate blobtools
 
-# download db for diamond
-diamond makedb \
-  --taxonmap prot.accession2taxid.gz \
-  --taxonnodes nodes.dmp \
-  --taxonnames names.dmp \
-  -d nr
+# install blobtools
+conda install bioconda::blobtools
+
 ```
 
 Let's start by getting the "pre-cleanup" stats
 ```
 seqkit stats Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa > preclean_stats.txt
+```
+
+Blobtools take blast hit file, genome assembly fasta file, and bam file of raw reads mapped back to the assembly.
+
+First, lets prep the blast hit file. Blast is available on Mendel but we need to set up the DB to run it.
+```
+# first, cd into the genome_cleanup directory
+# make a directory for microbial contaminat db
+mkdir -p contam_db
+cd contam_db
+
+# download NCBI RefSeq protein fasta (.faa)
+# bacteria
+rsync -av \
+  rsync://ftp.ncbi.nlm.nih.gov/refseq/release/bacteria/*.protein.faa.gz .
+
+# fungi
+rsync -av \
+  rsync://ftp.ncbi.nlm.nih.gov/refseq/release/fungi/*.protein.faa.gz .
 ```
 
 
