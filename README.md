@@ -6,7 +6,7 @@ PacBio HiFi genome assembly of the Ussuri Pitviper (*Gloydius ussuriensis*)
 __*Gloydius ussuriensis* (AMNH 21010) collected from Hwacheon, South Korea (collected and photographed by Yucheol Shin)__
 
 ### Computing resources and package dependencies
-- AMNH Mendel HPC
+- AMNH Mendel and Huxley HPCs
 - hifiasm
 - fastqc
 - multiqc

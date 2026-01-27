@@ -289,23 +289,24 @@ Let's start by getting the "pre-cleanup" stats
 seqkit stats Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa > preclean_stats.txt
 ```
 
-Blobtools take blast hit file, genome assembly fasta file, and bam file of raw reads mapped back to the assembly.
+To run blobtools, we need the following:
+  - nodes.dmp and names.dmp files from NCBI taxdump
+  - .bam file output from minimap2 and samtools
+  - .nt blast hit file from ncbi megablast run
 
-First, lets prep the blast hit file. Blast is available on Mendel but we need to set up the DB to run it.
+Let's prep these files:
 ```
 # first, cd into the genome_cleanup directory
 # make a directory for microbial contaminat db
 mkdir -p contam_db
 cd contam_db
 
-# download NCBI RefSeq protein fasta (.faa)
-# bacteria
-rsync -av \
-  rsync://ftp.ncbi.nlm.nih.gov/refseq/release/bacteria/*.protein.faa.gz .
+# download NCBI taxdump and create nodes.dmp and names.dmp
+blobdir=~/mendel-nas1/miniconda3/envs/blobtools/bin
+wget ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz -P data/
+tar zxf data/taxdump.tar.gz -C data/ nodes.dmp names.dmp
+${blobdir}/blobtools nodesdb --nodes data/nodes.dmp --names data/names.dmp
 
-# fungi
-rsync -av \
-  rsync://ftp.ncbi.nlm.nih.gov/refseq/release/fungi/*.protein.faa.gz .
 ```
 
 
