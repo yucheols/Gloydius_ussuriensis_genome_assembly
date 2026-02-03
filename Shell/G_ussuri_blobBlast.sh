@@ -4,7 +4,7 @@
 #SBATCH --mem=500G
 #SBATCH --partition=bigmem
 #SBATCH --cpus-per-task=32
-#SBATCH --time=72:00:00
+#SBATCH --time=14-00:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/nas4/G_ussuriensis_Chromo/slurm_logs/slurm-%x_%j.out
