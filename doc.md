@@ -296,13 +296,8 @@ To run blobtools, we need the following:
   - .bam file output from minimap2 and samtools
   - .nt blast hit file from ncbi megablast run
 
-Let's prep these files:
+Let's prep these files. First, get nodes.dmp and names.dmp files from NCBI taxdump.
 ```
-# first, cd into the genome_cleanup directory
-# make a directory for microbial contaminat db
-mkdir -p contam_db
-cd contam_db
-
 # download NCBI taxdump and create nodes.dmp and names.dmp
 blobdir=~/mendel-nas1/miniconda3/envs/blobtools/bin
 wget ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz -P data/
