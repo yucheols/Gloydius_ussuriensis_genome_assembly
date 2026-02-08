@@ -379,7 +379,7 @@ blastn \
   -outfmt "6 qseqid staxids bitscore sseqid sskingdoms sscinames" \
   -num_threads=${SLURM_CPUS_PER_TASK}  
 ```
-Also, we need mapping files as a final input. These can be made by mapping the assembly back to the raw fastq file using minimap2, and then converting the output SAM file into a BAM file and sorting and indexing them using samtools. Run the job script below on Mendel:
+Also, we need mapping files as a final input. These can be made by mapping the raw fastq file back to the reference (i.e. draft assembly) using minimap2, and then converting the output SAM file into a BAM file and sorting and indexing them using samtools. Run the job script below on Mendel:
 
 ```sh
 #!/bin/bash
@@ -391,8 +391,8 @@ Also, we need mapping files as a final input. These can be made by mapping the a
 #SBATCH --time=144:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/nas4/G_ussuriensis_Chromo/slurm_logs/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/nas4/G_ussuriensis_Chromo/slurm_logs/slurm-%x_%j.err
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
 
 # activate conda env
 source ~/.bash_profile
