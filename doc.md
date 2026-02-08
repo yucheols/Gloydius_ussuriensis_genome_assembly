@@ -6,20 +6,20 @@ The individual used for this genome assembly is accessioned at the AMNH Herpetol
 __Workflow__
 
 1. __[A quick sanity check on the dataset](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#1-a-quick-sanity-check-on-the-dataset)__
-2. __*k*-mer analysis of raw reads using jellyfish__
-3. __Draft genome assembly using hifiasm__
-4. __Genome completeness using BUSCO__
-5. __Genome assembly stats with QUAST__
-6. __Genome cleanup__
-7. __Scaffolding through Hi-C data incorporation__
-8. __Genome annotation__
+2. __[*k*-mer analysis of raw reads using jellyfish](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#2-k-mer-analysis-of-raw-reads-using-jellyfish)__
+3. __[Draft genome assembly using hifiasm](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#3-draft-genome-assembly-using-hifiasm)__
+4. __[Genome completeness using BUSCO](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#4-genome-completeness-using-busco)__
+5. __[Genome assembly stats with QUAST](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#5-genome-assembly-stats-with-quast)__
+6. __[Genome cleanup](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-genome-cleanup)__
+7. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-scaffolding-through-hi-c-data-incorporation)__
+8. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-genome-annotation)__
    - __RNA read QC__
    - __Repeat annotation__
    - __Adapter trimming__ 
    - __Transcriptome assembly__
    - __Structural annotation__
    - __Functional annotation__
-9. __Mitogenome assembly__
+9. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#9-mitogenome-assembly)__
 
 ## 1) A quick sanity check on the dataset
 Even before doing anything, let's do a very quick sanity check on the HiFi data to check the reads we have are actually from our target species. Let's take a chunk from the HiFi FASTQ file, after cd'ing into the directory containing the fastq.gz file:
