@@ -1,7 +1,7 @@
 # Whole-genome assembly of the Ussuri Pitviper (*Gloydius ussuriensis*)
 *Gloydius ussuriensis* PacBio HiFi genome assembly. Workflow adapted from: https://github.com/danielagarciacobos4/PacBio_GenomeAssembly_annotation, https://github.com/amandamarkee/onigra_genome, and https://github.com/amandamarkee/actias-luna-genome. Also, thanks to Amanda Markee, Daniela Garcia, Jon Hoffman, Dylan DeBaun, Dean Bobo, and Sajesh Singh for help and discussions.
 
-The individual used for this genome assembly is accessioned at the AMNH Herpetology Collections under the voucher number AMNH 21010.
+The genome sequencing was done on the PacBio Revio system and RNA sequencing was done on the Illumina NovaSeq X (151bp PE). The individual used for this genome assembly is accessioned at the AMNH Herpetology Collections under the voucher number AMNH 21010.
 
 __Workflow__
 
