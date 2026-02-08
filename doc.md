@@ -5,7 +5,7 @@ The individual used for this genome assembly is accessioned at the AMNH Herpetol
 
 __Workflow__
 
-1. __A quick sanity check on the dataset__
+1. __[A quick sanity check on the dataset](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#1-a-quick-sanity-check-on-the-dataset)__
 2. __*k*-mer analysis of raw reads using jellyfish__
 3. __Draft genome assembly using hifiasm__
 4. __Genome completeness using BUSCO__
