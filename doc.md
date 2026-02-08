@@ -287,7 +287,9 @@ conda install bioconda::blobtools
 Let's start by getting the "pre-cleanup" stats
 ```
 seqkit stats Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa > preclean_stats.txt
+cat preclean_stats.txt
 ```
+We can see that there are 140 contigs total.
 
 To run blobtools, we need the following:
   - nodes.dmp and names.dmp files from NCBI taxdump
@@ -308,8 +310,33 @@ tar zxf data/taxdump.tar.gz -C data/ nodes.dmp names.dmp
 ${blobdir}/blobtools nodesdb --nodes data/nodes.dmp --names data/names.dmp
 
 ```
-To generate the blast hit file, we will use the Huxley cluster because it already has the database soft linked to /nas3. Blast is also available as a module on Huxley.
+To generate the blast hit file, we will use the Huxley cluster because it already has the database soft linked to /nas3. Blast is also available as a module on Huxley. But before running blast, there is one thing to consider - blasting a whole genome assembly againt the database will take a long time. The job will either fail due to insufficient computational resources or walltime. 
 
+One loophole is to divide up the assembly fasta file and then running an array job (thanks Amanda for this tip!).
+
+To divide up the assembly fasta file, navigate to the directory containing the assembled genome and run these commands in the console:
+
+```txt
+# make directory for split fasta files
+mkdir asm_div
+
+# spilit fasta
+awk 'BEGIN {n_seq=0;} /^>/ \
+{if(n_seq%50==0){file=sprintf("seq_%d.fa",n_seq);} \
+print >> file; n_seq++; next;} { print >> file; }' < Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
+
+# move split fastas to asm_div directory
+mv seq_* asm_div/
+
+# put split files into a list
+cd asm_div/
+ls *.fa > blast.list
+
+# check the number of lines in the blast.list file to use as an input to the array command
+wc -l blast.list
+```
+
+Then run the array job as below:
 ```sh
 #!/bin/bash
 #SBATCH --job-name=blobBlst_ussuri
@@ -317,7 +344,8 @@ To generate the blast hit file, we will use the Huxley cluster because it alread
 #SBATCH --mem=500G
 #SBATCH --partition=bigmem
 #SBATCH --cpus-per-task=32
-#SBATCH --time=72:00:00
+#SBATCH --array=1-3
+#SBATCH --time=7-00:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/nas4/G_ussuriensis_Chromo/slurm_logs/slurm-%x_%j.out
@@ -335,23 +363,62 @@ export BLASTDB=/nas3/database/nt_2024_10_23
 blastdbcmd -db nt -info
 
 # path to assembly
-path_to_asm=${wdir}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
+path_to_asm=${wdir}/asm_div
 
 # output dir
 out_dir=/home/yshin/nas4/G_ussuriensis_Chromo/genome_cleanup/blast_out
+
+# assign and print array ID
+i=${SLURM_ARRAY_TASK_ID}
+P=$(awk "NR==$i" ${path_to_asm}/blast.list)
 
 # run blast
 blastn \
   -db nt \
   -task megablast \
-  -query ${path_to_asm} \
-  -out ${out_dir}/ussuri_megablast.nt \
-  -evalue 1e-5 \
-  -outfmt "6 qseqid staxids bitscore sgi sskingdoms sscinames" \
-  -max_target_seqs 1 \
-  -num_threads=${SLURM_CPUS_PER_TASK}
+  -query ${path_to_asm}/${P} \
+  -out ${out_dir}/${P}.blast.out \
+  -max_target_seqs 10 \
+  -max_hsps 1 \
+  -evalue 1e-20 \
+  -outfmt "6 qseqid staxids bitscore sseqid sskingdoms sscinames" \
+  -num_threads=${SLURM_CPUS_PER_TASK}  
 ```
+Also, we need mapping files as a final input. These can be made by mapping the assembly back to the raw fastq file using minimap2, and then converting the output SAM file into a BAM file and sorting and indexing them using samtools. Run the job script below on Mendel:
 
+```sh
+#!/bin/bash
+#SBATCH --job-name=blobMapping_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=200G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=32
+#SBATCH --time=144:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/nas4/G_ussuriensis_Chromo/slurm_logs/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/nas4/G_ussuriensis_Chromo/slurm_logs/slurm-%x_%j.err
+
+# activate conda env
+source ~/.bash_profile
+conda activate genome_assembly
+
+# designate paths to assembly and fastq
+path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
+
+# mapping 
+minimap2 -ax map-hifi ${path}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
+  ${path}/AMNH_21010_HiFi.fastq.gz > ussuri_aln.sam
+
+# convert SAM to BAM
+samtools view -S -b ussuri_aln.sam > ussuri_aln.bam
+
+# use samtools sort to convert the BAM file to a coordinate sorted BAM file
+samtools sort ussuri_aln.bam > ussuri_aln_sorted.bam
+
+# index a sorted BAM file for quick alignment
+samtools index ussuri_aln_sorted.bam > ussuri_aln_indexed_sorted.bam
+```
 
 ## 7) Scaffolding through Hi-C data incorporation
 

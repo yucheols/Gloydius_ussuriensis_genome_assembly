@@ -4,7 +4,8 @@
 #SBATCH --mem=500G
 #SBATCH --partition=bigmem
 #SBATCH --cpus-per-task=32
-#SBATCH --time=14-00:00:00
+#SBATCH --array=1-3
+#SBATCH --time=7-00:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/nas4/G_ussuriensis_Chromo/slurm_logs/slurm-%x_%j.out
@@ -22,21 +23,23 @@ export BLASTDB=/nas3/database/nt_2024_10_23
 blastdbcmd -db nt -info
 
 # path to assembly
-path_to_asm=${wdir}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
+path_to_asm=${wdir}/asm_div
 
 # output dir
 out_dir=/home/yshin/nas4/G_ussuriensis_Chromo/genome_cleanup/blast_out
+
+# assign and print array ID
+i=${SLURM_ARRAY_TASK_ID}
+P=$(awk "NR==$i" ${path_to_asm}/blast.list)
 
 # run blast
 blastn \
   -db nt \
   -task megablast \
-  -query ${path_to_asm} \
-  -out ${out_dir}/ussuri_megablast.nt \
-  -evalue 1e-5 \
-  -outfmt "6 qseqid staxids bitscore sgi sskingdoms sscinames" \
-  -max_target_seqs 1 \
-  -num_threads=${SLURM_CPUS_PER_TASK}
-
-  
-  
+  -query ${path_to_asm}/${P} \
+  -out ${out_dir}/${P}.blast.out \
+  -max_target_seqs 10 \
+  -max_hsps 1 \
+  -evalue 1e-20 \
+  -outfmt "6 qseqid staxids bitscore sseqid sskingdoms sscinames" \
+  -num_threads=${SLURM_CPUS_PER_TASK}  

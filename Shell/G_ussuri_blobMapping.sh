@@ -1,0 +1,32 @@
+#!/bin/bash
+#SBATCH --job-name=blobMapping_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=200G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=32
+#SBATCH --time=144:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/nas4/G_ussuriensis_Chromo/slurm_logs/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/nas4/G_ussuriensis_Chromo/slurm_logs/slurm-%x_%j.err
+
+# activate conda env
+source ~/.bash_profile
+conda activate genome_assembly
+
+# designate paths to assembly and fastq
+path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
+
+# mapping 
+minimap2 -ax map-hifi ${path}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
+  ${path}/AMNH_21010_HiFi.fastq.gz > ussuri_aln.sam
+
+# convert SAM to BAM
+samtools view -S -b ussuri_aln.sam > ussuri_aln.bam
+
+# use samtools sort to convert the BAM file to a coordinate sorted BAM file
+samtools sort ussuri_aln.bam > ussuri_aln_sorted.bam
+
+# index a sorted BAM file for quick alignment
+samtools index ussuri_aln_sorted.bam > ussuri_aln_indexed_sorted.bam
+

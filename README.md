@@ -18,5 +18,5 @@ __*Gloydius ussuriensis* (AMNH 21010) collected from Hwacheon, South Korea (coll
 - funannotate
 - minimap2
 - seqkit
-- diamond
+- BLAST v2.11.0
 
