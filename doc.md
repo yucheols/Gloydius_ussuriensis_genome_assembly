@@ -298,13 +298,21 @@ To run blobtools, we need the following:
 
 Let's prep these files. First, get nodes.dmp and names.dmp files from NCBI taxdump.
 ```
+# activate the blobtools conda env to use blobtools
+conda activate blobtools
+
+# create a directory to store data
+mkdir data
+
 # download NCBI taxdump and create nodes.dmp and names.dmp
-blobdir=~/mendel-nas1/miniconda3/envs/blobtools/bin
 wget ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz -P data/
 tar zxf data/taxdump.tar.gz -C data/ nodes.dmp names.dmp
-${blobdir}/blobtools nodesdb --nodes data/nodes.dmp --names data/names.dmp
-
+blobtools nodesdb --nodes data/nodes.dmp --names data/names.dmp
 ```
+Then, if you do "ls data/" tou should see something like:
+![alt text](etc/lsdata.PNG)
+
+
 To generate the blast hit file, we will use the Huxley cluster because it already has the database soft linked to /nas3. Blast is also available as a module on Huxley. But before running blast, there is one thing to consider - blasting a whole genome assembly againt the database will take a long time. The job will either fail due to insufficient computational resources or walltime. 
 
 One loophole is to divide up the assembly fasta file and then running an array job (thanks Amanda for this tip!).
@@ -401,18 +409,14 @@ conda activate genome_assembly
 # designate paths to assembly and fastq
 path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
 
-# mapping 
-minimap2 -ax map-hifi ${path}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
-  ${path}/AMNH_21010_HiFi.fastq.gz > ussuri_aln.sam
+# mapping
+# -@ 8 means "use 8 threads" 
+minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${path}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
+  ${path}/AMNH_21010_HiFi.fastq.gz | samtools view -@ 8 -b \
+  | samtools sort -@ 8 -o ussuri_aln_sorted.bam
 
-# convert SAM to BAM
-samtools view -S -b ussuri_aln.sam > ussuri_aln.bam
-
-# use samtools sort to convert the BAM file to a coordinate sorted BAM file
-samtools sort ussuri_aln.bam > ussuri_aln_sorted.bam
-
-# index a sorted BAM file for quick alignment
-samtools index ussuri_aln_sorted.bam > ussuri_aln_indexed_sorted.bam
+# index BAM 
+samtools index ussuri_aln_sorted.bam 
 ```
 
 ## 7) Scaffolding through Hi-C data incorporation
@@ -756,7 +760,6 @@ minimap2 -x asm5 ${path_to_mitoref}/NC_026553.1.fa ${mito_asm} > ${out_dir}/mito
 # print this when all is complete #
 ###################################
 echo "mitochondrial genome assembly pipeline complete!"
-
 ```
 
 Once this is done, run a quick check to see what we've got:
@@ -868,7 +871,6 @@ seqkit flye_mito_2/assembly.fasta
 
 ### print this message when all runs are complete
 echo "remap and reassembly completed"
-
 ```
 
 Run "seqkit stats" again on the assembly file

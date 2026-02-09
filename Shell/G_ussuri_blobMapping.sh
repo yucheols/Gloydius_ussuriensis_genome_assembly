@@ -17,16 +17,12 @@ conda activate genome_assembly
 # designate paths to assembly and fastq
 path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
 
-# mapping 
-minimap2 -ax map-hifi ${path}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
-  ${path}/AMNH_21010_HiFi.fastq.gz > ussuri_aln.sam
+# mapping
+# -@ 8 means "use 8 threads" 
+minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${path}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
+  ${path}/AMNH_21010_HiFi.fastq.gz | samtools view -@ 8 -b \
+  | samtools sort -@ 8 -o ussuri_aln_sorted.bam
 
-# convert SAM to BAM
-samtools view -S -b ussuri_aln.sam > ussuri_aln.bam
-
-# use samtools sort to convert the BAM file to a coordinate sorted BAM file
-samtools sort ussuri_aln.bam > ussuri_aln_sorted.bam
-
-# index a sorted BAM file for quick alignment
-samtools index ussuri_aln_sorted.bam > ussuri_aln_indexed_sorted.bam
+# index BAM 
+samtools index ussuri_aln_sorted.bam 
 
