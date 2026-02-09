@@ -131,6 +131,28 @@ zcat AMNH_21010_HiFi.fastq.gz | awk 'NR%4==2{bp+=length($0)} END{print bp/1e9 " 
 ```
 The output is 134.449 Gb. If we use the genome size estimated from GenomeScope, then the coverage would be 134.449/1.18, so roughly 113.94x coverage. If we use the *C. viridis* ref genome size, then the coverage would be 134.449/1.3 = 103x.
 
+__*Note:*__ But also note that this is calculated from raw reads, not the assembly. To calculate the mean depth of coverage, we need the sorted BAM file generated from the alignment of raw reads to the assembly. This file will be generated as a part of a later step in this workflow (the "Genome cleanup" step). When this file is generated, we can use the command below to calculated the mean coverage per bp (it's probably a better idea to submit this as a job):
+```txt
+# activate the conda env that contains a newer version of samtools
+# samtools in the "genome_assembly" env is v1.6
+# samtools in this this env is v1.23 
+# this newer version contains some functions not found in v1.6, like samtools coverage
+
+conda activate samtools
+
+# make sure to cd into the directory that contains the sorted BAM file
+# calculate mean coverage weighted by contig length
+# $3 = contig length
+# $7 = mean depth for that contig
+samtools coverage mapping/ussuri_aln_sorted.bam \
+| awk 'NR>1 {sum += $3*$7; len += $3} END {print "Mean depth =", sum/len "x"}'
+
+# calculate how much of the genome (%) is covered >= 30x
+samtools depth -a mapping/ussuri_aln_sorted.bam \
+| awk '{cov=$3; total++; if(cov>=30) c30++} END {print "≥30× =", 100*c30/total "%"}'
+```
+The genome-wide mean depth of coverage is 83.3x, which is excellent.
+
 
 ## 4) Genome completeness using BUSCO
 Now let's assess the completeness of our draft assembly output from hifiasm. BUSCO (Benchmarking Universal Single-Copy Orthologs) is a common metric to assess genome completeness. It uses a lineage-specific dataset to search for the presence/absence of highly conserved genes for that lineage in your genome assembly. We will use *compleasm* (https://github.com/huangnengCSU/compleasm) to assess genome completeness. This provides a faster alternative to the regular BUSCO package for large genome assemblies.
