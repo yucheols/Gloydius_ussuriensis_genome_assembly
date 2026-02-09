@@ -17,12 +17,15 @@ conda activate genome_assembly
 # designate paths to assembly and fastq
 path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
 
+# output directory
+outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/mapping
+
 # mapping
 # -@ 8 means "use 8 threads" 
 minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${path}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
   ${path}/AMNH_21010_HiFi.fastq.gz | samtools view -@ 8 -b \
-  | samtools sort -@ 8 -o ussuri_aln_sorted.bam
+  | samtools sort -@ 8 -o ${outdir}/ussuri_aln_sorted.bam
 
 # index BAM 
-samtools index ussuri_aln_sorted.bam 
+samtools index ${outdir}/ussuri_aln_sorted.bam 
 
