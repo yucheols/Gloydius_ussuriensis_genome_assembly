@@ -309,7 +309,7 @@ wget ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz -P data/
 tar zxf data/taxdump.tar.gz -C data/ nodes.dmp names.dmp
 blobtools nodesdb --nodes data/nodes.dmp --names data/names.dmp
 ```
-Then, if you do "ls data/" tou should see something like:
+Then, if you do "ls data/" you should see something like:
 ![alt text](etc/lsdata.PNG)
 
 
