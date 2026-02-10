@@ -151,7 +151,7 @@ samtools coverage mapping/ussuri_aln_sorted.bam \
 samtools depth -a mapping/ussuri_aln_sorted.bam \
 | awk '{cov=$3; total++; if(cov>=30) c30++} END {print "≥30× =", 100*c30/total "%"}'
 ```
-The genome-wide mean depth of coverage is 83.3x and more than 97.4% of the genome has 30x coverage, which is excellent.
+The genome-wide mean depth of coverage is 83.3x and more than 97.4% of the genome has 30x coverage.
 
 
 ## 4) Genome completeness using BUSCO
