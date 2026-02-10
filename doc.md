@@ -8,9 +8,9 @@ __Workflow__
 1. __[A quick sanity check on the dataset](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#1-a-quick-sanity-check-on-the-dataset)__
 2. __[*k*-mer analysis of raw reads using jellyfish](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#2-k-mer-analysis-of-raw-reads-using-jellyfish)__
 3. __[Draft genome assembly using hifiasm](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#3-draft-genome-assembly-using-hifiasm)__
-4. __[Genome completeness using BUSCO](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#4-genome-completeness-using-busco)__
-5. __[Genome assembly stats with QUAST](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#5-genome-assembly-stats-with-quast)__
-6. __[Genome cleanup](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-genome-cleanup)__
+4. __[Genome cleanup](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-genome-cleanup)__
+5. __[Genome completeness using BUSCO](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#4-genome-completeness-using-busco)__
+6. __[Genome assembly stats with QUAST](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#5-genome-assembly-stats-with-quast)__
 7. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-scaffolding-through-hi-c-data-incorporation)__
 8. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-genome-annotation)__
    - __RNA read QC__
@@ -131,163 +131,8 @@ zcat AMNH_21010_HiFi.fastq.gz | awk 'NR%4==2{bp+=length($0)} END{print bp/1e9 " 
 ```
 The output is 134.449 Gb. If we use the genome size estimated from GenomeScope, then the coverage would be 134.449/1.18, so roughly 113.94x coverage. If we use the *C. viridis* ref genome size, then the coverage would be 134.449/1.3 = 103x.
 
-__*Note:*__ But also note that this is calculated from raw reads, not the assembly. To calculate the mean depth of coverage, we need the sorted BAM file generated from the alignment of raw reads to the assembly. This file will be generated as a part of a later step in this workflow (the "Genome cleanup" step). When this file is generated, we can use the command below to calculated the mean coverage per bp (it's probably a better idea to submit this as a job):
-```txt
-# activate the conda env that contains a newer version of samtools
-# samtools in the "genome_assembly" env is v1.6
-# samtools in this this env is v1.23 
-# this newer version contains some functions not found in v1.6, like samtools coverage
-
-conda activate samtools
-
-# make sure to cd into the directory that contains the sorted BAM file
-# calculate mean coverage weighted by contig length
-# $3 = contig length
-# $7 = mean depth for that contig
-samtools coverage mapping/ussuri_aln_sorted.bam \
-| awk 'NR>1 {sum += $3*$7; len += $3} END {print "Mean depth =", sum/len "x"}'
-
-# calculate how much of the genome (%) is covered >= 30x
-samtools depth -a mapping/ussuri_aln_sorted.bam \
-| awk '{cov=$3; total++; if(cov>=30) c30++} END {print "≥30× =", 100*c30/total "%"}'
-```
-The genome-wide mean depth of coverage is 83.3x and more than 97.4% of the genome has 30x coverage.
-
-
-## 4) Genome completeness using BUSCO
-Now let's assess the completeness of our draft assembly output from hifiasm. BUSCO (Benchmarking Universal Single-Copy Orthologs) is a common metric to assess genome completeness. It uses a lineage-specific dataset to search for the presence/absence of highly conserved genes for that lineage in your genome assembly. We will use *compleasm* (https://github.com/huangnengCSU/compleasm) to assess genome completeness. This provides a faster alternative to the regular BUSCO package for large genome assemblies.
-
-First, create a conda environment for *compleasm* and install the package:
-```txt
-# create a conda environment for compleasm and install it
-conda create -n compleasm -c conda-forge -c bioconda compleasm
-conda activate compleasm
-compleasm -h
-```
-
-Run compleasm on Mendel with this script:
-```sh
-#!/bin/bash
-#SBATCH --job-name=compleasm_ussuri
-#SBATCH --nodes=1
-#SBATCH --mem=200G
-#SBATCH --partition=compute
-#SBATCH --cpus-per-task=24
-#SBATCH --time=12:00:00
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
-
-# initiate conda and activate the conda environment
-source ~/.bash_profile
-conda activate compleasm
-
-# set paths as variables
-path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/hifiasm
-out_path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/compleasm
-
-# run compleasm
-compleasm run -a ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa -o ${out_path} \
-  -t ${SLURM_CPUS_PER_TASK} -l sauropsida --odb odb12
-```
-
-The script above should take only about 35 minutes to run. The results are:
-![alt text](etc/busco_compleasm.PNG)
-
-Compleasm output can be visualized in R:
-```r
-######  visualize compleasem output
-
-# clean working environment
-rm(list = ls(all.names = T))
-gc()
-
-# load packages
-library(ggplot2)
-
-
-######   compleasm result categories
-
-# S (Single Copy Complete Genes): The BUSCO genes that can be entirely aligned in the assembly, with only one copy present.
-# D (Duplicated Complete Genes): The BUSCO genes that can be completely aligned in the assembly, with more than one copy present.
-# F (Fragmented Genes, subclass 1): The BUSCO genes which only a portion of the gene is present in the assembly, and the rest of the gene cannot be aligned.
-# I (Fragmented Genes, subclass 2): The BUSCO genes in which a section of the gene aligns to one position in the assembly,
-#                                   while the remaining part aligns to another position.
-# M (Missing Genes): The BUSCO genes with no alignment present in the assembly.
-
-
-######   compleasm result dataframe
-compl_res <- data.frame(category = c('S', 'M', 'D', 'F'),
-                        count = c(5764, 285, 50, 19))
-
-print(compl_res)
-
-######   calculate proportion
-compl_res$percentage <- round((compl_res$count / sum(compl_res$count)) * 100, digits = 2) 
-print(compl_res)
-
-######   plotting order
-compl_res$category <- factor(compl_res$category, levels = c('S', 'D', 'F', 'M'))
-
-
-######   plot
-ggplot(compl_res, aes(x = 2, y = percentage, fill = category)) +
-  geom_col(width = 1, color = 'white') +
-  xlim(0.1, 3.5) +
-  coord_polar(theta = 'y') +
-  scale_fill_manual(values = c(S = '#B3E2CD',
-                               D = '#FDCDAC',
-                               F = "#FFF2AE",
-                               M = '#CBD5E8')) +
-  theme_void() +
-  theme(legend.position = 'none')
-
-######  export plot
-ggsave('Rplots/compleasm_result.png', width = 21, height = 20, dpi = 800, units = 'cm')
-```
-
-## 5) Genome assembly stats with QUAST
-QUAST is a quality assessment tool for genome assemblies. Installing QUAST in the "genome_assembly" conda environment is not possible because of python version clashes - we need to create a separate conda environment for this package.
-
-Install QUAST:
-```txt
-conda create -n quast
-conda activate quast
-conda install bioconda::quast
-``` 
-
-When this is done, run QUAST with the script below:
-
-```sh
-#!/bin/bash
-#SBATCH --job-name=quast_ussuri
-#SBATCH --nodes=1
-#SBATCH --mem=60G
-#SBATCH --partition=compute
-#SBATCH --cpus-per-task=24
-#SBATCH --time=12:00:00
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
-
-# initiate conda and activate the quast conda environment
-source ~/.bash_profile
-conda activate quast
-
-# path to assembly
-path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/hifiasm
-
-# output directory
-out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/quast
-
-# run quast
-quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa -o ${out_dir} 
-```
-
-## 6) Genome cleanup
-We calculated all the above metrics using the "raw" PacBio HiFi contigs. However, these contigs likely contain mtDNA contigs and/or potential microbial contaminants. So, it is always a good idea to check for these and "clean up" the genome before finalizing the assembly and publishing it. This section is based on https://github.com/amandamarkee/actias-luna-genome
+## 4) Genome cleanup
+The draft assembly likely contains mitochondrial contigs and/or potential microbial contaminants. So, it is always a good idea to check for these and "clean up" the genome before finalizing the assembly and publishing it. This section is based on https://github.com/amandamarkee/actias-luna-genome
 
 Let's setup the workspace for this clean up step.
 ```
@@ -313,7 +158,46 @@ cat preclean_stats.txt
 ```
 We can see that there are 140 contigs total.
 
-To run blobtools, we need the following:
+Let's first start by slicing out the mitochondrial contigs from our assembly. This can be done by identifying conspecific mitochondrial hits in the assembly using blast. *Gloydius ussuriensis* has a conspecific mitogenome already present in genbank, and we can fetch this file and put it in the working directory (see the "Mitogenome assembly" section below to see how to do this). When this done, we need to add the assembly to blast database:
+```
+# make sure to cd into the genome cleanup working directory
+module load NCBI/blast-2.10.1+
+makeblastdb -in Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa -dbtype nucl
+```
+Then we can run blast to identify mito contigs:
+```sh
+#!/bin/bash
+#SBATCH --job-name=idMito_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=200G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=32
+#SBATCH --time=144:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# load blast as module
+module load NCBI/blast-2.10.1+
+
+# path to assembly and mito
+mito_ref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/NC_026553.1.fa
+asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
+
+# output directory
+outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
+
+# run blast to id mito
+blastn -query ${mito_ref} -db ${asm} -outfmt '6 sseqid pident length bitscore evalue' \
+  | awk '$2 >= 1000' \
+  | sort -k2,2nr \
+  | cut -f1 \
+  | uniq \
+  > ${outdir}/mito_contigs.txt
+``` 
+
+Next, we will use blobtools to identify potential microbial contaminants. To run blobtools, we need the following:
   - nodes.dmp and names.dmp files from NCBI taxdump
   - .bam file output from minimap2 and samtools
   - .nt blast hit file from ncbi megablast run
@@ -442,6 +326,161 @@ minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${path}/Gloydius_ussuriensis_v1.
 
 # index BAM 
 samtools index ${outdir}/ussuri_aln_sorted.bam 
+```
+
+__*Note:*__ The coverage we calculated above is from the draft assembly, not the assembly cleaned of contaminants and mitochondrial contigs. We will use the sorted BAM file to calculate the mean depth of coverage from cleaned assembly. We can use the command below to calculated the mean coverage per bp (it's probably a better idea to submit this as a job):
+```txt
+# activate the conda env that contains a newer version of samtools
+# samtools in the "genome_assembly" env is v1.6
+# samtools in this this env is v1.23 
+# this newer version contains some functions not found in v1.6, like samtools coverage
+
+conda activate samtools
+
+# make sure to cd into the directory that contains the sorted BAM file
+# calculate mean coverage weighted by contig length
+# $3 = contig length
+# $7 = mean depth for that contig
+samtools coverage mapping/ussuri_aln_sorted.bam \
+| awk 'NR>1 {sum += $3*$7; len += $3} END {print "Mean depth =", sum/len "x"}'
+
+# calculate how much of the genome (%) is covered >= 30x
+samtools depth -a mapping/ussuri_aln_sorted.bam \
+| awk '{cov=$3; total++; if(cov>=30) c30++} END {print "≥30× =", 100*c30/total "%"}'
+```
+The genome-wide mean depth of coverage is 83.3x and more than 97.4% of the genome has 30x coverage.
+
+
+## 5) Genome completeness using BUSCO
+Now let's assess the completeness of our draft assembly output from hifiasm. BUSCO (Benchmarking Universal Single-Copy Orthologs) is a common metric to assess genome completeness. It uses a lineage-specific dataset to search for the presence/absence of highly conserved genes for that lineage in your genome assembly. We will use *compleasm* (https://github.com/huangnengCSU/compleasm) to assess genome completeness. This provides a faster alternative to the regular BUSCO package for large genome assemblies.
+
+First, create a conda environment for *compleasm* and install the package:
+```txt
+# create a conda environment for compleasm and install it
+conda create -n compleasm -c conda-forge -c bioconda compleasm
+conda activate compleasm
+compleasm -h
+```
+
+Run compleasm on Mendel with this script:
+```sh
+#!/bin/bash
+#SBATCH --job-name=compleasm_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=200G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=24
+#SBATCH --time=12:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# initiate conda and activate the conda environment
+source ~/.bash_profile
+conda activate compleasm
+
+# set paths as variables
+path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/hifiasm
+out_path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/compleasm
+
+# run compleasm
+compleasm run -a ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa -o ${out_path} \
+  -t ${SLURM_CPUS_PER_TASK} -l sauropsida --odb odb12
+```
+
+The script above should take only about 35 minutes to run. The results are:
+![alt text](etc/busco_compleasm.PNG)
+
+Compleasm output can be visualized in R:
+```r
+######  visualize compleasem output
+
+# clean working environment
+rm(list = ls(all.names = T))
+gc()
+
+# load packages
+library(ggplot2)
+
+
+######   compleasm result categories
+
+# S (Single Copy Complete Genes): The BUSCO genes that can be entirely aligned in the assembly, with only one copy present.
+# D (Duplicated Complete Genes): The BUSCO genes that can be completely aligned in the assembly, with more than one copy present.
+# F (Fragmented Genes, subclass 1): The BUSCO genes which only a portion of the gene is present in the assembly, and the rest of the gene cannot be aligned.
+# I (Fragmented Genes, subclass 2): The BUSCO genes in which a section of the gene aligns to one position in the assembly,
+#                                   while the remaining part aligns to another position.
+# M (Missing Genes): The BUSCO genes with no alignment present in the assembly.
+
+
+######   compleasm result dataframe
+compl_res <- data.frame(category = c('S', 'M', 'D', 'F'),
+                        count = c(5764, 285, 50, 19))
+
+print(compl_res)
+
+######   calculate proportion
+compl_res$percentage <- round((compl_res$count / sum(compl_res$count)) * 100, digits = 2) 
+print(compl_res)
+
+######   plotting order
+compl_res$category <- factor(compl_res$category, levels = c('S', 'D', 'F', 'M'))
+
+
+######   plot
+ggplot(compl_res, aes(x = 2, y = percentage, fill = category)) +
+  geom_col(width = 1, color = 'white') +
+  xlim(0.1, 3.5) +
+  coord_polar(theta = 'y') +
+  scale_fill_manual(values = c(S = '#B3E2CD',
+                               D = '#FDCDAC',
+                               F = "#FFF2AE",
+                               M = '#CBD5E8')) +
+  theme_void() +
+  theme(legend.position = 'none')
+
+######  export plot
+ggsave('Rplots/compleasm_result.png', width = 21, height = 20, dpi = 800, units = 'cm')
+```
+
+## 6) Genome assembly stats with QUAST
+QUAST is a quality assessment tool for genome assemblies. Installing QUAST in the "genome_assembly" conda environment is not possible because of python version clashes - we need to create a separate conda environment for this package.
+
+Install QUAST:
+```txt
+conda create -n quast
+conda activate quast
+conda install bioconda::quast
+``` 
+
+When this is done, run QUAST with the script below:
+
+```sh
+#!/bin/bash
+#SBATCH --job-name=quast_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=60G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=24
+#SBATCH --time=12:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# initiate conda and activate the quast conda environment
+source ~/.bash_profile
+conda activate quast
+
+# path to assembly
+path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/hifiasm
+
+# output directory
+out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/quast
+
+# run quast
+quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa -o ${out_dir} 
 ```
 
 ## 7) Scaffolding through Hi-C data incorporation
