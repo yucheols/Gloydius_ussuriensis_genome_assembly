@@ -183,14 +183,21 @@ module load NCBI/blast-2.10.1+
 
 # path to assembly and mito
 mito_ref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/NC_026553.1.fa
-asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
+asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/blast_db/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
 
 # output directory
 outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
 
+# make blastdb
+mkdir -p ${outdir}/blast_db
+dbpath=${outdir}/blast_db
+makeblastdb -in ${asm} -dbtype nucl -out ${dbpath}
+
+
 # run blast to id mito
-blastn -query ${mito_ref} -db ${asm} -outfmt '6 sseqid pident length bitscore evalue' \
-  | awk '$2 >= 1000' \
+blastn -query ${mito_ref} -db ${dbpath}
+ -outfmt '6 sseqid pident length bitscore evalue' \
+  | awk '$3 >= 1000' \
   | sort -k2,2nr \
   | cut -f1 \
   | uniq \
