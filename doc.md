@@ -178,30 +178,39 @@ Then we can run blast to identify mito contigs:
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
 
-# load blast as module
 module load NCBI/blast-2.10.1+
 
-# path to assembly and mito
 mito_ref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/NC_026553.1.fa
-asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/blast_db/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
-
-# output directory
+asm_fa=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
 outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
 
-# make blastdb
-mkdir -p ${outdir}/blast_db
-dbpath=${outdir}/blast_db
-makeblastdb -in ${asm} -dbtype nucl -out ${dbpath}
+# build DB in a dedicated folder with a proper prefix name
+dbdir=${outdir}/blast_db_mito
+mkdir -p "${dbdir}"
+dbprefix="${dbdir}/ussuri_asm"
 
+echo "Making BLAST DB:"
+echo "  asm_fa   = ${asm_fa}"
+echo "  dbprefix = ${dbprefix}"
 
-# run blast to id mito
-blastn -query ${mito_ref} -db ${dbpath}
- -outfmt '6 sseqid pident length bitscore evalue' \
-  | awk '$3 >= 1000' \
-  | sort -k2,2nr \
-  | cut -f1 \
-  | uniq \
-  > ${outdir}/mito_contigs.txt
+makeblastdb -in "${asm_fa}" -dbtype nucl -out "${dbprefix}"
+
+# sanity check DB
+echo "DB files:"
+ls -lh "${dbprefix}".n* || { echo "ERROR: DB files not found"; exit 1; }
+blastdbcmd -db "${dbprefix}" -info || { echo "ERROR: blastdbcmd failed"; exit 1; }
+
+# run blast
+blastn -query "${mito_ref}" -db "${dbprefix}" \
+  -max_target_seqs 200 \
+  -outfmt '6 qseqid sseqid pident length bitscore evalue' \
+| awk '$4 >= 1000 {print $2}' \
+| sort -u \
+> "${outdir}/mito_contigs.txt"
+
+echo "mito_contigs.txt lines:"
+wc -l "${outdir}/mito_contigs.txt"
+head "${outdir}/mito_contigs.txt"
 ``` 
 
 Next, we will use blobtools to identify potential microbial contaminants. To run blobtools, we need the following:
@@ -300,6 +309,51 @@ blastn \
   -outfmt "6 qseqid staxids bitscore sseqid sskingdoms sscinames" \
   -num_threads=${SLURM_CPUS_PER_TASK}  
 ```
+
+Once this job finishes running, navigate to the output directory and merge the three output files into a single .nt file to be used as an input for blobtools.
+```
+# the output dir is /home/yshin/nas4/G_ussuriensis_Chromo/genome_cleanup/blast_out
+cat *.blast.out > Gloydius_megablast.nt
+```
+Now, send this file to Mendel and run blobtools there using the script below:
+```sh
+#!/bin/bash
+#SBATCH --job-name=blobView_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=200G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=32
+#SBATCH --time=144:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# activate conda env
+source ~/.bash_profile
+conda activate blobtools
+
+# set paths to different inputs
+asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
+aln_sorted_bam=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/mapping/ussuri_aln_sorted.bam
+megablast=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/blast_out/Gloydius_megablast.nt
+nodes=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/data/nodes.dmp
+names=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/data/names.dmp
+
+# output dir
+outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/blob_out
+
+# run blobtools
+blobtools create -i ${asm} -b ${aln_sorted_bam} -t ${megablast} --nodes ${nodes} --names ${names} \
+  -o ${outdir}/ussuri_blob_results
+
+# view results and plot
+#blobtools view -i result.blobDB.json
+#blobtools plot -i result.blobDB.json
+```
+
+
+
 Also, we need mapping files as a final input. These can be made by mapping the raw fastq file back to the reference (i.e. draft assembly) using minimap2, and then converting the output SAM file into a BAM file and sorting and indexing them using samtools. Run the job script below on Mendel:
 
 ```sh
