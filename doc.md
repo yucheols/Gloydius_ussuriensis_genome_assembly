@@ -315,7 +315,44 @@ Once this job finishes running, navigate to the output directory and merge the t
 # the output dir is /home/yshin/nas4/G_ussuriensis_Chromo/genome_cleanup/blast_out
 cat *.blast.out > Gloydius_megablast.nt
 ```
-Now, send this file to Mendel and run blobtools there using the script below:
+Now, send this file to Mendel so that it can be used as input for blobtools.
+
+We also need mapping files as a final input. These can be made by mapping the raw fastq file back to the reference (i.e. draft assembly) using minimap2, and then converting the output SAM file into a BAM file and sorting and indexing them using samtools. Run the job script below on Mendel:
+
+```sh
+#!/bin/bash
+#SBATCH --job-name=blobMapping_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=200G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=32
+#SBATCH --time=144:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# activate conda env
+source ~/.bash_profile
+conda activate genome_assembly
+
+# designate paths to assembly and fastq
+path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
+
+# output directory
+outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/mapping
+
+# mapping
+# -@ 8 means "use 8 threads" 
+minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${path}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
+  ${path}/AMNH_21010_HiFi.fastq.gz | samtools view -@ 8 -b \
+  | samtools sort -@ 8 -o ${outdir}/ussuri_aln_sorted.bam
+
+# index BAM 
+samtools index ${outdir}/ussuri_aln_sorted.bam 
+```
+Now we have all the input files required to run blobtools. Run blobtools with this script on Mendel:
+
 ```sh
 #!/bin/bash
 #SBATCH --job-name=blobView_ussuri
@@ -350,43 +387,6 @@ blobtools create -i ${asm} -b ${aln_sorted_bam} -t ${megablast} --nodes ${nodes}
 # view results and plot
 #blobtools view -i result.blobDB.json
 #blobtools plot -i result.blobDB.json
-```
-
-
-
-Also, we need mapping files as a final input. These can be made by mapping the raw fastq file back to the reference (i.e. draft assembly) using minimap2, and then converting the output SAM file into a BAM file and sorting and indexing them using samtools. Run the job script below on Mendel:
-
-```sh
-#!/bin/bash
-#SBATCH --job-name=blobMapping_ussuri
-#SBATCH --nodes=1
-#SBATCH --mem=200G
-#SBATCH --partition=compute
-#SBATCH --cpus-per-task=32
-#SBATCH --time=144:00:00
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
-
-# activate conda env
-source ~/.bash_profile
-conda activate genome_assembly
-
-# designate paths to assembly and fastq
-path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
-
-# output directory
-outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/mapping
-
-# mapping
-# -@ 8 means "use 8 threads" 
-minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${path}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
-  ${path}/AMNH_21010_HiFi.fastq.gz | samtools view -@ 8 -b \
-  | samtools sort -@ 8 -o ${outdir}/ussuri_aln_sorted.bam
-
-# index BAM 
-samtools index ${outdir}/ussuri_aln_sorted.bam 
 ```
 
 __*Note:*__ The coverage we calculated above is from the draft assembly, not the assembly cleaned of contaminants and mitochondrial contigs. We will use the sorted BAM file to calculate the mean depth of coverage from cleaned assembly. We can use the command below to calculated the mean coverage per bp (it's probably a better idea to submit this as a job):
