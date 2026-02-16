@@ -27,7 +27,3 @@ outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_clea
 # run blobtools
 blobtools create -i ${asm} -b ${aln_sorted_bam} -t ${megablast} --nodes ${nodes} --names ${names} \
   -o ${outdir}/ussuri_blob_results
-
-# view results and plot
-#blobtools view -i ussuri_blob_results.blobDB.json
-#blobtools plot -i ussuri_blob_results.blobDB.json
