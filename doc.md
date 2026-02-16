@@ -344,8 +344,8 @@ This will generate a whole bunch of files:
 ![alt text](etc/blobtools.PNG)
 
 Now, scp these files from the cluster to a local device for viewing.
-![alt text](outfiles/blob_out/ussuri_blob_results.blobDB.json.bestsum.phylum.p8.span.100.blobplot.bam0.png)
-![alt text](outfiles/blob_out/ussuri_blob_results.blobDB.json.bestsum.phylum.p8.span.100.blobplot.read_cov.bam0.png)
+![alt text](etc/ussuri_blob_results1.png)
+![alt text](etc/ussuri_blob_results2.png)
 
 We can see there are no obvious non-vertebrate contaminants.
 
