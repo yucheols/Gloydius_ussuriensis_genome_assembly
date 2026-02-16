@@ -8,7 +8,7 @@ __Workflow__
 1. __[A quick sanity check on the dataset](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#1-a-quick-sanity-check-on-the-dataset)__
 2. __[*k*-mer analysis of raw reads using jellyfish](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#2-k-mer-analysis-of-raw-reads-using-jellyfish)__
 3. __[Draft genome assembly using hifiasm](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#3-draft-genome-assembly-using-hifiasm)__
-4. __[Genome cleanup](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#4-genome-cleanup)__
+4. __[Contamination screening](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#4-genome-cleanup)__
 5. __[Genome completeness using BUSCO](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#5-genome-completeness-using-busco)__
 6. __[Genome assembly stats with QUAST](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-genome-assembly-stats-with-quast)__
 7. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-scaffolding-through-hi-c-data-incorporation)__
@@ -131,7 +131,7 @@ zcat AMNH_21010_HiFi.fastq.gz | awk 'NR%4==2{bp+=length($0)} END{print bp/1e9 " 
 ```
 The output is 134.449 Gb. If we use the genome size estimated from GenomeScope, then the coverage would be 134.449/1.18, so roughly 113.94x coverage. If we use the *C. viridis* ref genome size, then the coverage would be 134.449/1.3 = 103x.
 
-## 4) Genome cleanup
+## 4) Contamination screening
 The draft assembly likely contains mitochondrial contigs and/or potential microbial contaminants. So, it is always a good idea to check for these and "clean up" the genome before finalizing the assembly and publishing it. This section is based on https://github.com/amandamarkee/actias-luna-genome
 
 Let's setup the workspace for this clean up step.
@@ -349,7 +349,7 @@ Now, scp these files from the cluster to a local device for viewing.
 
 We can see there are no obvious non-vertebrate contaminants.
 
-__*Note:*__ The coverage we calculated above is from the draft assembly, not the assembly cleaned of contaminants and mitochondrial contigs. We will use the sorted BAM file to calculate the mean depth of coverage from cleaned assembly. We can use the command below to calculated the mean coverage per bp (it's probably a better idea to submit this as a job):
+__*Note:*__ The coverage we calculated above from the raw fastq file represents the coverage based on total sequencing yield (i.e., amount of bases sequenced). This is somewhat different from the mean sequencing coverage based on the reads mapped back to the assembly. We will use the sorted BAM file to calculate the mean depth of coverage from the assembly screened for contamination. We can use the command below to calculated the mean coverage per bp (it's probably a better idea to submit this as a job):
 ```txt
 # activate the conda env that contains a newer version of samtools
 # samtools in the "genome_assembly" env is v1.6
