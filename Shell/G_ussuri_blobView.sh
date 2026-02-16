@@ -29,5 +29,5 @@ blobtools create -i ${asm} -b ${aln_sorted_bam} -t ${megablast} --nodes ${nodes}
   -o ${outdir}/ussuri_blob_results
 
 # view results and plot
-#blobtools view -i result.blobDB.json
-#blobtools plot -i result.blobDB.json
+#blobtools view -i ussuri_blob_results.blobDB.json
+#blobtools plot -i ussuri_blob_results.blobDB.json

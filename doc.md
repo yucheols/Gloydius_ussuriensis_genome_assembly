@@ -158,62 +158,7 @@ cat preclean_stats.txt
 ```
 We can see that there are 140 contigs total.
 
-Let's first start by slicing out the mitochondrial contigs from our assembly. This can be done by identifying conspecific mitochondrial hits in the assembly using blast. *Gloydius ussuriensis* has a conspecific mitogenome already present in genbank, and we can fetch this file and put it in the working directory (see the "Mitogenome assembly" section below to see how to do this). When this done, we need to add the assembly to blast database:
-```
-# make sure to cd into the genome cleanup working directory
-module load NCBI/blast-2.10.1+
-makeblastdb -in Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa -dbtype nucl
-```
-Then we can run blast to identify mito contigs:
-```sh
-#!/bin/bash
-#SBATCH --job-name=idMito_ussuri
-#SBATCH --nodes=1
-#SBATCH --mem=200G
-#SBATCH --partition=compute
-#SBATCH --cpus-per-task=32
-#SBATCH --time=144:00:00
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
-
-module load NCBI/blast-2.10.1+
-
-mito_ref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/NC_026553.1.fa
-asm_fa=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
-outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
-
-# build DB in a dedicated folder with a proper prefix name
-dbdir=${outdir}/blast_db_mito
-mkdir -p "${dbdir}"
-dbprefix="${dbdir}/ussuri_asm"
-
-echo "Making BLAST DB:"
-echo "  asm_fa   = ${asm_fa}"
-echo "  dbprefix = ${dbprefix}"
-
-makeblastdb -in "${asm_fa}" -dbtype nucl -out "${dbprefix}"
-
-# sanity check DB
-echo "DB files:"
-ls -lh "${dbprefix}".n* || { echo "ERROR: DB files not found"; exit 1; }
-blastdbcmd -db "${dbprefix}" -info || { echo "ERROR: blastdbcmd failed"; exit 1; }
-
-# run blast
-blastn -query "${mito_ref}" -db "${dbprefix}" \
-  -max_target_seqs 200 \
-  -outfmt '6 qseqid sseqid pident length bitscore evalue' \
-| awk '$4 >= 1000 {print $2}' \
-| sort -u \
-> "${outdir}/mito_contigs.txt"
-
-echo "mito_contigs.txt lines:"
-wc -l "${outdir}/mito_contigs.txt"
-head "${outdir}/mito_contigs.txt"
-``` 
-
-Next, we will use blobtools to identify potential microbial contaminants. To run blobtools, we need the following:
+We will use blobtools to identify potential microbial contaminants. To run blobtools, we need the following:
   - nodes.dmp and names.dmp files from NCBI taxdump
   - .bam file output from minimap2 and samtools
   - .nt blast hit file from ncbi megablast run
@@ -383,11 +328,26 @@ outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_clea
 # run blobtools
 blobtools create -i ${asm} -b ${aln_sorted_bam} -t ${megablast} --nodes ${nodes} --names ${names} \
   -o ${outdir}/ussuri_blob_results
-
-# view results and plot
-#blobtools view -i result.blobDB.json
-#blobtools plot -i result.blobDB.json
 ```
+
+Now, run the lines below in the head node to generate output files and plots.
+```
+# activate blobtools conda env
+conda activate blobtools
+
+# cd into the blobtools output directory
+# view blobtools results and plot
+blobtools view -i ussuri_blob_results.blobDB.json
+blobtools plot -i ussuri_blob_results.blobDB.json
+```
+This will generate a whole bunch of files:
+![alt text](etc/blobtools.PNG)
+
+Now, scp these files from the cluster to a local device for viewing.
+![alt text](outfiles/blob_out/ussuri_blob_results.blobDB.json.bestsum.phylum.p8.span.100.blobplot.bam0.png)
+![alt text](outfiles/blob_out/ussuri_blob_results.blobDB.json.bestsum.phylum.p8.span.100.blobplot.read_cov.bam0.png)
+
+We can see there are no obvious non-vertebrate contaminants.
 
 __*Note:*__ The coverage we calculated above is from the draft assembly, not the assembly cleaned of contaminants and mitochondrial contigs. We will use the sorted BAM file to calculate the mean depth of coverage from cleaned assembly. We can use the command below to calculated the mean coverage per bp (it's probably a better idea to submit this as a job):
 ```txt
