@@ -767,7 +767,7 @@ mkdir -p ${out_dir}
 quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_AMNH_21010_noMito.fa -o ${out_dir} 
 ```
 
-## 7) 
+## 7) *k*-mer based assembly evaluation with Merqury
 
 ## 8) Scaffolding through Hi-C data incorporation
 
