@@ -9,6 +9,8 @@ __Workflow__
 2. __[*k*-mer analysis of raw reads using jellyfish](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#2-k-mer-analysis-of-raw-reads-using-jellyfish)__
 3. __[Draft genome assembly using hifiasm](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#3-draft-genome-assembly-using-hifiasm)__
 4. __[Contamination screening](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#4-contamination-screening)__
+   - __Screening for potential non-vertebrate contaminants using blobtools__
+   - __Identifying and removing mitochondrial contigs from the draft assembly__
 5. __[Genome completeness using BUSCO](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#5-genome-completeness-using-busco)__
 6. __[Genome assembly stats with QUAST](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-genome-assembly-stats-with-quast)__
 7. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-scaffolding-through-hi-c-data-incorporation)__
@@ -158,7 +160,9 @@ cat preclean_stats.txt
 ```
 We can see that there are 140 contigs total.
 
-We will use blobtools to identify potential microbial contaminants. To run blobtools, we need the following:
+
+### Screening for potential non-vertebrate contaminants using blobtools
+We will use blobtools to identify potential non-vertebrate (e.g., microbial) contaminants. To run blobtools, we need the following:
   - nodes.dmp and names.dmp files from NCBI taxdump
   - .bam file output from minimap2 and samtools
   - .nt blast hit file from ncbi megablast run
@@ -349,7 +353,8 @@ Now, scp these files from the cluster to a local device for viewing.
 
 We can see there are no obvious non-vertebrate contaminants.
 
-Let's also identify mitochondrial contigs in the draft assembly. This can be done by blasting the mitochondrial reference to the draft assembly. *G. ussuriensis* already has a couple assembled mitogenomes on GenBank. We will use one of them (NC_026553.1) as a mitocohndrial reference. See the "Mitogenome assembly" section below on how to fetch the fasta file for this mitogenome from GenBank (it's down there because I wrote that section first). Once you get this file, we can run blast on Mendel with the script below. Note that we are creating a blast database internally in this script. The "-outfmt 6" flag means that the output format will be tabular. 
+### Identifying and removing mitochondrial contigs from the draft assembly
+PacBio long-read assemblies usually contain complete mitogenomes as a sequencing bycatch, and it is a good idea to identify and remove them from primary assemblies in order to get a clean nuclear whole genome. This can be done by blasting the mitochondrial reference to the draft assembly. *G. ussuriensis* already has a couple assembled mitogenomes on GenBank. We will use one of them (NC_026553.1) as a mitocohndrial reference. See the "Mitogenome assembly" section below on how to fetch the fasta file for this mitogenome from GenBank (it's down there because I wrote that section first). Once you get this file, we can run blast on Mendel with the script below. Note that we are creating a blast database internally in this script. The "-outfmt 6" flag means that the output format will be tabular. 
 ```sh
 #!/bin/bash
 #SBATCH --job-name=idMito_ussuri
