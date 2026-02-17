@@ -13,7 +13,7 @@ __Workflow__
    - __Identifying and removing mitochondrial contigs from the draft assembly__
 5. __[Genome completeness using BUSCO](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#5-genome-completeness-using-busco)__
 6. __[Genome assembly stats with QUAST](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-genome-assembly-stats-with-quast)__
-7. __[*k*-mer based assembly evaluation with Merqury]()__
+7. __[*k*-mer based assembly evaluation with Merqury](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-k-mer-based-assembly-evaluation-with-merqury)__
 8. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-scaffolding-through-hi-c-data-incorporation)__
 9. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#9-genome-annotation)__
    - __RNA read QC__
