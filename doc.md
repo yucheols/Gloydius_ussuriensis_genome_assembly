@@ -565,27 +565,72 @@ seqkit stats mito_singlecopy.fa
 
 This is exactly what we expect to see.
 
-__*Note:*__ The coverage we calculated above from the raw fastq file represents the coverage based on total sequencing yield (i.e., amount of bases sequenced), prior to contamination screening. This value is going to be somewhat different from the mean sequencing coverage based on the reads mapped back to the assembly cleaned of contaminants and mitochondrial contigs. We will use the sorted BAM file to calculate the mean depth of coverage from the assembly screened for contamination. We can use the command below to calculated the mean coverage per bp (it's probably a better idea to submit this as a job):
-```txt
-# activate the conda env that contains a newer version of samtools
-# samtools in the "genome_assembly" env is v1.6
-# samtools in this this env is v1.23 
-# this newer version contains some functions not found in v1.6, like samtools coverage
+__*Note:*__ The coverage we calculated above from the raw fastq file represents the coverage based on total sequencing yield (i.e., amount of bases sequenced), prior to contamination screening. This value is going to be somewhat different from the mean sequencing coverage based on the reads mapped back to the assembly cleaned of contaminants and mitochondrial contigs. To calculate the mean sequencing coverage, let's first minimap2 to map the reads to the "no mito" assembly to generate and index a bam file. We will then calculate the coverage from this bam file:
+```sh
+#!/bin/bash
+#SBATCH --job-name=calcCov_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=150G
+#SBATCH --cpus-per-task=32
+#SBATCH --partition=compute
+#SBATCH --time=20:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
 
+# activate conda env for genome assembly
+source ~/.bash_profile
+conda activate genome_assembly
+
+# set paths
+no_mito_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa
+reads_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/AMNH_21010_HiFi.fastq.gz   
+out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/cov
+mkdir -p ${out_dir}
+
+# index fasta
+samtools faidx ${no_mito_dir}
+
+# map HiFi reads
+echo "start mapping....."
+minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${no_mito_dir} ${reads_dir} \
+| samtools sort -@ 8 -o ${out_dir}/no_mito_hifi.bam
+
+samtools index ${out_dir}/no_mito_hifi.bam
+
+# activate a separate conda env for the newer samtools version
+source ~/.bash_profile
 conda activate samtools
 
-# make sure to cd into the directory that contains the sorted BAM file
-# calculate mean coverage weighted by contig length
-# $3 = contig length
-# $7 = mean depth for that contig
-samtools coverage mapping/ussuri_aln_sorted.bam \
-| awk 'NR>1 {sum += $3*$7; len += $3} END {print "Mean depth =", sum/len "x"}'
+echo "activated a separate conda env for the newer samtools version....."
 
-# calculate how much of the genome (%) is covered >= 30x
-samtools depth -a mapping/ussuri_aln_sorted.bam \
-| awk '{cov=$3; total++; if(cov>=30) c30++} END {print "≥30× =", 100*c30/total "%"}'
+# calculate mean genome wide coverage 
+echo "calculate mean genome wide coverage....."
+samtools coverage ${out_dir}/no_mito_hifi.bam \
+| awk 'NR>1 {sum += $3*$7; len += $3} END {print "mean depth of coverage =", sum/len "x"}'
+
+# calculate how much of the genome (%) is covered >= 20x, 30x, and 50x
+echo "calculate how much of the genome (%) is covered >= 20x, 30x, and 50x....."
+samtools depth -a ${out_dir}/no_mito_hifi.bam \
+| awk '{
+  total++;
+  if($3>=20) c20++;
+  if($3>=30) c30++;
+  if($3>=50) c50++;
+} END {
+  print "≥20× =", 100*c20/total "%";
+  print "≥30× =", 100*c30/total "%";
+  print "≥50× =", 100*c50/total "%";
+}'
+
+echo "done"
 ```
-The genome-wide mean depth of coverage is 83.3x and more than 97.4% of the genome has 30x coverage.
+The result shows:
+- 83.3x genome-wide mean coverage 
+- 99% of the genome has ≥20× coverage
+- 97.4% of the genome has ≥30× coverage
+- 85.2% of the genome has ≥50× coverage
 
 
 ## 5) Genome completeness using BUSCO
@@ -909,366 +954,59 @@ quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_AMNH_2101
 
 
 ## 9) Mitogenome assembly
-Because PacBio HiFi reads are long and highly contiguous, it is possible to assemble a full mitogenome as a bycatch. This can be done easily using some existing tools and a reference mitogenome to "fish out" the mitochondrial contigs from HiFi reads. There is already a conspecific mitogenome reference available on GenBank (NC_026553.1). We can fetch this mitogenome like so:
+In the "Contamination screening" section above, we identified and stored the mitochondrial contig into a separate fasta file containing a single copy mitogenome ("mito_singlecopy.fa"). Now let's annotate this file.
 
+First, let's check the fasta header (we are in the "genome_cleanup" directory):
 ```txt
-# create working directory for mitogenome assembly
-mkdir -p /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref
-cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref
-
-# install entrez to fetch seq from ncbi
-conda activate genome_assembly
-conda install -y -c bioconda entrez-direct
-
-# fetch seq and annotation
-ref_acc=NC_026553.1
-echo ${ref_acc}
-
-efetch -db nucleotide -id ${ref_acc} -format fasta > ${ref_acc}.fa
-efetch -db nucleotide -id ${ref_acc} -format gbwithparts > ${ref_acc}.gb
+head mito_singlecopy.fa 
 ```
-
-Then, create a conda environment for mitogenome assembly and install some packages that will be used.
-
+![alt text](etc/head_mitogenome_fa.PNG)
+We can see that the header is the contig name. This is not ideal; let's change the header with species name:
 ```txt
-# create conda environment for mitogenome assembly
-conda create -n mito_assembly
-conda activate mito_assembly
-
-# install some packages
-conda install -y -c bioconda minimap2 samtools flye
+sed 's/^>.*/>Gloydius_ussuriensis_mitogenome/' mito_singlecopy.fa > ussuri_mitogenome_ann.fa
+head ussuri_mitogenome_ann.fa 
 ```
+![alt text](etc/head_mitogenome_ann_fa.PNG)
 
-Once everything is prepared, use the pipeline below to assemble a mitogenome. 
+Now, scp this file to your local device.
 
-```sh
-#!/bin/bash
-#SBATCH --job-name=mito_ussuri
-#SBATCH --partition=compute
-#SBATCH --nodes=1
-#SBATCH --cpus-per-task=32
-#SBATCH --mem=120G
-#SBATCH --time=72:00:00
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
-
-# activate conda environment
-source ~/.bash_profile
-conda activate mito_assembly
-
-##############
-#  1. setup  #
-##############
-
-# make the run fail loudly if something is broken
-set -euo pipefail
-
-# set some paths as variables
-path_to_hifi=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ
-path_to_mitoref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref
-out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_out
-
-# set mapping quality score
-# set this to 60 to drop numts and other crap that we do not want
-mq=60
-
-
-################
-#  2. mapping  #
-################
-
-# print this message when starting
-echo "start mapping reads to reference..."
-
-# run minimap2
-minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${path_to_mitoref}/NC_026553.1.fa \
-  ${path_to_hifi}/AMNH_21010_HiFi.fastq.gz | \
-  samtools view -@ 8 -b -F 4 | \
-  samtools sort -@ 8 -T ${out_dir}/tmp.mito -o ${out_dir}/mito_map.bam
-samtools index ${out_dir}/mito_map.bam
-
-#############################
-#  3. extract mapped reads  #
-#############################
-
-# print this message when starting
-echo "extract mapped reads for mapping quality score >= ${mq}"
-
-# use samtools
-samtools view -h ${out_dir}/mito_map.bam | \
-  awk -v mq=${mq} 'BEGIN{OFS="\t"} $1 ~ /^@/ || $5 >= mq' | \
-  samtools view -b -F 4 -o ${out_dir}/mito_map.MQ.bam
-
-samtools index ${out_dir}/mito_map.MQ.bam
-
-# Convert to FASTQ for assembly
-samtools fastq ${out_dir}/mito_map.MQ.bam | gzip > ${out_dir}/mito_reads.MQ.fastq.gz
-
-# print out this message
-echo "mito reads written as FASTQ: mito_reads.MQ.fastq.gz"
-
-
-#######################
-#  4. assemble reads  #
-#######################
-
-# print this message when starting
-echo "assemble reads with flye..."
-
-# run flye
-flye --pacbio-hifi ${out_dir}/mito_reads.MQ.fastq.gz \
-  --out-dir ${out_dir}/flye_mito -t ${SLURM_CPUS_PER_TASK} --genome-size 20k
-
-mito_asm=${out_dir}/flye_mito/assembly.fasta
-
-# print out this message
-echo "mitochondrial genome assembly complete! assembly written to: ${mito_asm}"
-
-
-###############################################################
-#  5. map mito reads back to mito assembly and compute depth  #
-###############################################################
-
-# print this message when starting
-echo "remap mito reads back to assembled contigs..."
-
-# run minimap2
-minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${mito_asm} ${out_dir}/mito_reads.MQ.fastq.gz | \
-  samtools sort -@ 8 -o ${out_dir}/mito_realign.bam
-samtools index ${out_dir}/mito_realign.bam
-
-# compute depth
-echo "compute depth..."
-
-# run samtools depth
-samtools depth ${out_dir}/mito_realign.bam > ${out_dir}/mito_depth.tsv
-awk '{sum+=$3; n++} END{print "mean_depth\t"sum/n"\npositions\t"n}' ${out_dir}/mito_depth.tsv > ${out_dir}/depth_summary.txt
-
-
-###########################################
-#  6. validate by comparing to reference  #
-###########################################
-
-# print this message when starting
-echo "validate assembly by comparing to reference..."
-
-# run minimap2
-minimap2 -x asm5 ${path_to_mitoref}/NC_026553.1.fa ${mito_asm} > ${out_dir}/mito_vs_ref.paf
-
-
-###################################
-# print this when all is complete #
-###################################
-echo "mitochondrial genome assembly pipeline complete!"
-```
-
-Once this is done, run a quick check to see what we've got:
-
-```txt
-# make sure you are in the "mito_assembly" conda environment
-# run this in the directory containing the assembly.fasta file (which is the "flye_mito" folder)
-seqkit stats assembly.fasta
-grep -c "^>" assembly.fasta
-```
-
-The seqkit run will print out:
-
-```txt
-file            format  type  num_seqs  sum_len  min_len   avg_len  max_len
-assembly.fasta  FASTA   DNA          3  107,365   17,211  35,788.3   45,823
-```
-
-This is not expected; The ideal outcome is having one clean contig containing the mitogenome.
-Instead, there are three contigs. The longest one is 45,823 bp and the shortest one is 17,211 bp long. The shortest contig is likely to be the actual mitogenome, but we need to run some additional clean-up steps to confirm this.
-
-Run the following pipeline to remap & reassemble the mitogenome:
-
-```sh
-#!/bin/bash
-#SBATCH --job-name=mitoCleanup_ussuri
-#SBATCH --partition=compute
-#SBATCH --nodes=1
-#SBATCH --cpus-per-task=32
-#SBATCH --mem=120G
-#SBATCH --time=72:00:00
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
-
-# activate conda environment
-source ~/.bash_profile
-conda activate mito_assembly
-
-# make the run fail loudly if something is broken
-set -euo pipefail
-
-# set paths as variables
-wkdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_cleanup
-path_to_hifi=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ
-path_to_mitoref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref
-path_to_assembly=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_cleanup
-
-# cd into working directory
-cd ${wkdir}
-
-
-####################################
-#  1. identify likely mito contig  #
-####################################
-
-# print this message when starting
-echo "ID likely mito contig..."
-
-# list contigs by size
-seqkit fx2tab -n -l ${path_to_assembly}/assembly.fasta | sort -k2,2n > contig_len.txt
-cat contig_len.txt
-
-# pick contig that is within the exptected size range of snake mitogenome
-mito_contig=$(awk '$2>=16000 && $2<=19000 {print $1}' contig_len.txt)
-
-if [[ -z $mito_contig ]]; then
-  echo "ERROR! No contig in expected mitogenome size range"
-  exit 1
-fi
-
-echo "selected likely mito contig: ${mito_contig}, moving on..."
-
-# extract the selected contig
-seqkit grep -n -p ${mito_contig} ${path_to_assembly}/assembly.fasta > mito_extract.fasta
-seqkit stats mito_extract.fasta
-
-# validate against the reference
-minimap2 -x asm5 ${path_to_mitoref}/NC_026553.1.fa mito_extract.fasta > validate.paf
-head validate.paf
-
-
-###########################
-#  2. remap & reassemble  #
-###########################
-
-# print this message when starting
-echo "remap and reassemble..."
-
-# mkdir for flye output
-mkdir -p flye_mito_2
-
-# remap raw hifi reads to extracted mito contig
-minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi mito_extract.fasta ${path_to_hifi}/AMNH_21010_HiFi.fastq.gz | \
-  samtools view -b -F 4 -q 60 -o mito_remap.bam
-
-samtools fastq mito_remap.bam | gzip > mito_remap.fastq.gz
-
-# reassemble
-flye --pacbio-hifi mito_remap.fastq.gz \
-  --out-dir flye_mito_2 \
-  --genome-size 20k \
-  -t ${SLURM_CPUS_PER_TASK}
-
-# print this when flye run is complete
-echo "reassembly stats"
-seqkit flye_mito_2/assembly.fasta
-
-### print this message when all runs are complete
-echo "remap and reassembly completed"
-```
-
-Run "seqkit stats" again on the assembly file
-```txt
-(mito_assembly) [yshin@mendel-head flye_mito_2]$ seqkit stats assembly.fasta
-file            format  type  num_seqs  sum_len  min_len   avg_len  max_len
-assembly.fasta  FASTA   DNA          3  107,365   17,211  35,788.3   45,823
-```
-The output still shows 3 sequences after remapping and reassembly. This means that the shortest contig (17,211 bp) is likely to be the actual mitogenome. This is about the same size as the reference mitogenome (17,208 bp). Let's extract this shortest contig. First identify the contig names:
-
-```txt
-# run this on the command line in the directory containing the flye output
-(mito_assembly) [yshin@mendel-head flye_mito_2]$ seqkit fx2tab -n -l assembly.fasta | sort -k2,2n
-contig_3        17211
-contig_1        44331
-contig_2        45823
-```
-
-Contig 3 is our mitogenome. Extract this contig:
-```txt
-seqkit grep -n -p contig_3 assembly.fasta > ussuri_mitogenome.fasta
-seqkit stats ussuri_mitogenome.fasta
-
-file                     format  type  num_seqs  sum_len  min_len  avg_len  max_len
-ussuri_mitogenome.fasta  FASTA   DNA          1   17,211   17,211   17,211   17,211
-```
-
-Let's check the FASTA header:
-```txt
-(mito_assembly) [yshin@mendel-head flye_mito_2]$ head ussuri_mitogenome.fasta 
->contig_3
-ACAGTCCCGCTTTTCACGTCCATATATTGTAACTCCTCCCGTCTATGTCCTTTCCAAGGC
-```
-
-This is not ideal; change the header with species name:
-```txt
-sed 's/^>.*/>Gloydius_ussuriensis_mitogenome/' ussuri_mitogenome.fasta > ussuri_mitogenome_ann.fasta
-(mito_assembly) [yshin@mendel-head flye_mito_2]$ head ussuri_mitogenome_ann.fasta 
->Gloydius_ussuriensis_mitogenome
-ACAGTCCCGCTTTTCACGTCCATATATTGTAACTCCTCCCGTCTATGTCCTTTCCAAGGC 
-```
 __*The following steps are (mostly) run on a local device*__
 
 Now that this step is done, we can annotate the assembled mitogenome using MITOS2 (https://usegalaxy.org/root?tool_id=toolshed.g2.bx.psu.edu%2Frepos%2Fiuc%2Fmitos2%2Fmitos2%2F2.1.3%20galaxy0).
 
 Use the following settings:
-```txt
 1) Input file: ussuri_mitogenome_ann.fasta
 2) In file uploads, use "auto-detect" and do not specify the reference
 3) Use "Vertebrate (2)" genetic code and "RefSeq63 Metazoa" for reference data
-4) Select BED, GFF, and nucleotide FASTA as outputs
+4) Select BED, GFF, and nucleotide FASTA, and zipped raw results as outputs
 5) Turn on email notification
 6) Turn on "Attempt to re-use jobs with identical parameters?"
-```
 
 MITOS2 can be run through the run on the Galaxy Server. The window looks something like this:
 ![alt text](etc/mitos2.PNG)
 
-After MITOS2 run is complete, run a quick sanity check on the output GFF (annotation) file
+After MITOS2 run is complete, run a quick sanity check on the output GFF (annotation) file. First, download all output files in the "mitos2" directory in your local device and cd into it (in my case the directory in my local device is: /home/yshin/Gloydius_ussuriensis_genome_assembly/outfiles/mito_assembly/mitos2)
 ```txt
-(base) yshin@DESKTOP-43QC882:~/Gloydius_ussuriensis_genome_assembly/outfiles/mito_assembly/mitos2$ grep -v "^#" "Galaxy6-[MITOS2 on dataset 1_ GFF].gff" | cut -f3 | sort | uniq -c
-
- 37 exon
- 13 gene
- 24 ncRNA_gene
- 2 rRNA
- 1 region
- 22 tRNA
-
+grep -v "^#" "Galaxy7-[MITOS2 on dataset 5_ GFF].gff" | cut -f3 | sort | uniq -c
 ```
+![alt text](etc/check_mitos2_gff1.PNG)
+
 Looks good! Also check if the names of all 13 protein-coding genes:
 ```
-grep -v "^#" "Galaxy6-[MITOS2 on dataset 1_ GFF].gff" | awk -F'\t' '$3=="gene"{print $9}' | \
+grep -v "^#" "Galaxy7-[MITOS2 on dataset 5_ GFF].gff" | awk -F'\t' '$3=="gene"{print $9}' | \
   grep -Eo 'cox1|cox2|cox3|cob|cytb|atp6|atp8|nad1|nad2|nad3|nad4l|nad4|nad5|nad6' | sort | uniq -c
-
-      3 atp6
-      3 atp8
-      3 cob
-      3 cox1
-      3 cox2
-      3 cox3
-      3 nad1
-      3 nad2
-      3 nad3
-      3 nad4
-      3 nad4l
-      3 nad5
-      3 nad6
 ```
+![alt text](etc/check_mitos2_gff2.PNG)
 
 Sweet. Now let's rotate the mitogenome FASTA based on the location of tRNA-Phe (trnF)
 ```txt
-$ grep -i -E "trnF|tRNA-Phe|phenylalanine" "Galaxy6-[MITOS2 on dataset 1_ GFF].gff" Gloydius_ussuriensis_mitogenome mitfi   ncRNA_gene      692     755     .       +       .       ID=gene_trnF;Name=trnF;gene_id=trnF Gloydius_ussuriensis_mitogenome mitfi   tRNA    692     755     .       +       .       ID=transcript_trnF(gaa);Name=trnF(gaa);Parent=gene_trnF(gaa);gene_id=trnF(gaa) Gloydius_ussuriensis_mitogenome mitfi   exon    692     755     1.100000021625469e-10   +       .       Parent=transcript_trnF;Name=trnF
+grep -i -E "trnF|tRNA-Phe|phenylalanine" "Galaxy7-[MITOS2 on dataset 5_ GFF].gff" 
 ```
+![alt text](etc/check_mitos2_gff3.PNG)
 
-We can see that trnF starts at position 692 on the (+) strand. Now we can rotate the sequence based on this information. To do so, first install the "rotate" package under the mendel-nas1 directory:
+We can see that trnF starts at position 15284 on the (-) strand. 
+
+Now we can rotate the sequence based on this information. To do so, first install the "rotate" package under the mendel-nas1 directory:
 
 ```txt
 ###  this is run on the cluster
@@ -1277,26 +1015,29 @@ git clone https://github.com/richarddurbin/rotate.git ; cd rotate ; make
 
 # to run, cd into the folder containing rotate and then run:
 ./rotate
-
-### run rotate with the input sequence
-# path to seq
-path_to_seq=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_cleanup/flye_mito_2
-
-# make sure the path prints out
-echo ${path_to_seq}
-
-# run rotate. run this in the rotate directory under mendel-nas1/
-./rotate -x 692 ${path_to_seq}/ussuri_mitogenome.fasta > ${path_to_seq}/ussuri_mt_rotated.fasta
-
-# check stats
-seqkit stats ${path_to_seq}/ussuri_mt_rotated.fasta
-
-# the output
-file                     format  type  num_seqs  sum_len  min_len  avg_len  max_len
-ussuri_mt_rotated.fasta  FASTA   DNA          1   17,211   17,211   17,211   17,211
 ```
 
-Awesome. Now re-run MITOS2 to get GFF of the rotated FASTA. Once this is done, run some final checks
+Once the package is installed, run it on the head node. Since the start position orientation is on the (-) strand, let's reverse complement it after rotating to match the orientation of the reference mitogenome.
+
+```txt
+### run rotate with the input sequence
+# path to seq 
+path_to_seq=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
+
+# output dir
+out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mt_genome
+
+# run rotate. run this in the rotate directory under mendel-nas1/
+./rotate -x 15284 -rc ${path_to_seq}/ussuri_mitogenome_ann.fa > ${out_dir}/ussuri_mt_rotated.fasta
+
+# check stats
+conda activate genome_assembly
+seqkit stats ${out_dir}/ussuri_mt_rotated.fasta
+```
+The output should look something like this:
+![alt text](etc/rotate_checkstat.PNG)
+
+Awesome. Now, scp the rotated fasta the directory in your local device and re-run MITOS2 to get GFF of the rotated FASTA. Once this is done, run some final checks
 
 ```txt
 ###  this is run on a local device
@@ -1306,65 +1047,31 @@ cd outfiles/mito_assembly/rotated/
 # make directory for the final output files
 mkdir final
 
-# copy files output from MITOS2 to the final folder
+# copy the "ussuri_mt_rotated.fasta" and the .gff file to the "final" folder
+cp ussuri_mt_rotated.fasta final/
 cp *.gff final/
-cp 'Galaxy40-[ussuri_mt_rotated.fasta].fasta' final/
 
-# cd into final folder and change file names
-mv 'Galaxy40-[ussuri_mt_rotated.fasta].fasta' ussuri_mt_rotated.fasta
-mv 'Galaxy42-[MITOS2 on dataset 40_ GFF].gff' annotation_rotated.gff
+# change the gff file name
+mv 'Galaxy18-[MITOS2 on dataset 16_ GFF].gff' annotation_rotated_final.gff
 
-# confirm gene content again
+# cd into final folder and change file names and confirm gene content again
+cd final/
 grep -v "^#" *.gff | cut -f3 | sort | uniq -c
+```
+![alt text](etc/final_check_mitos2_gff1.PNG)
 
-# the output
- 37 exon
- 13 gene
- 24 ncRNA_gene
- 2 rRNA
- 1 region
- 22 tRNA
-
+```
 # check trnF position
 grep -i -E "gene_trnF|Name=trnF|trnF" *.gff
-
-# the output
-contig_3        mitfi   ncRNA_gene      17211   17274   .       +       .       ID=gene_trnF;Name=trnF;gene_id=trnF
-contig_3        mitfi   tRNA    17211   17274   .       +       .       ID=transcript_trnF(gaa);Name=trnF(gaa);Parent=gene_trnF(gaa);gene_id=trnF(gaa)
-contig_3        mitfi   exon    17211   17274   1.100000021625469e-10   +       .       Parent=transcript_trnF;Name=trnF
 ```
+![alt text](etc/final_check_mitos2_gff2.PNG)
 
-The trnF is shown to span 17,211 bp - 17,274 bp. Since this mitogenome is 17,211 long, the position shown here actually means that the trnF is at the start of the circularized sequence.
-
-When we check the sequence, we can see that the FASTA header shows 'contig_3.' This is because we used a file that had the original contig name for rotation. 
+The trnF is shown to span 17,149 bp - 17,212 bp. Since this mitogenome is 17,211 long, the position shown here actually means that the trnF is at the start of the circularized sequence. Check the sequence stats in the local device using seqkit (install it if you need to).
 
 ```txt
-head ussuri_mt_rotated.fasta
->contig_3
-TTGCCTGTAGCTTAAGCCTAAAGTATAGCACTGAAAATGCTAAGATGGTAAAACCCTACAACAAAGGTCTTGGTCCTAAACCTCACATTACCTAAAATCATCTGTTTA
+seqkit stats ussuri_mt_rotated.fasta
 ```
-
-Change the name as such (run on the file stored locally):
-
-```txt
-# change name
-sed 's/^>.*/>Gloydius_ussuriensis_mitogenome/' ussuri_mt_rotated.fasta > ussuri_mt_rotated_final.fasta
-
-# check
-$ head ussuri_mt_rotated_final.fasta 
->Gloydius_ussuriensis_mitogenome
-TTGCCTGTAGCTTAAGCCTAAAGTATAGCACTGAAAATGCTAAGATGGTAAAACCCTACAACAAAGGTCTTGGTCCTAAACCTCACATTACCTAAAATCATCTGTTTA
-
-# also change the sequence name in the .gff file
-sed 's/^contig_3[[:space:]]/Gloydius_ussuriensis_mitogenome\t/' \
-  annotation_rotated.gff > annotation_rotated_final.gff
-
-# check
-$ head annotation_rotated_final.gff 
-##gff-version 3
-#!gff-spec-version 1.21
-Gloydius_ussuriensis_mitogenome mitos   region  1       17211   .       +       .       ID=contig_3:1..17211;Is_circular=True;Name=contig_3;genome=mitochondrion;mol_type=genomic DNA
-```
+![alt text](etc/final_mt_seqstat.PNG)
 
 Awesome! this can now be imported into Geneious for visualization.
-![alt text](/etc/geneious_vis.PNG)
+![alt text](etc/mt_geneious_vis.PNG)
