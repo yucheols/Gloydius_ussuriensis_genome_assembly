@@ -2,6 +2,7 @@
 #SBATCH --job-name=calcCov_ussuri
 #SBATCH --nodes=1
 #SBATCH --mem=150G
+#SBATCH --cpus-per-task=32
 #SBATCH --partition=compute
 #SBATCH --time=20:00:00
 #SBATCH --mail-type=ALL
@@ -24,10 +25,10 @@ samtools faidx ${no_mito_dir}
 
 # map HiFi reads
 echo "start mapping....."
-minimap2 -t 32 -ax map-hifi ${no_mito_dir} ${reads_dir} \
-| samtools sort -@ 8 -o "{$out_dir}/no_mito_hifi.bam"
+minimap2 -t ${SLURM_CPUS_PER_TASK} -ax map-hifi ${no_mito_dir} ${reads_dir} \
+| samtools sort -@ 8 -o ${out_dir}/no_mito_hifi.bam
 
-samtools index "${out_dir}/no_mito_hifi.bam"
+samtools index ${out_dir}/no_mito_hifi.bam
 
 # activate a separate conda env for the newer samtools version
 source ~/.bash_profile
@@ -37,12 +38,12 @@ echo "activated a separate conda env for the newer samtools version....."
 
 # calculate mean genome wide coverage 
 echo "calculate mean genome wide coverage....."
-samtools coverage "${out_dir}/no_mito_hifi.bam" \
+samtools coverage ${out_dir}/no_mito_hifi.bam \
 | awk 'NR>1 {sum += $3*$7; len += $3} END {print "mean depth of coverage =", sum/len "x"}'
 
 # calculate how much of the genome (%) is covered >= 20x, 30x, and 50x
 echo "calculate how much of the genome (%) is covered >= 20x, 30x, and 50x....."
-samtools depth -a "${out_dir}/no_mito_hifi.bam" \
+samtools depth -a ${out_dir}/no_mito_hifi.bam \
 | awk '{
   total++;
   if($3>=20) c20++;

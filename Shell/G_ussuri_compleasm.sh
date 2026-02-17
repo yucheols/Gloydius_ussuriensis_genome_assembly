@@ -15,9 +15,9 @@ source ~/.bash_profile
 conda activate compleasm
 
 # set paths as variables
-path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/hifiasm
+path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito
 out_path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/compleasm
 
 # run compleasm
-compleasm run -a ${path_to_asm}/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa -o ${out_path} \
+compleasm run -a ${path_to_asm}/Gloydius_ussuriensis_AMNH_21010_noMito.fa -o ${out_path} \
   -t ${SLURM_CPUS_PER_TASK} -l sauropsida --odb odb12
