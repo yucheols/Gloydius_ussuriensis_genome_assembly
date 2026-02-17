@@ -10,10 +10,14 @@
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
 
+# load blast
 module load NCBI/blast-2.10.1+
 
+# set paths to input
 mito_ref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/NC_026553.1.fa
 asm_fa=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
+
+# set output dir
 outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
 
 # build DB in a dedicated folder with a proper prefix name
@@ -33,13 +37,13 @@ ls -lh "${dbprefix}".n* || { echo "ERROR: DB files not found"; exit 1; }
 blastdbcmd -db "${dbprefix}" -info || { echo "ERROR: blastdbcmd failed"; exit 1; }
 
 # run blast
-blastn -query "${mito_ref}" -db "${dbprefix}" \
-  -max_target_seqs 200 \
-  -outfmt '6 qseqid sseqid pident length bitscore evalue' \
-| awk '$4 >= 1000 {print $2}' \
-| sort -u \
-> "${outdir}/mito_contigs.txt"
+blastn \
+-query "${mito_ref}" \
+-db "${dbprefix}" \
+-out ${outdir}/mito_contigs_blast.out \
+-outfmt 6 \
+-evalue 1e-20 \
+-num_threads ${SLURM_CPUS_PER_TASK}
 
-echo "mito_contigs.txt lines:"
-wc -l "${outdir}/mito_contigs.txt"
-head "${outdir}/mito_contigs.txt"
+# convert output into csv
+tr '\t' ',' < ${outdir}/mito_contigs_blast.out > ${outdir}/mito_contigs_blast.csv

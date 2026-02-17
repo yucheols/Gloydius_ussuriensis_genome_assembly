@@ -349,7 +349,217 @@ Now, scp these files from the cluster to a local device for viewing.
 
 We can see there are no obvious non-vertebrate contaminants.
 
-__*Note:*__ The coverage we calculated above from the raw fastq file represents the coverage based on total sequencing yield (i.e., amount of bases sequenced). This is somewhat different from the mean sequencing coverage based on the reads mapped back to the assembly. We will use the sorted BAM file to calculate the mean depth of coverage from the assembly screened for contamination. We can use the command below to calculated the mean coverage per bp (it's probably a better idea to submit this as a job):
+Let's also identify mitochondrial contigs in the draft assembly. This can be done by blasting the mitochondrial reference to the draft assembly. G. ussuriensis already has a couple assembled mitogenomes on GenBank. We will use one of them (NC_026553.1) as a mitocohndrial reference. See the "Mitogenome assembly" section below on how to fetch the fasta file for this mitogenome from GenBank (it's down there because I wrote that section first). Once you get this file, we can run blast on Mendel with the script below. Note that we are creating a blast database internally in this script. The "-outfmt 6" flag means that the output format will be tabular. 
+```sh
+#!/bin/bash
+#SBATCH --job-name=idMito_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=200G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=32
+#SBATCH --time=144:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# load blast
+module load NCBI/blast-2.10.1+
+
+# set paths to input
+mito_ref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/NC_026553.1.fa
+asm_fa=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
+
+# set output dir
+outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
+
+# build DB in a dedicated folder with a proper prefix name
+dbdir=${outdir}/blast_db_mito
+mkdir -p "${dbdir}"
+dbprefix="${dbdir}/ussuri_asm"
+
+echo "Making BLAST DB:"
+echo "  asm_fa   = ${asm_fa}"
+echo "  dbprefix = ${dbprefix}"
+
+makeblastdb -in "${asm_fa}" -dbtype nucl -out "${dbprefix}"
+
+# sanity check DB
+echo "DB files:"
+ls -lh "${dbprefix}".n* || { echo "ERROR: DB files not found"; exit 1; }
+blastdbcmd -db "${dbprefix}" -info || { echo "ERROR: blastdbcmd failed"; exit 1; }
+
+# run blast
+blastn \
+-query "${mito_ref}" \
+-db "${dbprefix}" \
+-out ${outdir}/mito_contigs_blast.out \
+-outfmt 6 \
+-evalue 1e-20 \
+-num_threads ${SLURM_CPUS_PER_TASK}
+
+# convert output into csv
+tr '\t' ',' < ${outdir}/mito_contigs_blast.out > ${outdir}/mito_contigs_blast.csv
+```
+
+The output should look something like this:
+![alt text](etc/mito_blast_out.PNG)
+
+Let's break this down. 
+- Column 1: "qseqid" (means "query sequence ID") - Shows the GenBank accession number of the mitogenome reference. 
+- Column 2: "sseqid" (means "subject sequence ID") - Shows the contig names in the draft assembly. 
+- Column 3: "pident" (percent identity) - Shows the percent match between the mitochondrial reference and contig. 
+- Column 4: length - Shows the length of aligned region. 
+- Column 5: mismatch - Shows the number of mismatched base pairs.
+- Column 6: "gapopen" - Number of gaps in the alignment.
+- Column 7: "qstart" - Start position on query (mitochondrial reference).
+- Column 8: "qend" - End position on query.
+- Column 9: "sstart" - Start position on subject (draft assembly). 
+- Column 10: "send" - End position on subject.
+- Column 11: "evalue" - evalue of 0 means that the probability the match is random is 0.
+- Column 12: "bitscore" - Alignment score
+
+Based on this, let's focus on the contig ptg000073c. This contig has a percent identity of 99% to the mitochondrial reference, the length of aligned region is 17,212bp, and mismatch is relatively small at 161bp over 17kb. The mitochondrial reference is 17,208bp. Based on this, this contig very likely contains the complete mitogenome, which is expected from PacBio long-read sequencing results. 
+
+Let's look at this contig in more detail. First, let's check the length:
+```
+# make sure that you are working in the "genome_cleanup" directory
+# activate conda env
+conda activate genome_assembly
+
+# check contig length
+seqkit fx2tab -n -l Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa | grep -w ptg000073c
+```
+This will show that the contig is 68.8Kb long, which is much longer than the actual mitogenome. But this likely because one whole mitogenome was repeated several time on the same contig. For example:
+![alt text](etc/mito_blast_out_head.PNG)
+In the first three lines we can see that 17,212bp stretch is repeated three times, and the fourth line shows another 15,348bp region, and there are other, shorter hits. Combined, this is about 67Kb long. Also, 68.8Kb is about 17.2Kb x 4. 
+
+We can verify this by blasting the putative mitochondrial contig to itself.
+First, let's store this contig as a separate file.
+```
+# store mito contigs into a separate file
+seqkit grep -p ptg000073c Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa \
+-o Gloydius_ussuriensis_AMNH_21010_mito.fa
+```
+
+Then, use the script below to run blast:
+```sh
+#!/bin/bash
+#SBATCH --job-name=selfalignMito_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=50G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=16
+#SBATCH --time=04:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# load modules
+module load NCBI/blast-2.10.1+
+
+# activate conda env
+source ~/.bash_profile
+conda activate genome_assembly
+
+# inputs
+mito_fa=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/Gloydius_ussuriensis_AMNH_21010_mito.fa
+mito_contig="ptg000073c"
+
+# output dir
+outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/selfalign_mito
+mkdir -p "${outdir}"
+
+# build BLAST DB from mito contig
+dbdir="${outdir}/blast_db"
+mkdir -p "${dbdir}"
+dbprefix="${dbdir}/${mito_contig}"
+
+echo "Making BLAST DB:"
+echo "  mito_fa   = ${mito_fa}"
+echo "  dbprefix  = ${dbprefix}"
+makeblastdb -in "${mito_fa}" -dbtype nucl -out "${dbprefix}"
+
+# sanity check DB
+echo "DB info:"
+blastdbcmd -db "${dbprefix}" -info || { echo "ERROR: blastdbcmd failed"; exit 1; }
+
+# self-BLAST (mito vs mito)
+# use stricter settings + filter to highlight tandem repeat structure
+# include qlen/slen to help interpret offsets and copy structure.
+tsv="${outdir}/${mito_contig}_selfblast.tsv"
+csv="${outdir}/${mito_contig}_selfblast.csv"
+
+blastn \
+  -query "${mito_fa}" \
+  -db "${dbprefix}" \
+  -out "${tsv}" \
+  -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen" \
+  -evalue 1e-50 \
+  -num_threads "${SLURM_CPUS_PER_TASK}" \
+  -dust no \
+  -soft_masking false
+
+# remove the trivial full-length self hit (diagonal) to make repeats obvious
+# (keeps alignments where query and subject coordinates differ)
+filtered_tsv="${outdir}/${mito_contig}_selfblast_filtered.tsv"
+awk 'BEGIN{OFS="\t"} !($4==$13 && $7==1 && $8==$13 && $9==1 && $10==$13) {print}' "${tsv}" > "${filtered_tsv}"
+
+# 5) convert to CSV (both full and filtered)
+tr '\t' ',' < "${tsv}" > "${csv}"
+tr '\t' ',' < "${filtered_tsv}" > "${outdir}/${mito_contig}_selfblast_filtered.csv"
+
+echo "Done."
+echo "Outputs:"
+echo "  Full TSV      : ${tsv}"
+echo "  Filtered TSV  : ${filtered_tsv}"
+echo "  Full CSV      : ${csv}"
+echo "  Filtered CSV  : ${outdir}/${mito_contig}_selfblast_filtered.csv"
+```
+
+Let's examine the output:
+```
+cat ptg000073c_selfblast_filtered.tsv
+```
+![alt text](etc/selfalign_mito.PNG)
+
+We can see that the alignment length here is 17,211bp. 17,211 x 4 is exactly 68,844bp. In the results, we can also see alignment lengths of 51,633bp (17,211 x 3) and 34,422bp (17,211 x 2). This basically means that the contig ptg000073c contains four tandem copies of the complete mitogenome.
+
+Now that we identified the mitochondrial contig, let's snip it out from our draft assembly. This "no mito" assembly will be used in all downstream assembly steps.
+```
+# run on the head node
+# set paths to input
+asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
+mito_fa=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/ptg000073c.fa
+
+# set output dir
+outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito
+
+# read the contig ID from the mito file
+mito_id=$(grep -m1 "^>" "$mito_fa" | sed 's/^>//' | awk '{print $1}')
+echo "mito contig ID = $mito_id"
+
+# create the no-mito assembly
+seqkit grep -v -p "$mito_id" "$asm" > "$outdir/Gloydius_ussuriensis_AMNH_21010_noMito.fa"
+
+# sanity check == contig count should drop by 1
+echo "original contigs:"; grep -c "^>" "$asm"
+echo "no-mito contigs:"; grep -c "^>" "$outdir/Gloydius_ussuriensis_AMNH_21010_noMito.fa"
+```
+We can see that the total number of contigs went from 140 to 139 after removing the mito contig.
+
+Also, let's store a single mitogenome copy for later use:
+```
+# run this in the "genome_cleanup" directory
+seqkit grep -p ptg000073c Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa > ptg000073c.fa
+seqkit subseq -r 1:17211 ptg000073c.fa > mito_singlecopy.fa
+seqkit stats mito_singlecopy.fa
+```
+![alt text](etc/mito_singlecopy_seqkit.PNG)
+This is exactly what we expect to see.
+
+__*Note:*__ The coverage we calculated above from the raw fastq file represents the coverage based on total sequencing yield (i.e., amount of bases sequenced), prior to contamination screening. This value is going to be somewhat different from the mean sequencing coverage based on the reads mapped back to the assembly cleaned of contaminants and mitochondrial contigs. We will use the sorted BAM file to calculate the mean depth of coverage from the assembly screened for contamination. We can use the command below to calculated the mean coverage per bp (it's probably a better idea to submit this as a job):
 ```txt
 # activate the conda env that contains a newer version of samtools
 # samtools in the "genome_assembly" env is v1.6
