@@ -557,6 +557,7 @@ seqkit subseq -r 1:17211 ptg000073c.fa > mito_singlecopy.fa
 seqkit stats mito_singlecopy.fa
 ```
 ![alt text](etc/mito_singlecopy_seqkit.PNG)
+
 This is exactly what we expect to see.
 
 __*Note:*__ The coverage we calculated above from the raw fastq file represents the coverage based on total sequencing yield (i.e., amount of bases sequenced), prior to contamination screening. This value is going to be somewhat different from the mean sequencing coverage based on the reads mapped back to the assembly cleaned of contaminants and mitochondrial contigs. We will use the sorted BAM file to calculate the mean depth of coverage from the assembly screened for contamination. We can use the command below to calculated the mean coverage per bp (it's probably a better idea to submit this as a job):
