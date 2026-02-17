@@ -961,6 +961,7 @@ First, let's check the fasta header (we are in the "genome_cleanup" directory):
 head mito_singlecopy.fa 
 ```
 ![alt text](etc/head_mitogenome_fa.PNG)
+
 We can see that the header is the contig name. This is not ideal; let's change the header with species name:
 ```txt
 sed 's/^>.*/>Gloydius_ussuriensis_mitogenome/' mito_singlecopy.fa > ussuri_mitogenome_ann.fa
