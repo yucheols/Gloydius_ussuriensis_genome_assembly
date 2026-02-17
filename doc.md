@@ -767,9 +767,11 @@ mkdir -p ${out_dir}
 quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_AMNH_21010_noMito.fa -o ${out_dir} 
 ```
 
-## 7) Scaffolding through Hi-C data incorporation
+## 7) 
 
-## 8) Genome annotation
+## 8) Scaffolding through Hi-C data incorporation
+
+## 9) Genome annotation
   - __Setup:__
     Let's create new conda environments for packages to be used in genome annotation. Trimmomatic will be used for trimming Illumina adaptera. The funannotation package provides an automated pipeline for gene prediction, annotation, and comparison. The Earl Grey package automates transposable element annotation.
 ```
@@ -954,7 +956,7 @@ quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_AMNH_2101
    - __Functional annotation:__
 
 
-## 9) Mitogenome assembly
+## 10) Mitogenome assembly
 In the "Contamination screening" section above, we identified and stored the mitochondrial contig into a separate fasta file containing a single copy mitogenome ("mito_singlecopy.fa"). Now let's annotate this file.
 
 First, let's check the fasta header (we are in the "genome_cleanup" directory):
