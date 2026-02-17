@@ -349,7 +349,7 @@ Now, scp these files from the cluster to a local device for viewing.
 
 We can see there are no obvious non-vertebrate contaminants.
 
-Let's also identify mitochondrial contigs in the draft assembly. This can be done by blasting the mitochondrial reference to the draft assembly. G. ussuriensis already has a couple assembled mitogenomes on GenBank. We will use one of them (NC_026553.1) as a mitocohndrial reference. See the "Mitogenome assembly" section below on how to fetch the fasta file for this mitogenome from GenBank (it's down there because I wrote that section first). Once you get this file, we can run blast on Mendel with the script below. Note that we are creating a blast database internally in this script. The "-outfmt 6" flag means that the output format will be tabular. 
+Let's also identify mitochondrial contigs in the draft assembly. This can be done by blasting the mitochondrial reference to the draft assembly. *G. ussuriensis* already has a couple assembled mitogenomes on GenBank. We will use one of them (NC_026553.1) as a mitocohndrial reference. See the "Mitogenome assembly" section below on how to fetch the fasta file for this mitogenome from GenBank (it's down there because I wrote that section first). Once you get this file, we can run blast on Mendel with the script below. Note that we are creating a blast database internally in this script. The "-outfmt 6" flag means that the output format will be tabular. 
 ```sh
 #!/bin/bash
 #SBATCH --job-name=idMito_ussuri
