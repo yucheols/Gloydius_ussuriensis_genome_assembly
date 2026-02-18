@@ -768,7 +768,79 @@ quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_AMNH_2101
 ```
 
 ## 7) *k*-mer based assembly evaluation with Merqury
+Let's use Merqury as another assembly evaluation tool. Similar to jellyfish, this one is also based on *k*-mers. But unlike jellyfish we ran above (which was on raw read fastq), we are running merqury on the assembly. Basically, jellyfish just counts *k*-mers from on your reads. On the other hand, merqury is a framework to evaluate assemblies based on *k*-mer comparisons. It basically compares the assembly to reads. In other words, it checks whether the assembly faithfully represent the sequences that exist in the reads, using *k*-mers as evidence. It does so by computing assembly QV (sequence accuracy), *k*-mer completeness, etc. 
 
+The genome size estimate based on jellyfish was 1.18Gb, but the size estimate from QUAST was 1.59Gb.
+By comparing read k-mers and assembly k-mers, Merqury can tell you whether the genome size based on jellyfish output is an underestimation of the true genome size.
+
+Let's begin by creating a separate conda environment for merqury. We also need to install one of the dependencies (meryl) separately in that conda environment.
+```
+# create a new conda env for merqury
+conda create -n merqury
+conda activate merqury
+
+# install meryl
+conda install bioconda::meryl==1.4.1
+
+# install merqury
+conda install bioconda::merqury
+```
+Then run Merqury like so:
+```sh
+#!/bin/bash
+#SBATCH --job-name=merqury_ussuri
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=180G
+#SBATCH --time=48:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# activate conda env 
+source ~/.bash_profile
+conda activate merqury
+
+# inputs 
+asm_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa
+read_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ/AMNH_21010_HiFi.fastq.gz
+
+# parameters
+K=21
+THREADS=${SLURM_CPUS_PER_TASK}
+
+# outputs 
+out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/merqury/noMito_k${K}
+PREFIX=AMNH_21010_noMito_k${K}
+
+mkdir -p "$out_dir"
+cd "$out_dir"
+
+echo "[INFO] Using K=$K threads=$THREADS"
+echo "[INFO] Assembly: $asm_dir"
+echo "[INFO] Reads:    $read_dir"
+echo "[INFO] Output:   $out_dir/$PREFIX.*"
+
+# sanity checks
+command -v meryl >/dev/null 2>&1 || { echo "[ERROR] meryl not found in PATH"; exit 1; }
+command -v merqury.sh >/dev/null 2>&1 || { echo "[ERROR] merqury.sh not found in PATH"; exit 1; }
+
+# build read k-mer database
+echo "[INFO] Counting k-mers in reads with meryl..."
+meryl k=$K threads=$THREADS count "$read_dir" output reads.k${K}.meryl
+
+# run Merqury == computes QV, completeness, spectra-cn, etc.
+echo "[INFO] Running Merqury..."
+merqury.sh reads.k${K}.meryl "$asm_dir" "$PREFIX" 2>&1 | tee "$PREFIX.merqury.log"
+
+echo "[INFO] Done."
+echo "[INFO] Key outputs to look at:"
+echo "  - ${PREFIX}.qv            (assembly QV)"
+echo "  - ${PREFIX}.completeness  (k-mer completeness)"
+echo "  - ${PREFIX}.spectra-cn.*  (copy-number spectra plots/data)"
+```
 ## 8) Scaffolding through Hi-C data incorporation
 
 ## 9) Genome annotation
