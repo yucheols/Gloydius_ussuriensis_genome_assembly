@@ -1135,7 +1135,7 @@ grep -i -E "trnF|tRNA-Phe|phenylalanine" "Galaxy7-[MITOS2 on dataset 5_ GFF].gff
 ```
 ![alt text](etc/check_mitos2_gff3.PNG)
 
-We can see that trnF starts at position 15284 on the (-) strand. 
+We can see that trnF starts at position 15284 and ends at position 15347. __BUT,__ because the orientation of this sequence is (-), this means that the actual 5' end is at position 15347 and the 3' is at position 15284. 
 
 Now we can rotate the sequence based on this information. To do so, first install the "rotate" package under the mendel-nas1 directory:
 
@@ -1148,7 +1148,7 @@ git clone https://github.com/richarddurbin/rotate.git ; cd rotate ; make
 ./rotate
 ```
 
-Once the package is installed, run it on the head node. Since the start position orientation is on the (-) strand, let's reverse complement it after rotating to match the orientation of the reference mitogenome.
+Once the package is installed, run it on the head node. Since the start position orientation is on the (-) strand, make position 15347 as the start position. In addition, because the strand orientation is (-), make sure to reverse complement when you rotate (use the -rc flag).
 
 ```txt
 ### run rotate with the input sequence
@@ -1159,7 +1159,7 @@ path_to_seq=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome
 out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mt_genome
 
 # run rotate. run this in the rotate directory under mendel-nas1/
-./rotate -x 15284 -rc ${path_to_seq}/ussuri_mitogenome_ann.fa > ${out_dir}/ussuri_mt_rotated.fasta
+./rotate -x 15347 -rc ${path_to_seq}/ussuri_mitogenome_ann.fa > ${out_dir}/ussuri_mt_rotated.fasta
 
 # check stats
 conda activate genome_assembly
@@ -1183,7 +1183,7 @@ cp ussuri_mt_rotated.fasta final/
 cp *.gff final/
 
 # change the gff file name
-mv 'Galaxy18-[MITOS2 on dataset 16_ GFF].gff' annotation_rotated_final.gff
+mv 'Galaxy23-[MITOS2 on dataset 21_ GFF].gff' annotation_rotated_final.gff
 
 # cd into final folder and change file names and confirm gene content again
 cd final/
@@ -1197,7 +1197,7 @@ grep -i -E "gene_trnF|Name=trnF|trnF" *.gff
 ```
 ![alt text](etc/final_check_mitos2_gff2.PNG)
 
-The trnF is shown to span 17,149 bp - 17,212 bp. Since this mitogenome is 17,211 long, the position shown here actually means that the trnF is at the start of the circularized sequence. Check the sequence stats in the local device using seqkit (install it if you need to).
+The trnF is shown to span 17,148 bp - 17,211 bp. Since this mitogenome is 17,211 long, the position shown here actually means that the trnF is at the start of the circularized sequence. Check the sequence stats in the local device using seqkit (install it if you need to).
 
 ```txt
 seqkit stats ussuri_mt_rotated.fasta
