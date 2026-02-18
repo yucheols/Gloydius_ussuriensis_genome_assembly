@@ -161,7 +161,7 @@ cat preclean_stats.txt
 ```
 We can see that there are 140 contigs total.
 
-
+----------------------------------------------------------------------------------------------------
 ### Screening for potential non-vertebrate contaminants using blobtools
 We will use blobtools to identify potential non-vertebrate (e.g., microbial) contaminants. To run blobtools, we need the following:
   - nodes.dmp and names.dmp files from NCBI taxdump
@@ -895,6 +895,7 @@ So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the read
 ## 8) Scaffolding through Hi-C data incorporation
 
 ## 9) Genome annotation
+----------------------------------------------------------------------------------------------------
   - __Setup:__
     Let's create new conda environments for packages to be used in genome annotation. Trimmomatic will be used for trimming Illumina adaptera. The funannotation package provides an automated pipeline for gene prediction, annotation, and comparison. The Earl Grey package automates transposable element annotation.
 ```
@@ -913,7 +914,7 @@ So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the read
     # create a conda environment for Earl Grey and install it
     conda create -n earlgrey -c conda-forge -c bioconda earlgrey=7.0.1
 ```
-
+----------------------------------------------------------------------------------------------------
    - __RNA read QC:__
    Run FastQC on raw, untrimmed reads.
 
@@ -943,8 +944,9 @@ So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the read
    # run FastQC
    fastqc -o ${out_dir} ${path_to_seq}/AMNH_21010_Ht_1.fastq.gz ${path_to_seq}/AMNH_21010_Ht_2.fastq.gz ${path_to_seq}/AMNH_21010_Ky_1.fastq.gz ${path_to_seq}/AMNH_21010_Ky_2.fastq.gz ${path_to_seq}/AMNH_21010_Lg_1.fastq.gz ${path_to_seq}/AMNH_21010_Lg_2.fastq.gz ${path_to_seq}/AMNH_21010_Lr_1.fastq.gz ${path_to_seq}/AMNH_21010_Lr_2.fastq.gz ${path_to_seq}/AMNH_21010_Me_1.fastq.gz ${path_to_seq}/AMNH_21010_Me_2.fastq.gz ${path_to_seq}/AMNH_21010_Skin_1.fastq.gz ${path_to_seq}/AMNH_21010_Skin_2.fastq.gz
 ``` 
+----------------------------------------------------------------------------------------------------
    - __Repeat masking__
-
+----------------------------------------------------------------------------------------------------
    - __Adapter trimming:__ 
    Use trimmomatic to trim adapters and then run FastQC on the trimmed reads. The RNA sequencing was done on Illumina NovaSeq X in a paired-end mode. We will use trimmomatic to trim the Illumina adapters. Since we did paired end sequencing on six different tissues, there are a total of 12 FASTQ files. Repeating trimmomatic independently for each tissue type is not very effective. We can instead run a for loop to do the trimming in one go:
 
@@ -1071,11 +1073,13 @@ So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the read
    ![alt text](etc/multiqc.PNG)
 
    The MultiQC output gives a single, neatly organized .html file:
-   ![alt text](etc/multiqc_out.PNG) 
+   ![alt text](etc/multiqc_out.PNG)
 
+----------------------------------------------------------------------------------------------------
    - __Transcriptome assembly:__
-
+----------------------------------------------------------------------------------------------------
    - __Structural annotation:__
+----------------------------------------------------------------------------------------------------
    - __Functional annotation:__
 
 
