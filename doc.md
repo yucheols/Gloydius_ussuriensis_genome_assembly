@@ -355,7 +355,28 @@ Now, scp these files from the cluster to a local device for viewing.
 We can see there are no obvious non-vertebrate contaminants.
 
 ### Identifying and removing mitochondrial contigs from the draft assembly
-PacBio long-read assemblies usually contain complete mitogenomes as a sequencing bycatch, and it is a good idea to identify and remove them from primary assemblies in order to get a clean nuclear whole genome. This can be done by blasting the mitochondrial reference to the draft assembly. *G. ussuriensis* already has a couple assembled mitogenomes on GenBank. We will use one of them (NC_026553.1) as a mitocohndrial reference. See the "Mitogenome assembly" section below on how to fetch the fasta file for this mitogenome from GenBank (it's down there because I wrote that section first). Once you get this file, we can run blast on Mendel with the script below. Note that we are creating a blast database internally in this script. The "-outfmt 6" flag means that the output format will be tabular. 
+PacBio long-read assemblies usually contain complete mitogenomes as a sequencing bycatch, and it is a good idea to identify and remove them from primary assemblies in order to get a clean nuclear whole genome. This can be done by blasting the mitochondrial reference to the draft assembly. *G. ussuriensis* already has a couple assembled mitogenomes on GenBank. We will use one of them (NC_026553.1) as a mitocohndrial reference. Let's fetch this sequence from GenBank using entrez.
+
+```txt
+# create a directory to store mito reference
+mkdir -p /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref
+
+# install entrez to fetch seq from ncbi
+conda activate genome_assembly
+conda install -y -c bioconda entrez-direct
+
+# fetch seq and annotation
+ref_acc=NC_026553.1
+echo ${ref_acc}
+
+efetch -db nucleotide -id ${ref_acc} -format fasta > ${ref_acc}.fa
+efetch -db nucleotide -id ${ref_acc} -format gbwithparts > ${ref_acc}.gb
+
+# move the .fa file to the "genome_cleanup" directory
+cp NC_026553.1.fa /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup
+```
+Once you get this file, we can run blast on Mendel with the script below. Note that we are creating a blast database internally in this script. The "-outfmt 6" flag means that the output format will be tabular. 
 ```sh
 #!/bin/bash
 #SBATCH --job-name=idMito_ussuri
@@ -841,6 +862,35 @@ echo "  - ${PREFIX}.qv            (assembly QV)"
 echo "  - ${PREFIX}.completeness  (k-mer completeness)"
 echo "  - ${PREFIX}.spectra-cn.*  (copy-number spectra plots/data)"
 ```
+Check the results when the job finishes running. Let's check the .qv file first.
+```
+# cd into "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/merqury/noMito_k21" dirctory"
+cat AMNH_21010_noMito_k21.qv 
+```
+![alt text](etc/qv.PNG)
+
+Let's break it down:
+- Column 1: Assembly name
+- Column 2: Error *k*-mers
+- Column 3: Total bases
+- Column 4: QV score
+- Column 5: Error rate
+
+We can see the QV score is very high (> 70) and error rate is very low. This means that the estimated genome size based on QUAST is unlikely to be an overestimation due to sequencing artifacts/errors. 
+
+Let's also check the *k*-mer completeness.
+```
+cat AMNH_21010_noMito_k21.completeness.stats
+```
+![alt text](etc/merqury_completeness_stats.PNG)
+- Column 1: Assembly name
+- Column 2: Subset ("all" means that completeness was calculated from all read *k*-mers)
+- Column 3: Total read *k*-mers found in the assembly
+- Column 4: Total *k*-mers found in the reads
+- Column 5: *k*-mer completeness (%)
+
+So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the reads are not present in the assembly likely due to: 1) Repeat complexity, 2) *k*-mers specific to alternative alleles at heterozygous loci not present in collapsed primary assembly, 3) Filtering based on read coverage. This does not mean that ~9.4% of the genome is missing. For these reasons, the haploid genome size estimated by jellyfish (1.18Gb) is likely and underestimation of the true genome size (1.6Gb) due to repeats and heterozygosity.
+
 ## 8) Scaffolding through Hi-C data incorporation
 
 ## 9) Genome annotation
