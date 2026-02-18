@@ -354,6 +354,7 @@ Now, scp these files from the cluster to a local device for viewing.
 
 We can see there are no obvious non-vertebrate contaminants.
 
+----------------------------------------------------------------------------------------------------
 ### Identifying and removing mitochondrial contigs from the draft assembly
 PacBio long-read assemblies usually contain complete mitogenomes as a sequencing bycatch, and it is a good idea to identify and remove them from primary assemblies in order to get a clean nuclear whole genome. This can be done by blasting the mitochondrial reference to the draft assembly. *G. ussuriensis* already has a couple assembled mitogenomes on GenBank. We will use one of them (NC_026553.1) as a mitocohndrial reference. Let's fetch this sequence from GenBank using entrez.
 
