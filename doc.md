@@ -588,6 +588,62 @@ seqkit stats mito_singlecopy.fa
 
 This is exactly what we expect to see.
 
+As one final step, let's verify that the mitochondrial contig is gone from our draft assembly. This can be done using MitoHiFi (https://github.com/marcelauliano/MitoHiFi), which is a pipeline that finds, circularises and annotates mitogenome from PacBio assemblies. Installing this can be quite tricky. So, instead of fighting my way through installation, I created a directory for mitohifi under the "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo" directory just copied the mitohifi.sif file from Dani's directory. 
+```
+# make mitohifi directory
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo
+mkdir -p mitohifi
+cd mitohifi/
+
+# copy mitohifi.sif file over to this directory
+cp /home/dgarcia/mendel-nas1/PacBio/Helicops_angulatus_Aug2024/mitogenome_assembly/MitoHiFi/mitohifi.sif .
+``` 
+After this, run the script below. If we correctly eliminated the mitochondrial contig, __this run should fail because there are no mitochondrial reads to find and annotate__
+```sh
+#!/bin/bash
+#SBATCH --job-name=checkNoMito_ussuri
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=180G
+#SBATCH --time=48:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# use mitohifi to verify the mito contig is absent from the "cleaned" assembly
+# if we correctly eliminated mito contig, this script should fail to run
+# the mitohifi .sif image was copied from Dani's file directory
+
+# load apptainer to run mitohifi
+module load Apptainer/apptainer-1.2.5
+
+# MitoHiFi flags
+# -c: assembled contigs in .fasta (e.g. output from hifiasm) 
+# -r: PacBio read .fasta
+# -f: Close-related Mitogenome is fasta format
+# -g: .gb file associated with the mitogenome reference provided with -c
+# -o: genetic code // vertebrate = 2 
+# -t: n threads
+
+# cd into working directory (optional)
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitohifi
+
+# set paths for inputs (use /mendel-nas1, not /home/yshin/mendel-nas1)
+contigs=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa
+mito_ref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitohifi/NC_026553.1.fa
+mito_gb=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitohifi/NC_026553.1.gb
+sif=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitohifi/mitohifi.sif
+
+# run mitohifi
+apptainer exec -B $PWD --bind /mendel-nas1 mitohifi.sif \
+  mitohifi.py -c ${contigs} -f ${mito_ref} -g ${mito_gb} -o 2 -t ${SLURM_CPUS_PER_TASK}
+``` 
+As expected, the run indeed failed after a couple seconds, and spat out this error message:
+![alt text](etc/check_nomito.PNG)
+
+
 __*Note:*__ The coverage we calculated above from the raw fastq file represents the coverage based on total sequencing yield (i.e., amount of bases sequenced), prior to contamination screening. This value is going to be somewhat different from the mean sequencing coverage based on the reads mapped back to the assembly cleaned of contaminants and mitochondrial contigs. To calculate the mean sequencing coverage, let's first minimap2 to map the reads to the "no mito" assembly to generate and index a bam file. We will then calculate the coverage from this bam file:
 ```sh
 #!/bin/bash
