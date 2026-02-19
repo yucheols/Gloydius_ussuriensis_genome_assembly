@@ -11,6 +11,7 @@ __Workflow__
 4. __[Contamination screening](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#4-contamination-screening)__
    - __Screening for potential non-vertebrate contaminants using blobtools__
    - __Identifying and removing mitochondrial contigs from the draft assembly__
+   - __Genomewide mean sequencing coverage after contamination screening__
 5. __[Genome completeness using BUSCO](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#5-genome-completeness-using-busco)__
 6. __[Genome assembly stats with QUAST](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-genome-assembly-stats-with-quast)__
 7. __[*k*-mer based assembly evaluation with Merqury](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-k-mer-based-assembly-evaluation-with-merqury)__
@@ -708,7 +709,9 @@ mkdir mitohifi
 scp -r yshin@mendel.sdmz.amnh.org:/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitohifi .
 ```
 
-__*Note:*__ The coverage we calculated above from the raw fastq file represents the coverage based on total sequencing yield (i.e., amount of bases sequenced), prior to contamination screening. This value is going to be somewhat different from the mean sequencing coverage based on the reads mapped back to the assembly cleaned of contaminants and mitochondrial contigs. To calculate the mean sequencing coverage, let's first minimap2 to map the reads to the "no mito" assembly to generate and index a bam file. We will then calculate the coverage from this bam file:
+----------------------------------------------------------------------------------------------------
+### Genomewide mean sequencing coverage after contamination screening
+The coverage we calculated above from the raw fastq file represents the coverage based on total sequencing yield (i.e., amount of bases sequenced), prior to contamination screening. This value is going to be somewhat different from the mean sequencing coverage based on the reads mapped back to the assembly cleaned of contaminants and mitochondrial contigs. To calculate the mean sequencing coverage, let's first minimap2 to map the reads to the "no mito" assembly to generate and index a bam file. We will then calculate the coverage from this bam file:
 ```sh
 #!/bin/bash
 #SBATCH --job-name=calcCov_ussuri
