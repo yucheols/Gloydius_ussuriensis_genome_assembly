@@ -651,7 +651,7 @@ apptainer exec --bind "/home/yshin:/home/yshin" --bind "/mendel-nas1:/mendel-nas
   mitohifi.sif python3 /opt/MitoHiFi/src/mitohifi.py -c ${contigs} -f ${mito_ref} -g ${mito_gb} -o 2 -t ${SLURM_CPUS_PER_TASK}
 ``` 
 
-In contrast, running mitohifi with the assembly still containing the mitochondrial contig will produce the full result, including the annotated mitogenome.
+In contrast, running MitoHiFi with the assembly still containing the mitochondrial contig will produce the full result, including the annotated mitogenome.
 ```sh
 #!/bin/bash
 #SBATCH --job-name=mitoHiFi_ussuri
