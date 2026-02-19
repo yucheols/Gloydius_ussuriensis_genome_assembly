@@ -598,7 +598,7 @@ cd mitohifi/
 # copy mitohifi.sif file over to this directory
 cp /home/dgarcia/mendel-nas1/PacBio/Helicops_angulatus_Aug2024/mitogenome_assembly/MitoHiFi/mitohifi.sif .
 ``` 
-After this, run the script below. If we correctly eliminated the mitochondrial contig, __this run should fail because there are no mitochondrial reads to find and annotate__
+After this, run the script below. If we correctly eliminated the mitochondrial contig, __this run should produce an empty result because there are no mitochondrial reads to find and annotate__
 ```sh
 #!/bin/bash
 #SBATCH --job-name=checkNoMito_ussuri
@@ -627,22 +627,74 @@ module load Apptainer/apptainer-1.2.5
 # -o: genetic code // vertebrate = 2 
 # -t: n threads
 
+# make output dir
+outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/check_no_mito
+mkdir -p ${outdir}
+
+# copy mitohifi.sif into outdir
+cp /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitohifi/mitohifi.sif ${outdir}
+
+# cd into working directory
+cd ${outdir}
+
+# set paths for inputs (use /mendel-nas1, not /home/yshin/mendel-nas1)
+contigs=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa
+mito_ref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref/NC_026553.1.fa
+mito_gb=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/mito_ref/NC_026553.1.gb
+
+# in-container file visibility test
+apptainer exec --bind "/home/yshin:/home/yshin" --bind "/mendel-nas1:/mendel-nas1" --pwd "$PWD" mitohifi.sif \
+  bash -lc 'ls -lh /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitohifi/NC_026553.1.fa'
+
+# run mitohifi
+apptainer exec --bind "/home/yshin:/home/yshin" --bind "/mendel-nas1:/mendel-nas1" --pwd "$PWD" \
+  mitohifi.sif python3 /opt/MitoHiFi/src/mitohifi.py -c ${contigs} -f ${mito_ref} -g ${mito_gb} -o 2 -t ${SLURM_CPUS_PER_TASK}
+``` 
+
+In contrast, running mitohifi with the assembly still containing the mitochondrial contig will produce the full result, including the annotated mitogenome.
+```sh
+#!/bin/bash
+#SBATCH --job-name=mitoHiFi_ussuri
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=180G
+#SBATCH --time=48:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# use mitohifi to identify and assemble a mitogenome from pacbio assembly
+# the mitohifi .sif image was copied from Dani's file directory
+
+# load apptainer to run mitohifi
+module load Apptainer/apptainer-1.2.5
+
+# MitoHiFi flags
+# -c: assembled contigs in .fasta (e.g. output from hifiasm) 
+# -r: PacBio read .fasta
+# -f: Close-related Mitogenome is fasta format
+# -g: .gb file associated with the mitogenome reference provided with -c
+# -o: genetic code // vertebrate = 2 
+# -t: n threads
+
 # cd into working directory (optional)
 cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitohifi
 
 # set paths for inputs (use /mendel-nas1, not /home/yshin/mendel-nas1)
-contigs=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa
+contigs=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/genome_cleanup/Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
 mito_ref=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitohifi/NC_026553.1.fa
 mito_gb=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitohifi/NC_026553.1.gb
-sif=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitohifi/mitohifi.sif
+
+# in-container file visibility test
+apptainer exec --bind "/home/yshin:/home/yshin" --bind "/mendel-nas1:/mendel-nas1" --pwd "$PWD" mitohifi.sif \
+  bash -lc 'ls -lh /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitohifi/NC_026553.1.fa'
 
 # run mitohifi
-apptainer exec -B $PWD --bind /mendel-nas1 mitohifi.sif \
-  mitohifi.py -c ${contigs} -f ${mito_ref} -g ${mito_gb} -o 2 -t ${SLURM_CPUS_PER_TASK}
-``` 
-As expected, the run indeed failed after a couple seconds, and spat out this error message:
-![alt text](etc/check_nomito.PNG)
-
+apptainer exec --bind "/home/yshin:/home/yshin" --bind "/mendel-nas1:/mendel-nas1" --pwd "$PWD" \
+  mitohifi.sif python3 /opt/MitoHiFi/src/mitohifi.py -c ${contigs} -f ${mito_ref} -g ${mito_gb} -o 2 -t ${SLURM_CPUS_PER_TASK}
+```
 
 __*Note:*__ The coverage we calculated above from the raw fastq file represents the coverage based on total sequencing yield (i.e., amount of bases sequenced), prior to contamination screening. This value is going to be somewhat different from the mean sequencing coverage based on the reads mapped back to the assembly cleaned of contaminants and mitochondrial contigs. To calculate the mean sequencing coverage, let's first minimap2 to map the reads to the "no mito" assembly to generate and index a bam file. We will then calculate the coverage from this bam file:
 ```sh
@@ -1140,6 +1192,8 @@ So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the read
 
 
 ## 10) Mitogenome assembly
+Running mitofifi will automatically give you the annotated mitogenome. This is an alternative method for annotating the mitogenome that is more time consuming (but I guess it is still valuabe for the purpose of learning). 
+
 In the "Contamination screening" section above, we identified and stored the mitochondrial contig into a separate fasta file containing a single copy mitogenome ("mito_singlecopy.fa"). Now let's annotate this file.
 
 First, let's check the fasta header (we are in the "genome_cleanup" directory):
