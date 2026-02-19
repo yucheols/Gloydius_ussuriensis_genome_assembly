@@ -701,6 +701,13 @@ apptainer exec --bind "/home/yshin:/home/yshin" --bind "/mendel-nas1:/mendel-nas
 ```
 ![alt text](etc/mitohifi.PNG)
 
+Let's scp this file into a local device and have a closer look.
+```
+# run this locally in "/home/yshin/Gloydius_ussuriensis_genome_assembly/outfiles" directory
+mkdir mitohifi
+scp -r yshin@mendel.sdmz.amnh.org:/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitohifi .
+```
+
 __*Note:*__ The coverage we calculated above from the raw fastq file represents the coverage based on total sequencing yield (i.e., amount of bases sequenced), prior to contamination screening. This value is going to be somewhat different from the mean sequencing coverage based on the reads mapped back to the assembly cleaned of contaminants and mitochondrial contigs. To calculate the mean sequencing coverage, let's first minimap2 to map the reads to the "no mito" assembly to generate and index a bam file. We will then calculate the coverage from this bam file:
 ```sh
 #!/bin/bash
