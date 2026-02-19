@@ -1331,3 +1331,12 @@ seqkit stats ussuri_mt_rotated.fasta
 
 Awesome! this can now be imported into Geneious for visualization.
 ![alt text](etc/mt_geneious_vis.PNG)
+
+__Note:__ The steps outlined above already have a lot of manual work. But then it needs further manual curation to adjust annotation. But we don't have to go through all of this for this sample because MitoHiFi run we did in the "Contamination screening" step will automatically produce fully annotated mitogenome that requires minimal manual data processing.
+![alt text](etc/mitohifi_geneious.PNG)
+
+From here, we only need to manually annotate the replication origin and two D-loop regions. I did this by extracting these sequences from the reference mitogenome and aligning them to the MitoHiFi assembly. The final output looks like this (after some name edits):
+![alt text](etc/fullMt_MitoHiFi.PNG)
+
+Note that this genome is also 17,211bp long, like the assembly generated through the steps in this subsection. But overall, MitoHiFi output produced a cleaner output. This is because the assembly we annotated with MITOS2 had some issues determining gene boundaries in some places. Let's look at this by comparing the MitoHiFi assembly, MITOS2 assembly, and the reference mitogenome:
+![alt text](etc/gene_boundaries.PNG)
