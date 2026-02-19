@@ -598,7 +598,11 @@ cd mitohifi/
 # copy mitohifi.sif file over to this directory
 cp /home/dgarcia/mendel-nas1/PacBio/Helicops_angulatus_Aug2024/mitogenome_assembly/MitoHiFi/mitohifi.sif .
 ``` 
-After this, run the script below. If we correctly eliminated the mitochondrial contig, __this run should produce an empty result because there are no mitochondrial reads to find and annotate__
+After this, run the script below. If we correctly eliminated the mitochondrial contig, __this run should fail because there are no mitochondrial reads to find and annotate__
+
+The error log should look something like this:
+![alt text](etc/check_nomito.PNG)
+
 ```sh
 #!/bin/bash
 #SBATCH --job-name=checkNoMito_ussuri
@@ -695,6 +699,7 @@ apptainer exec --bind "/home/yshin:/home/yshin" --bind "/mendel-nas1:/mendel-nas
 apptainer exec --bind "/home/yshin:/home/yshin" --bind "/mendel-nas1:/mendel-nas1" --pwd "$PWD" \
   mitohifi.sif python3 /opt/MitoHiFi/src/mitohifi.py -c ${contigs} -f ${mito_ref} -g ${mito_gb} -o 2 -t ${SLURM_CPUS_PER_TASK}
 ```
+![alt text](etc/mitohifi.PNG)
 
 __*Note:*__ The coverage we calculated above from the raw fastq file represents the coverage based on total sequencing yield (i.e., amount of bases sequenced), prior to contamination screening. This value is going to be somewhat different from the mean sequencing coverage based on the reads mapped back to the assembly cleaned of contaminants and mitochondrial contigs. To calculate the mean sequencing coverage, let's first minimap2 to map the reads to the "no mito" assembly to generate and index a bam file. We will then calculate the coverage from this bam file:
 ```sh
