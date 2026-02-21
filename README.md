@@ -15,7 +15,7 @@ __*Gloydius ussuriensis* (AMNH 21010) collected from Hwacheon, South Korea (coll
 ### Computing resources and software package dependencies
 __HPC__
 - AMNH Mendel and Huxley HPCs
-- apptainer v1.2.5 (loaded as a module on Mendel)
+- apptainer v1.2.5 (loaded as a module on Mendel to run MitoHiFI)
 - BLAST v2.10.1+ (loaded as a module on Mendel)
 - BLAST v2.11.0 (loaded as a module on Huxley)
 - blobtools v1.1.1
