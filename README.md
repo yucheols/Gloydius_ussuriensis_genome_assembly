@@ -1,5 +1,5 @@
 # Whole-genome assembly of the Ussuri Pitviper (*Gloydius ussuriensis*)
-PacBio HiFi genome assembly of the Ussuri Pitviper (*Gloydius ussuriensis*)
+Chromosome-level reference genome assembly of the Ussuri Pitviper (*Gloydius ussuriensis*) using PacBio long-read sequencing, RNA-seq, and Hi-C.
 
 -----------------------------------------------------------------------------------------------------
 ### Specimen
