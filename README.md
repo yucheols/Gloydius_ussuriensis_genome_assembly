@@ -15,6 +15,7 @@ __*Gloydius ussuriensis* (AMNH 21010) collected from Hwacheon, South Korea (coll
 ### Computing resources and software package dependencies
 __HPC__
 - AMNH Mendel and Huxley HPCs
+- apptainer v1.2.5 (loaded as a module on Mendel)
 - BLAST v2.10.1+ (loaded as a module on Mendel)
 - BLAST v2.11.0 (loaded as a module on Huxley)
 - blobtools v1.1.1
@@ -28,6 +29,7 @@ __HPC__
 - meryl v1.4.1
 - merqury v1.3
 - minimap2 v2.30-r1287
+- MitoHiFi
 - multiqc v1.33
 - QUAST v5.3.0
 - samtools v1.6 ("genome_assembly" conda env)
