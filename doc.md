@@ -1340,3 +1340,46 @@ From here, we only need to manually annotate the replication origin and two D-lo
 
 Note that this genome is also 17,211bp long, like the assembly generated through the steps in this subsection. But overall, MitoHiFi output produced a cleaner output. This is because the assembly we annotated with MITOS2 had some issues determining gene boundaries in some places. Let's look at this by comparing the MitoHiFi assembly, MITOS2 assembly, and the reference mitogenome:
 ![alt text](etc/gene_boundaries.PNG)
+
+Finally, recall that our mitogenome was contained in the contig ptg000073c and that this contig was 68,844 bp in length. Since our mitogenome is 17.211 bp in length, this mean that the contig has four complete mitogenomes stitched back to back four times. Let's make sure this is actually the case by splitting up this contig into four equal chunks and see if each of them is indeed a complete mitogenome.
+
+First, let's cd into the "genome_cleanup" directory on Mendel, which is where the ptg000073c contig fasta file is located in. Activate the "genome_assembly" conda env and use seqkit to check the length of this contig:
+```txt
+# in the "genome_cleanup" directory
+conda activate genome_assembly
+seqkit stats ptg000073c.fa
+```
+![alt text](etc/mito_dup.PNG)
+
+Now, let's create a "mito_chunks" directory under the current directory to store the split files, and use the samtools faidx command to slice this contig into four chunks, each exactlty 17,211 bp in length. 
+```txt
+# make the directory
+mkdir mito_chunks
+
+# copy the contig file into this directory
+cp ptg000073c.fa mito_chunks
+
+# cd into the mito_chunks directory
+cd mito_chunks/
+
+# index the fasta first
+samtools faidx ptg000073c.fa
+
+# set contig name as variable
+c_name="ptg000073c"
+
+# split
+samtools faidx ptg000073c.fa ${c_name}:1-17211     > mito_part1.fa
+samtools faidx ptg000073c.fa ${c_name}:17212-34422 > mito_part2.fa
+samtools faidx ptg000073c.fa ${c_name}:34423-51633 > mito_part3.fa
+samtools faidx ptg000073c.fa ${c_name}:51634-68844 > mito_part4.fa
+```
+Let's use seqkit to verify the size of each chunk
+```txt
+seqkit stats mito_part*
+```
+![alt text](etc/mito_chunk_size.PNG)
+
+Awesome. Let's scp the entire "mito_chunks" folder to our local device and have a look using Geneious.
+
+
