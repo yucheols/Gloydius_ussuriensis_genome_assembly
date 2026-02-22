@@ -1071,7 +1071,7 @@ So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the read
    - __Repeat masking__
 ----------------------------------------------------------------------------------------------------
    - __Adapter trimming:__ 
-   Use trimmomatic to trim adapters and then run FastQC on the trimmed reads. The RNA sequencing was done on Illumina NovaSeq X in a paired-end mode. We will use trimmomatic to trim the Illumina adapters. Since we did paired end sequencing on six different tissues, there are a total of 12 FASTQ files. Repeating trimmomatic independently for each tissue type is not very effective. We can instead run a for loop to do the trimming in one go:
+   Use trimmomatic to trim adapters and then run FastQC on the trimmed reads. The RNA sequencing was done on Illumina NovaSeq X in a paired-end mode. We will use trimmomatic to trim the Illumina adapters. Since we did paired end sequencing on six different tissues, there are a total of 12 FASTQ files. Repeating trimmomatic independently for each tissue type is not very effective. Instead, I wrote a simple for loop to do the trimming in one go:
 
 ```sh
    #!/bin/bash
