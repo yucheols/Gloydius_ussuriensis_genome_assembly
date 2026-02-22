@@ -1380,6 +1380,6 @@ seqkit stats mito_part*
 ```
 ![alt text](etc/mito_chunk_size.PNG)
 
-Awesome. Let's scp the entire "mito_chunks" folder to our local device and have a look using Geneious.
+scp this folder to our local device and run blast on each of them. The results will show that they all match our *G. ussuriensis* reference mitogenome with > 99% percent identity with 100% query cover. This confirms that mitogenomes were stitched four times on to the contig ptg000073c. This likely happened because the assembler failed to recognize the circular nature of the mitogenome.
 
 
