@@ -601,9 +601,6 @@ cp /home/dgarcia/mendel-nas1/PacBio/Helicops_angulatus_Aug2024/mitogenome_assemb
 ``` 
 After this, run the script below. If we correctly eliminated the mitochondrial contig, __this run should fail because there are no mitochondrial reads to find and annotate__
 
-The error log should look something like this:
-![alt text](etc/check_nomito.PNG)
-
 ```sh
 #!/bin/bash
 #SBATCH --job-name=checkNoMito_ussuri
@@ -655,6 +652,8 @@ apptainer exec --bind "/home/yshin:/home/yshin" --bind "/mendel-nas1:/mendel-nas
 apptainer exec --bind "/home/yshin:/home/yshin" --bind "/mendel-nas1:/mendel-nas1" --pwd "$PWD" \
   mitohifi.sif python3 /opt/MitoHiFi/src/mitohifi.py -c ${contigs} -f ${mito_ref} -g ${mito_gb} -o 2 -t ${SLURM_CPUS_PER_TASK}
 ``` 
+The error log should look something like this:
+![alt text](etc/check_nomito.PNG)
 
 In contrast, running MitoHiFi with the assembly still containing the mitochondrial contig will produce the full result, including the annotated mitogenome.
 ```sh
