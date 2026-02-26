@@ -16,6 +16,7 @@ __Workflow__
 6. __[Genome assembly stats with QUAST](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-genome-assembly-stats-with-quast)__
 7. __[*k*-mer based assembly evaluation with Merqury](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-k-mer-based-assembly-evaluation-with-merqury)__
 8. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-scaffolding-through-hi-c-data-incorporation)__
+  - __Soft-masking draft assembly with Earl Grey__
 9. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#9-genome-annotation)__
    - __RNA read QC__
    - __Repeat annotation__
@@ -1028,6 +1029,7 @@ cat AMNH_21010_noMito_k21.completeness.stats
 So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the reads are not present in the assembly likely due to: 1) Repeat complexity, 2) *k*-mers specific to alternative alleles at heterozygous loci not present in collapsed primary assembly, 3) Filtering based on read coverage. This does not mean that ~9.4% of the genome is missing. For these reasons, the haploid genome size estimated by jellyfish (1.18Gb) is likely and underestimation of the true genome size (1.6Gb) due to repeats and heterozygosity.
 
 ## 8) Scaffolding through Hi-C data incorporation
+### Soft masking the draft assembly with Earl Grey
 
 ## 9) Genome annotation
 ----------------------------------------------------------------------------------------------------
