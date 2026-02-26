@@ -43,7 +43,27 @@ Let's do the same for the RNA seq reads:
 ```txt
 zcat AMNH_21010_Ht_1.fastq.gz | head -n 2
 ```
-Repeat this for each tissue type and read, and you will see that all the hits come out to be snake mRNA genes. For the skin RNA reads, using the regular megablast option to optimize for highly similar sequences will print out a warning "No significant similarity found." However, switching to optimization for somewhat similar sequences (blastn) will print out hits for snake genes (from *Thamnophis* and *Candoia*)   
+Repeat this for each tissue type and read, and you will see that all the hits come out to be snake mRNA genes. For the skin RNA reads, using the regular megablast option to optimize for highly similar sequences will print out a warning "No significant similarity found." However, switching to optimization for somewhat similar sequences (blastn) will print out hits for snake genes (from *Thamnophis* and *Candoia*).
+
+Also, let's estimate the mean sequencing depth ("coverage") we got from the raw gzipped FASTQ file. We can get the coverage based on the number of bp in our FASTQ file divided by the estimated genome size. We don't know the genome size of *G. ussuriensis*, but we can use the genome size of related species as a proxy - here we will use the Prairie Rattlesnake (*Crotalus viridis*) reference genome for this purpose (1.3 Gb). 
+
+```txt
+# get the number of bp
+zcat AMNH_21010_HiFi.fastq.gz | awk 'NR%4==2{bp+=length($0)} END{print bp/1e9 " Gb"}'
+```
+The output is 134.449 Gb. If we use the *C. viridis* ref genome size, the coverage would be 134.449/1.3 = 103x.
+
+Next, let's check the average read length. We can do so by running the "seqkit stats" command on our fastq.gz file:
+```txt
+# cd into the directory containing the .fastq.gz file
+# cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/FASTQ
+
+# activate the "genome_assembly" conda env to access seqkit / this conda env was already in place
+# with seqkit installed
+conda activate genome_assembly
+seqkit stats AMNH_21010_HiFi.fastq.gz
+```
+![alt text](etc/raw_read_avg_seqlen.PNG)
 
 ## 2) *k*-mer analysis of raw reads using jellyfish
 Conduct a *k*-mer count analysis on the raw reads using jellyfish. This can be useful to estimate the genome size, heterozygosity, etc. Use the following script to submit a job to the AMNH Mendel HPC cluster. The "zcat [...]" line first unpacks the HiFi fastq.gz file (without permanently extracting the content, because this file is massive), converts it into the FASTA format (dropping quality scores, etc.), and pipes that into jellyfish. The output .jf file is then fed into the "jellyfish histo" command to produce the .histo file for viewing.
@@ -127,13 +147,6 @@ Among all these files the "bp.p_ctg.gfa" file contains the assembly graph of pri
 ```txt
 awk '$1=="S"{print ">"$2"\n"$3}' Gloydius_ussuriensis_v1.asm.bp.p_ctg.gfa > Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa
 ```
-Also, let's estimate the mean sequencing depth ("coverage") we got. We can get the coverage based on the number of bp in our FASTQ file divided by the estimated genome size. We already have an estimated haploid genome size output from GenomeScope (1.18 Gb). We can also use the genome size of related species as a proxy - we will use the Prairie Rattlesnake (*Crotalus viridis*) reference genome for this purpose (1.3 Gb). 
-
-```txt
-# get the number of bp
-zcat AMNH_21010_HiFi.fastq.gz | awk 'NR%4==2{bp+=length($0)} END{print bp/1e9 " Gb"}'
-```
-The output is 134.449 Gb. If we use the genome size estimated from GenomeScope, then the coverage would be 134.449/1.18, so roughly 113.94x coverage. If we use the *C. viridis* ref genome size, then the coverage would be 134.449/1.3 = 103x.
 
 ## 4) Contamination screening
 The draft assembly likely contains mitochondrial contigs and/or potential microbial contaminants. So, it is always a good idea to check for these and "clean up" the genome before finalizing the assembly and publishing it. This section is based on https://github.com/amandamarkee/actias-luna-genome
