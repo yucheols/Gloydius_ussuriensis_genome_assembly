@@ -16,7 +16,7 @@ __Workflow__
 6. __[Genome assembly stats with QUAST](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-genome-assembly-stats-with-quast)__
 7. __[*k*-mer based assembly evaluation with Merqury](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-k-mer-based-assembly-evaluation-with-merqury)__
 8. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-scaffolding-through-hi-c-data-incorporation)__
-  - __Soft-masking draft assembly with Earl Grey__
+   - __Soft-masking draft assembly with Earl Grey__
 9. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#9-genome-annotation)__
    - __RNA read QC__
    - __Repeat annotation__
