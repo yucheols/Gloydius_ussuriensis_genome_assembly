@@ -1030,7 +1030,9 @@ So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the read
 
 ## 8) Scaffolding through Hi-C data incorporation
 ### Soft masking draft assembly with Earl Grey
-Before incorporating the Hi-C data, it is necessary to 
+Before incorporating the Hi-C data, it is necessary to soft mask the genome. We can do this using the Earl Grey pipeline (https://github.com/TobyBaril/EarlGrey), which is a fully-automated pipeline for transposable element (TE) annotation.
+
+Let's start by creating a separate conda environment and install Earl Grey: 
 
 ```
 # create a conda environment for Earl Grey and install it
@@ -1038,6 +1040,38 @@ conda create -n earlgrey -c conda-forge -c bioconda earlgrey=7.0.1
 
 # create a directory for scaffolding
 mkdir -p /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding
+```
+
+Once this is done, run Earl Grey with the script below on Mendel:
+```sh
+#!/bin/bash
+#SBATCH --job-name=earlGrey_ussuri
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=48
+#SBATCH --mem=180G
+#SBATCH --time=180:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# soft masking the draft assembly with Earl Grey // do this prior to Hi-C incorporation
+
+# activate the conda env
+source ~/.bash_profile
+conda activate earlgrey
+
+# path to draft assembly == does not contain mitogenome
+path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa
+
+# output path
+outpath=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/earlGrey
+mkdir -p $outpath
+
+# run Earl Grey
+# -d flag == Create soft-masked genome at the end? (yes/no, Default: no)
+earlGrey -g ${path_to_asm} -s Gloydius_ussuriensis -o ${outpath} -d yes -t ${SLURM_CPUS_PER_TASK}
 ```
 
 
