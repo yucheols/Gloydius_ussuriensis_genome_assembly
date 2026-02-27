@@ -1,7 +1,7 @@
 # Whole-genome assembly of the Ussuri Pitviper (*Gloydius ussuriensis*)
 Reference genome assembly of *Gloydius ussuriensis* using PacBio HiFi long-read sequencing, RNA-seq, and Hi-C. Workflow adapted from: https://github.com/danielagarciacobos4/PacBio_GenomeAssembly_annotation, https://github.com/amandamarkee/onigra_genome, and https://github.com/amandamarkee/actias-luna-genome. Also, thanks to Amanda Markee (AMNH IZ), Daniela Garcia (AMNH Herp), Jon Hoffman (AMNH Herp), Dylan DeBaun (AMNH Herp), Dean Bobo (AMNH ICG), and Sajesh Singh (AMNH CS) for help and discussions.
 
-The genome sequencing was done on the PacBio Revio system (1 SMRT cell) and RNA sequencing was done on the Illumina NovaSeq X (151bp PE). The individual used for this genome assembly is accessioned at the AMNH Herpetology Collections under the voucher number AMNH 21010.
+The genome sequencing was done on the PacBio Revio system (1 SMRT cell) and RNA sequencing was done on the Illumina NovaSeq X (151bp PE). The individual used for this genome assembly is accessioned at the AMNH Herpetology Collections under the field number AMNH 21010.
 
 ### Workflow
 
@@ -25,6 +25,8 @@ The genome sequencing was done on the PacBio Revio system (1 SMRT cell) and RNA 
    - __Structural annotation__
    - __Functional annotation__
 10. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#10-mitogenome-assembly)__
+   - __"Manual" annotation with MITOS2__
+   - __Submitting mitogenome to GenBank__
 
 ## 1) A quick sanity check on the dataset
 Even before doing anything, let's do a very quick sanity check on the HiFi data to check the reads we have are actually from our target species. Let's take a chunk from the HiFi FASTQ file, after cd'ing into the directory containing the fastq.gz file:
@@ -1262,6 +1264,7 @@ earlGrey -g ${path_to_asm} -s Gloydius_ussuriensis -o ${outpath} -d yes -t ${SLU
 
 
 ## 10) Mitogenome assembly
+### "Manual" annotation with MITOS2
 Running mitofifi will automatically give you the annotated mitogenome. This is an alternative method for annotating the mitogenome that is more time consuming (but I guess it is still valuabe for the purpose of learning). 
 
 In the "Contamination screening" section above, we identified and stored the mitochondrial contig into a separate fasta file containing a single copy mitogenome ("mito_singlecopy.fa"). Now let's annotate this file.
@@ -1437,4 +1440,18 @@ seqkit stats mito_part*
 
 scp this folder to our local device and run blast on each of them. The results will show that they all match our *G. ussuriensis* reference mitogenome with > 99% percent identity with 100% query cover. This confirms that mitogenomes were stitched four times on to the contig ptg000073c. This likely happened because the assembler failed to recognize the circular nature of the mitogenome.
 
+----------------------------------------------------------------------------------------------------
+### Submitting mitogenome to GenBank
+Let's submit the completed mitogenome assembly to GenBank. Prior to this step. I loaded the final mitogenome output from mitohifi on to Geneious Prime and manually annotated the two D-loops and replication origin. I did this by extracting these sequences from the conspecific reference mitogenome and mapping them to the assembled mitogenome using the "Map to reference" tool. I then downloaded this as a fasta file. This file is stored in a new directory at "/home/yshin/Gloydius_ussuriensis_genome_assembly/outfiles/mitogenome_GenBank_submission"
 
+Let's also copy the "final_mitogenome.gb" file from the mitohifi output directory to this directory:
+```txt
+# cd into mitohifi output directory
+cd /home/yshin/Gloydius_ussuriensis_genome_assembly/outfiles/mitohifi
+
+# copy .gb file over to mitogenome submission directory
+cp final_mitogenome.gb /home/yshin/Gloydius_ussuriensis_genome_assembly/outfiles/mitogenome_GenBank_submission
+
+# cd into mitogenome submission directory
+cd /home/yshin/Gloydius_ussuriensis_genome_assembly/outfiles/mitogenome_GenBank_submission
+```
