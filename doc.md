@@ -1032,7 +1032,7 @@ cat AMNH_21010_noMito_k21.completeness.stats
 
 So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the reads are not present in the assembly likely due to: 1) Repeat complexity, 2) *k*-mers specific to alternative alleles at heterozygous loci not present in collapsed primary assembly, 3) Filtering based on read coverage. This does not mean that ~9.4% of the genome is missing. For these reasons, the haploid genome size estimated by jellyfish (1.18Gb) is likely and underestimation of the true genome size (1.6Gb) due to repeats and heterozygosity.
 
-## 8) Scaffolding through Hi-C data incorporation
+## 6) Scaffolding through Hi-C data incorporation
 ### Soft masking draft assembly with Earl Grey
 Before incorporating the Hi-C data, it is necessary to soft mask the genome. We can do this using the Earl Grey pipeline (https://github.com/TobyBaril/EarlGrey), which is a fully-automated pipeline for transposable element (TE) annotation.
 
@@ -1079,7 +1079,7 @@ earlGrey -g ${path_to_asm} -s Gloydius_ussuriensis -o ${outpath} -d yes -t ${SLU
 ```
 
 
-## 9) Genome annotation
+## 7) Genome annotation
 ----------------------------------------------------------------------------------------------------
   - __Setup:__
     Let's create new conda environments for packages to be used in genome annotation. Trimmomatic will be used for trimming Illumina adaptera. The funannotation package provides an automated pipeline for gene prediction, annotation, and comparison. The Earl Grey package automates transposable element annotation.
@@ -1265,7 +1265,7 @@ earlGrey -g ${path_to_asm} -s Gloydius_ussuriensis -o ${outpath} -d yes -t ${SLU
    - __Functional annotation:__
 
 
-## 10) Mitogenome assembly
+## 8) Mitogenome assembly
 ### "Manual" annotation with MITOS2
 Running mitofifi will automatically give you the annotated mitogenome. This is an alternative method for annotating the mitogenome that is more time consuming (but I guess it is still valuabe for the purpose of learning). 
 
