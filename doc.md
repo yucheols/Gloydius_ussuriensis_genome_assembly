@@ -22,6 +22,8 @@ The genome sequencing was done on the PacBio Revio system (1 SMRT cell) and RNA 
    - __Setup__
    - __RNA read QC (pre-trimming)__
    - __Adapter trimming & post-trimming QC__ 
+   - __(Pre-Hi-C) RNA alignment to draft using HiSat2__
+   - __(Pre-Hi-C) Draft-guided transcriptome assembly using StringTie__
    - __Transcriptome assembly__
    - __Structural annotation__
    - __Functional annotation__
@@ -1254,6 +1256,10 @@ multiqc -o ${outdir} --filename "posttrim_QC" ${indir}/posttrim
 The MultiQC output gives a single, neatly organized .html file:
 ![alt text](etc/multiqc_out.PNG)
 
+----------------------------------------------------------------------------------------------------
+### (Pre-Hi-C) RNA alignment to draft using HiSat2
+----------------------------------------------------------------------------------------------------
+### (Pre-Hi-C) Draft-guided transcriptome assembly using StringTie
 ----------------------------------------------------------------------------------------------------
 ### Transcriptome assembly
 ----------------------------------------------------------------------------------------------------
