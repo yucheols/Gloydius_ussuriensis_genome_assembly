@@ -20,9 +20,9 @@ The genome sequencing was done on the PacBio Revio system (1 SMRT cell) and RNA 
    - __Soft-masking draft assembly with Earl Grey__
 7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-genome-annotation)__
    - __RNA read QC__
-   - __Repeat annotation__
    - __Adapter trimming__ 
    - __Transcriptome assembly__
+   - __Contamination screening__
    - __Structural annotation__
    - __Functional annotation__
 8. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-mitogenome-assembly)__
