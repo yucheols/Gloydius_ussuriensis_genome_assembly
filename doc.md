@@ -606,7 +606,7 @@ seqkit stats mito_singlecopy.fa
 
 This is exactly what we expect to see.
 
-As one final step, let's verify that the mitochondrial contig is gone from our draft assembly. This can be done using MitoHiFi (https://github.com/marcelauliano/MitoHiFi), which is a pipeline that finds, circularises and annotates mitogenome from PacBio assemblies. Installing this can be quite tricky. So, instead of fighting my way through installation, I created a directory for mitohifi under the "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo" directory just copied the mitohifi.sif file from Dani's directory. Also, it is possible to run MitoHiFi through the Galaxy web server (https://galaxy-main.usegalaxy.org/).
+As one final step, let's verify that the mitochondrial contig is gone from our draft assembly. This can be done using MitoHiFi (https://github.com/marcelauliano/MitoHiFi), which is a pipeline that finds, circularises and annotates mitogenome from PacBio assemblies. Installing this can be quite tricky. So, instead of fighting my way through installation, I created a directory for mitohifi under the "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo" directory just copied the mitohifi.sif file from Dani's directory on Mendel. Also, it is possible to run MitoHiFi through the Galaxy web server (https://galaxy-main.usegalaxy.org/).
 ```
 # make mitohifi directory
 cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo
@@ -1080,190 +1080,186 @@ earlGrey -g ${path_to_asm} -s Gloydius_ussuriensis -o ${outpath} -d yes -t ${SLU
 
 
 ## 7) Genome annotation
-----------------------------------------------------------------------------------------------------
-  - __Setup:__
-    Let's create new conda environments for packages to be used in genome annotation. Trimmomatic will be used for trimming Illumina adaptera. The funannotation package provides an automated pipeline for gene prediction, annotation, and comparison. The Earl Grey package automates transposable element annotation.
+### Setup
+Let's create new conda environments for packages to be used in genome annotation. Trimmomatic will be used for trimming Illumina adaptera. The funannotation package provides an automated pipeline for gene prediction, annotation, and comparison. The Earl Grey package automates transposable element annotation.
 ```
-    ### create a conda environment and install funannotate
-    # add channels
-    conda config --add channels defaults
-    conda config --add channels bioconda
-    conda config --add channels conda-forge
+### create a conda environment and install funannotate
+# add channels
+conda config --add channels defaults
+conda config --add channels bioconda
+conda config --add channels conda-forge
 
-    # create a conda env for trimmomatic and install it
-    conda create -n trimmomatic -c conda-forge -c bioconda trimmomatic
+# create a conda env for trimmomatic and install it
+conda create -n trimmomatic -c conda-forge -c bioconda trimmomatic
 
-    # create a conda env for funannotate and install it
-    conda create -n funannotate "python>=3.6,<3.9" funannotate
+# create a conda env for funannotate and install it
+conda create -n funannotate "python>=3.6,<3.9" funannotate
 ```
 ----------------------------------------------------------------------------------------------------
-   - __RNA read QC:__
-   Run FastQC on raw, untrimmed reads.
+### RNA read QC (pre-trimming)
+Run FastQC on raw, untrimmed reads.
 
 ```sh
-   #!/bin/bash
-   #SBATCH --job-name=rnaQC_ussuri
-   #SBATCH --nodes=1
-   #SBATCH --mem=200G
-   #SBATCH --partition=compute
-   #SBATCH --cpus-per-task=24
-   #SBATCH --time=10:00:00
-   #SBATCH --mail-type=ALL
-   #SBATCH --mail-user=yshin@amnh.org
-   #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
-   #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+#!/bin/bash
+#SBATCH --job-name=rnaQC_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=200G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=24
+#SBATCH --time=10:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
 
-   # initiate conda and activate the conda environment
-   source ~/.bash_profile
-   conda activate genome_assembly
+# initiate conda and activate the conda environment
+source ~/.bash_profile
+conda activate genome_assembly
 
-   # path to the fastq file
-   path_to_seq=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FASTQ
+# path to the fastq file
+path_to_seq=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FASTQ
 
-   # output directory
-   out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FastQC/pretrim
+# output directory
+out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FastQC/pretrim
 
-   # run FastQC
-   fastqc -o ${out_dir} ${path_to_seq}/AMNH_21010_Ht_1.fastq.gz ${path_to_seq}/AMNH_21010_Ht_2.fastq.gz ${path_to_seq}/AMNH_21010_Ky_1.fastq.gz ${path_to_seq}/AMNH_21010_Ky_2.fastq.gz ${path_to_seq}/AMNH_21010_Lg_1.fastq.gz ${path_to_seq}/AMNH_21010_Lg_2.fastq.gz ${path_to_seq}/AMNH_21010_Lr_1.fastq.gz ${path_to_seq}/AMNH_21010_Lr_2.fastq.gz ${path_to_seq}/AMNH_21010_Me_1.fastq.gz ${path_to_seq}/AMNH_21010_Me_2.fastq.gz ${path_to_seq}/AMNH_21010_Skin_1.fastq.gz ${path_to_seq}/AMNH_21010_Skin_2.fastq.gz
+# run FastQC
+fastqc -o ${out_dir} ${path_to_seq}/AMNH_21010_Ht_1.fastq.gz ${path_to_seq}/AMNH_21010_Ht_2.fastq.gz ${path_to_seq}/AMNH_21010_Ky_1.fastq.gz ${path_to_seq}/AMNH_21010_Ky_2.fastq.gz ${path_to_seq}/AMNH_21010_Lg_1.fastq.gz ${path_to_seq}/AMNH_21010_Lg_2.fastq.gz ${path_to_seq}/AMNH_21010_Lr_1.fastq.gz ${path_to_seq}/AMNH_21010_Lr_2.fastq.gz ${path_to_seq}/AMNH_21010_Me_1.fastq.gz ${path_to_seq}/AMNH_21010_Me_2.fastq.gz ${path_to_seq}/AMNH_21010_Skin_1.fastq.gz ${path_to_seq}/AMNH_21010_Skin_2.fastq.gz
 ``` 
 ----------------------------------------------------------------------------------------------------
-   - __Repeat masking__
-----------------------------------------------------------------------------------------------------
-   - __Adapter trimming:__ 
-   Use trimmomatic to trim adapters and then run FastQC on the trimmed reads. The RNA sequencing was done on Illumina NovaSeq X in a paired-end mode. We will use trimmomatic to trim the Illumina adapters. Since we did paired end sequencing on six different tissues, there are a total of 12 FASTQ files. Repeating trimmomatic independently for each tissue type is not very effective. Instead, I wrote a simple for loop to do the trimming in one go:
+### Adapter trimming & post-trimming QC 
+Use trimmomatic to trim adapters and then run FastQC on the trimmed reads. The RNA sequencing was done on Illumina NovaSeq X in a paired-end mode. We will use trimmomatic to trim the Illumina adapters. Since we did paired end sequencing on six different tissues, there are a total of 12 FASTQ files. Repeating trimmomatic independently for each tissue type is not very effective. Instead, I wrote a simple for loop to do the trimming in one go:
 
 ```sh
-   #!/bin/bash
-   #SBATCH --job-name=adapterTrim_ussuri
-   #SBATCH --nodes=1
-   #SBATCH --mem=100G
-   #SBATCH --partition=compute
-   #SBATCH --cpus-per-task=30
-   #SBATCH --time=7-00:00:00
-   #SBATCH --mail-type=ALL
-   #SBATCH --mail-user=yshin@amnh.org
-   #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
-   #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+#!/bin/bash
+#SBATCH --job-name=adapterTrim_ussuri
+#SBATCH --nodes=1
+#SBATCH --mem=100G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=30
+#SBATCH --time=7-00:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
 
-   # initiate conda and activate the conda environment
-   source ~/.bash_profile
-   conda activate trimmomatic
+# initiate conda and activate the conda environment
+source ~/.bash_profile
+conda activate trimmomatic
 
-   # paths to input forward & reverse reads, adapters, and output trimmed reads 
-   path_to_seq=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FASTQ
-   adapters=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/custom_adapters.fa
-   out_path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/trimmed
+# paths to input forward & reverse reads, adapters, and output trimmed reads 
+path_to_seq=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FASTQ
+adapters=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/custom_adapters.fa
+out_path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/trimmed
 
-   # loop through the read files in the directory and run trimmomatic
-   # print this before looping
-   echo "start adapter trimming..."
+# loop through the read files in the directory and run trimmomatic
+# print this before looping
+echo "start adapter trimming..."
 
-   # loop through the file in the directory and run trimmomatic
-   for f_read in ${path_to_seq}/*_1.fastq.gz; do
-    
-     # echo forward read
-     echo "found a forward read: ${f_read##*/}"
+# loop through the file in the directory and run trimmomatic
+for f_read in ${path_to_seq}/*_1.fastq.gz; do
+  
+  # echo forward read
+  echo "found a forward read: ${f_read##*/}"
 
-     # designate reverse read
-     r_read=${f_read/_1.fastq.gz/_2.fastq.gz}
-     echo "found a corresponding reverse read: ${r_read##*/}"
+  # designate reverse read
+  r_read=${f_read/_1.fastq.gz/_2.fastq.gz}
+  echo "found a corresponding reverse read: ${r_read##*/}"
 
-     # print out a message on the type of tissue being processed
-     tissue=${f_read%_1.fastq.gz}
-     echo "Start adapter trimming ${tissue##*/} reads..."
+  # print out a message on the type of tissue being processed
+  tissue=${f_read%_1.fastq.gz}
+  echo "Start adapter trimming ${tissue##*/} reads..."
 
-     # run trimmomatic
-     trimmomatic PE -threads ${SLURM_CPUS_PER_TASK} -phred33 \
-       -Xmx80g \
-       ${f_read} ${r_read} \
-       ${tissue}_R1_paired.fastq.gz ${tissue}_R1_unpaired.fastq.gz \
-       ${tissue}_R2_paired.fastq.gz ${tissue}_R2_unpaired.fastq.gz \
-       ILLUMINACLIP:${adapters}:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36 
-   done
+  # run trimmomatic
+  trimmomatic PE -threads ${SLURM_CPUS_PER_TASK} -phred33 \
+    -Xmx80g \
+    ${f_read} ${r_read} \
+    ${tissue}_R1_paired.fastq.gz ${tissue}_R1_unpaired.fastq.gz \
+    ${tissue}_R2_paired.fastq.gz ${tissue}_R2_unpaired.fastq.gz \
+    ILLUMINACLIP:${adapters}:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36 
+done
 
-   # move trimmed files to the output directory
-   echo "move trimmed files to output dir..."
+# move trimmed files to the output directory
+echo "move trimmed files to output dir..."
 
-   mv ${path_to_seq}/*_R1_paired.fastq.gz ${out_path}
-   mv ${path_to_seq}/*_R2_paired.fastq.gz ${out_path}
-   mv ${path_to_seq}/*_R1_unpaired.fastq.gz ${out_path}
-   mv ${path_to_seq}/*_R2_unpaired.fastq.gz ${out_path}
+mv ${path_to_seq}/*_R1_paired.fastq.gz ${out_path}
+mv ${path_to_seq}/*_R2_paired.fastq.gz ${out_path}
+mv ${path_to_seq}/*_R1_unpaired.fastq.gz ${out_path}
+mv ${path_to_seq}/*_R2_unpaired.fastq.gz ${out_path}
 
-   echo "all files moved to output dir"
+echo "all files moved to output dir"
 
-   # print this at the end
-   echo "Trimming on all tissue types finished successfully"
+# print this at the end
+echo "Trimming on all tissue types finished successfully"
 ```
-   This run will result in a total of 24 files, two files (paired & unpaired) for each read. Now run FastQC again on trimmed read files:
+This run will result in a total of 24 files, two files (paired & unpaired) for each read. Now run FastQC again on trimmed read files:
 
 ```sh
-   #!/bin/bash
-   #SBATCH --job-name=rnaQC_posttrim
-   #SBATCH --nodes=1
-   #SBATCH --mem=200G
-   #SBATCH --partition=compute
-   #SBATCH --cpus-per-task=24
-   #SBATCH --time=10:00:00
-   #SBATCH --mail-type=ALL
-   #SBATCH --mail-user=yshin@amnh.org
-   #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
-   #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+#!/bin/bash
+#SBATCH --job-name=rnaQC_posttrim
+#SBATCH --nodes=1
+#SBATCH --mem=200G
+#SBATCH --partition=compute
+#SBATCH --cpus-per-task=24
+#SBATCH --time=10:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
 
-   # initiate conda and activate the conda environment
-   source ~/.bash_profile
-   conda activate genome_assembly
+# initiate conda and activate the conda environment
+source ~/.bash_profile
+conda activate genome_assembly
 
-   # paths to the trimmed fastq files
-   path_to_trimmed=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/trimmed
+# paths to the trimmed fastq files
+path_to_trimmed=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/trimmed
 
-   # output directory
-   out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FastQC/posttrim
+# output directory
+out_dir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FastQC/posttrim
 
-   # run FastQC
-   for file in ${path_to_trimmed}/*.fastq.gz; do
-     echo "run FastQC on ${file##*/}..."
-     fastqc -o ${out_dir} ${file}
-     echo "FastQC on ${file##*/} completed"
-   done
+# run FastQC
+for file in ${path_to_trimmed}/*_paired.fastq.gz; do
+  echo "running FastQC on $(basename "${file}")..."
+  fastqc -o ${out_dir} -t ${SLURM_CPUS_PER_TASK} ${file}
+  echo "FastQC on ${file##*/} completed"
+done
 
-   # print when completed
-   echo "FastQC on all files completed"
+# print when completed
+echo "FastQC on all files completed"
 ```
-   Let's compare pre-trimming and post-trimming FastQC results, focusing on adapter content.
-   Let's open up the results for heart RNA reads:
-  ![alt text](etc/adapters.png)
-   We can see that the adapters are basically gone after trimming.
+Let's compare pre-trimming and post-trimming FastQC results, focusing on adapter content.
+Let's open up the results for heart RNA reads:
+![alt text](etc/adapters.png)
+We can see that the adapters are basically gone after trimming.
    
-   It can be annoying to look through all the different .html files containing QC results for each tissue type. MultiQC (https://github.com/MultiQC/MultiQC) is a really neat tool that enables the user to merge outputs from different bioinformatics software to generate one, clean QC output.
+It can be annoying to look through all the different .html files containing QC results for each tissue type. MultiQC (https://github.com/MultiQC/MultiQC) is a really neat tool that enables the user to merge outputs from different bioinformatics software to generate one, clean QC output.
 
-   Install MultiQC:
-   ```txt
-   conda create -n multiqc -c conda-forge multiqc
-   conda activate multiqc
-   multiqc --help
-   ```
+Install MultiQC:
+```txt
+conda create -n multiqc -c conda-forge multiqc
+conda activate multiqc
+multiqc --help
+```
 
-   You only need to supply MultiQC some options and path to the files you want to merge (e.g., path to multiple FastQC outputs).
-   ```sh
-   # set directories as variables
-   outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FastQC/multiqc
-   indir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FastQC
+You only need to supply MultiQC some options and path to the files you want to merge (e.g., path to multiple FastQC outputs).
+```sh
+# set directories as variables
+outdir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FastQC/multiqc
+indir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/FastQC
 
-   # run multiqc == can run this on the head node because it runs very fast
-   multiqc -o ${outdir} --filename "posttrim_QC" ${indir}/posttrim
-   ```
-   ![alt text](etc/multiqc.PNG)
+# run multiqc == can run this on the head node because it runs very fast
+multiqc -o ${outdir} --filename "posttrim_QC" ${indir}/posttrim
+```
+![alt text](etc/multiqc.PNG)
 
-   The MultiQC output gives a single, neatly organized .html file:
-   ![alt text](etc/multiqc_out.PNG)
+The MultiQC output gives a single, neatly organized .html file:
+![alt text](etc/multiqc_out.PNG)
 
 ----------------------------------------------------------------------------------------------------
-   - __Transcriptome assembly:__
+### Transcriptome assembly
 ----------------------------------------------------------------------------------------------------
-   - __Structural annotation:__
+### Structural annotation
 ----------------------------------------------------------------------------------------------------
-   - __Functional annotation:__
-
+### Functional annotation
 
 ## 8) Mitogenome assembly
 ### "Manual" annotation with MITOS2
