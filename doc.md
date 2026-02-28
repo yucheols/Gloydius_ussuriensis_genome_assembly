@@ -1258,6 +1258,34 @@ The MultiQC output gives a single, neatly organized .html file:
 
 ----------------------------------------------------------------------------------------------------
 ### (Pre-Hi-C) RNA alignment to draft using HiSat2
+Now that we have our RNA-seq reads trimmed of adapter sequences and QCed, we can go ahead and align these reads to our draft genome to obtain mapping quality, etc. 
+
+Let's create a conda environment for HiSat2 and install the package in it:
+```
+conda create -n hisat2 -c bioconda hisat2
+conda activate hisat2
+```
+
+Also, let's copy paired reads over to our annotation directory. This is not entirely necessary, but I did it to keep the files neatly organized for different tasks.
+```
+# create a directory for annotation under the main assembly directory
+# which is "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo
+mkdir -p annotation
+mkdir -p annotation/paired_RNAseq_reads
+
+# copy the files
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/RNAseq/trimmed
+cp *_R1_paired.fastq.gz /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/paired_RNAseq_reads
+cp *_R2_paired.fastq.gz /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/paired_RNAseq_reads
+
+# check files
+ls /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/paired_RNAseq_reads
+```
+![alt text](etc/paired_reads.PNG)
+
+Now, let's run HiSat2 on Mendel with the script below
+
 ----------------------------------------------------------------------------------------------------
 ### (Pre-Hi-C) Draft-guided transcriptome assembly using StringTie
 ----------------------------------------------------------------------------------------------------

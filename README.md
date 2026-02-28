@@ -13,7 +13,7 @@ __*Gloydius ussuriensis* (AMNH 21010) collected from Hwacheon, South Korea (coll
 
 -----------------------------------------------------------------------------------------------------
 ### Computing resources and software package dependencies
-__HPC__
+#### HPC
 - AMNH Mendel and Huxley HPCs
 - apptainer v1.2.5 (loaded as a module on Mendel to run MitoHiFI)
 - BLAST v2.10.1+ (loaded as a module on Mendel)
@@ -25,7 +25,7 @@ __HPC__
 - Earl Grey
 - fastqc v0.12.1
 - funannotate
-- HiSat2
+- HiSat2 v2.2.2
 - meryl v1.4.1
 - merqury v1.3
 - minimap2 v2.30-r1287
@@ -36,9 +36,8 @@ __HPC__
 - samtools v1.23 ("samtools" conda env)
 - seqkit v2.12.0
 - trimmomatic v0.40
------------------------------------------------------------------------------------------------------
 
-__Local__
+#### Local
 - Geneious Prime v2019.2.3
 - ggplot v3.5.1
 - R v4.4.2
