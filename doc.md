@@ -19,10 +19,10 @@ The genome sequencing was done on the PacBio Revio system (1 SMRT cell) and RNA 
 6. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-scaffolding-through-hi-c-data-incorporation)__
    - __Soft-masking draft assembly with Earl Grey__
 7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-genome-annotation)__
-   - __RNA read QC__
-   - __Adapter trimming__ 
+   - __Setup__
+   - __RNA read QC (pre-trimming)__
+   - __Adapter trimming & post-trimming QC__ 
    - __Transcriptome assembly__
-   - __Contamination screening__
    - __Structural annotation__
    - __Functional annotation__
 8. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-mitogenome-assembly)__
