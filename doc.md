@@ -25,8 +25,8 @@ The genome sequencing was done on the PacBio Revio system (1 SMRT cell) and RNA 
    - __Structural annotation__
    - __Functional annotation__
 10. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#10-mitogenome-assembly)__
-   - __"Manual" annotation with MITOS2__
-   - __Submitting mitogenome to GenBank__
+    - __"Manual" annotation with MITOS2__
+    - __Submitting mitogenome to GenBank__
 
 ## 1) A quick sanity check on the dataset
 Even before doing anything, let's do a very quick sanity check on the HiFi data to check the reads we have are actually from our target species. Let's take a chunk from the HiFi FASTQ file, after cd'ing into the directory containing the fastq.gz file:
