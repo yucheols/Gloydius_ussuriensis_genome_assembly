@@ -12,19 +12,20 @@ The genome sequencing was done on the PacBio Revio system (1 SMRT cell) and RNA 
    - __Screening for potential non-vertebrate contaminants using blobtools__
    - __Identifying and removing mitochondrial contigs from the draft assembly__
    - __Genomewide mean sequencing coverage after contamination screening__
-5. __[Genome completeness using BUSCO](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#5-genome-completeness-using-busco)__
-6. __[Genome assembly stats with QUAST](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-genome-assembly-stats-with-quast)__
-7. __[*k*-mer based assembly evaluation with Merqury](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-k-mer-based-assembly-evaluation-with-merqury)__
-8. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-scaffolding-through-hi-c-data-incorporation)__
+5. __[Draft assembly evaluation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#5-draft-assembly-evaluation)__ 
+   - __Genome completeness using BUSCO__
+   - __Genome assembly stats with QUAST__
+   - __*k*-mer based assembly evaluation with Merqury__
+6. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-scaffolding-through-hi-c-data-incorporation)__
    - __Soft-masking draft assembly with Earl Grey__
-9. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#9-genome-annotation)__
+7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-genome-annotation)__
    - __RNA read QC__
    - __Repeat annotation__
    - __Adapter trimming__ 
    - __Transcriptome assembly__
    - __Structural annotation__
    - __Functional annotation__
-10. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#10-mitogenome-assembly)__
+8. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-mitogenome-assembly)__
     - __"Manual" annotation with MITOS2__
     - __Submitting mitogenome to GenBank__
 
@@ -794,7 +795,8 @@ The result shows:
 - 85.2% of the genome has ≥50× coverage
 
 
-## 5) Genome completeness using BUSCO
+## 5) Draft assembly evaluation 
+### Genome completeness using BUSCO
 Now let's assess the completeness of our draft assembly output from hifiasm. BUSCO (Benchmarking Universal Single-Copy Orthologs) is a common metric to assess genome completeness. It uses a lineage-specific dataset to search for the presence/absence of highly conserved genes for that lineage in your genome assembly. We will use *compleasm* (https://github.com/huangnengCSU/compleasm) to assess genome completeness. This provides a faster alternative to the regular BUSCO package for large genome assemblies.
 
 First, create a conda environment for *compleasm* and install the package:
@@ -886,8 +888,8 @@ ggplot(compl_res, aes(x = 2, y = percentage, fill = category)) +
 ######  export plot
 ggsave('Rplots/compleasm_result.png', width = 21, height = 20, dpi = 800, units = 'cm')
 ```
-
-## 6) Genome assembly stats with QUAST
+----------------------------------------------------------------------------------------------------
+### Genome assembly stats with QUAST
 QUAST is a quality assessment tool for genome assemblies. Installing QUAST in the "genome_assembly" conda environment is not possible because of python version clashes - we need to create a separate conda environment for this package.
 
 Install QUAST:
@@ -926,8 +928,8 @@ mkdir -p ${out_dir}
 # run quast
 quast.py -t ${SLURM_CPUS_PER_TASK} ${path_to_asm}/Gloydius_ussuriensis_AMNH_21010_noMito.fa -o ${out_dir} 
 ```
-
-## 7) *k*-mer based assembly evaluation with Merqury
+----------------------------------------------------------------------------------------------------
+### *k*-mer based assembly evaluation with Merqury
 Let's use Merqury as another assembly evaluation tool. Similar to jellyfish, this one is also based on *k*-mers. But unlike jellyfish we ran above (which was on raw read fastq), we are running merqury on the assembly. Basically, jellyfish just counts *k*-mers from on your reads. On the other hand, merqury is a framework to evaluate assemblies based on *k*-mer comparisons. It basically compares the assembly to reads. In other words, it checks whether the assembly faithfully represent the sequences that exist in the reads, using *k*-mers as evidence. It does so by computing assembly QV (sequence accuracy), *k*-mer completeness, etc. 
 
 The genome size estimate based on jellyfish was 1.18Gb, but the size estimate from QUAST was 1.59Gb.
