@@ -1303,31 +1303,47 @@ source ~/.bash_profile
 export PATH=/home/yshin/mendel-nas1/miniconda3/bin:$PATH
 conda activate hisat2
 
-# path to draft
-draft_path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito
-
-# path to RNAseq reads
+# paths
+draft_fa=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa
 rna_path=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/paired_RNAseq_reads
 
 # output directory
 outpath=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/hisat2_preHiC
 mkdir -p ${outpath}
+mkdir -p ${outpath}/{index,bam,logs}
 
-# build a genome index
-hisat2-build ${draft_path}/Gloydius_ussuriensis_AMNH_21010_noMito.fa ${outpath}/Gloydius_ussuriensis_AMNH_21010_noMito
+# build hisat2 index once
+index_prefix=${outpath}/index/Gloydius_ussuriensis_AMNH_21010_noMito
+if [[ ! -e ${index_prefix}.1.ht2 && ! -e ${index_prefix}.1.ht2l ]]; then
+  echo "[INFO] Building HISAT2 index..."
+  hisat2-build -p ${SLURM_CPUS_PER_TASK} ${draft_fa} ${index_prefix}
+else
+  echo "[INFO] HISAT2 index exists. Skipping."
+fi
 
-# loop over the RNA reads per tissue type and map to the reference genome using HiSat2
-for type in ${rna_path}/*; do
-  if [ -d "$type" ]; then
-    echo "Mapping RNA-seq reads from the following tissue type: $type"
-    hisat2 -p ${SLURM_CPUS_PER_TASK} -x ${outpath}/Gloydius_ussuriensis_AMNH_21010_noMito \
-    -1 ${rna_path}/AMNH_21010_${type}_R1_paired.fastq.gz -2 ${rna_path}/AMNH_21010_${type}_R2_paired.fastq.gz | \
-    samtools sort -o ${outpath}/${type}.bam
+echo "[INFO] Mapping RNA-seq reads in: ${rna_path}"
+shopt -s nullglob
+for R1 in ${rna_path}/AMNH_21010_*_R1_paired.fastq.gz; do
+  sample=$(basename ${R1} _R1_paired.fastq.gz)
+  R2=${rna_path}/${sample}_R2_paired.fastq.gz
+
+  if [[ ! -f ${R2} ]]; then
+    echo "[WARN] Missing R2 for ${sample}. Skipping."
+    continue
   fi
-done
 
-# index the bam file
-samtools index ${outpath}/rnaseq.bam
+  echo "[INFO] Mapping: ${sample}"
+  bam=${outpath}/bam/${sample}.sorted.bam
+  log=${outpath}/logs/${sample}.hisat2.log
+
+  hisat2 -p ${SLURM_CPUS_PER_TASK} --dta \
+    -x ${index_prefix} \
+    -1 ${R1} -2 ${R2} \
+    2> ${log} \
+  | samtools sort -@ ${SLURM_CPUS_PER_TASK} -o ${bam} -
+
+  samtools index ${bam}
+done
 
 # print when done
 echo "[DONE] HISAT2 mapping complete."
