@@ -2,9 +2,9 @@
 #SBATCH --job-name=earlGrey_ussuri
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=48
-#SBATCH --mem=180G
+#SBATCH --mem=600G
 #SBATCH --time=180:00:00
-#SBATCH --partition=compute
+#SBATCH --partition=bigmem
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
@@ -20,7 +20,7 @@ conda activate earlgrey
 path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa
 
 # output path
-outpath=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/earlGrey
+outpath=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/
 mkdir -p $outpath
 
 # run Earl Grey
