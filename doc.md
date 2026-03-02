@@ -25,10 +25,10 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __Adapter trimming & post-trimming QC__ 
    - __(Pre-Hi-C) RNA alignment to draft using HiSat2__
    - __(Pre-Hi-C) Draft-guided transcriptome assembly using StringTie__
-   - __Repeat masking (soft masking) using Earl Grey__
-   - __Transcriptome assembly__
-   - __Structural annotation__
-   - __Functional annotation__
+   - __(Post-Hi-C) Repeat masking (soft masking) using Earl Grey__
+   - __(Post-Hi-C) Re-run HiSat2 and StringTie on the scaffolded and masked genome__
+   - __(Post-Hi-C) Structural annotation__
+   - __(Post-Hi-C) Functional annotation__
 8. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-mitogenome-assembly)__
     - __"Manual" annotation with MITOS2__
     - __Submitting mitogenome to GenBank__
