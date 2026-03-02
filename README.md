@@ -35,6 +35,7 @@ __*Gloydius ussuriensis* (AMNH 21010) collected from Hwacheon, South Korea (coll
 - samtools v1.6 ("genome_assembly" conda env)
 - samtools v1.23 ("samtools" conda env)
 - seqkit v2.12.0
+- StringTie v2.1.7
 - trimmomatic v0.40
 
 #### Local
