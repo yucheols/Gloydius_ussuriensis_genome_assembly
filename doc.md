@@ -19,13 +19,13 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __Genome assembly stats with QUAST__
    - __*k*-mer based assembly evaluation with Merqury__
 6. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-scaffolding-through-hi-c-data-incorporation)__
-   - __Soft-masking draft assembly with Earl Grey__
 7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-genome-annotation)__
    - __Setup__
    - __RNA read QC (pre-trimming)__
    - __Adapter trimming & post-trimming QC__ 
    - __(Pre-Hi-C) RNA alignment to draft using HiSat2__
    - __(Pre-Hi-C) Draft-guided transcriptome assembly using StringTie__
+   - __Repeat masking (soft masking) using Earl Grey__
    - __Transcriptome assembly__
    - __Structural annotation__
    - __Functional annotation__
@@ -1037,52 +1037,10 @@ cat AMNH_21010_noMito_k21.completeness.stats
 So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the reads are not present in the assembly likely due to: 1) Repeat complexity, 2) *k*-mers specific to alternative alleles at heterozygous loci not present in collapsed primary assembly, 3) Filtering based on read coverage. This does not mean that ~9.4% of the genome is missing. For these reasons, the haploid genome size estimated by jellyfish (1.18Gb) is likely and underestimation of the true genome size (1.6Gb) due to repeats and heterozygosity.
 
 ## 6) Scaffolding through Hi-C data incorporation
-### Soft masking draft assembly with Earl Grey
-Before incorporating the Hi-C data, it is necessary to soft mask the genome. We can do this using the Earl Grey pipeline (https://github.com/TobyBaril/EarlGrey), which is a fully-automated pipeline for transposable element (TE) annotation.
-
-Let's start by creating a separate conda environment and install Earl Grey: 
-
 ```
-# create a conda environment for Earl Grey and install it
-conda create -n earlgrey -c conda-forge -c bioconda earlgrey=7.0.1
-
 # create a directory for scaffolding
 mkdir -p /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding
 ```
-
-Once this is done, run Earl Grey with the script below on Mendel:
-```sh
-#!/bin/bash
-#SBATCH --job-name=earlGrey_ussuri
-#SBATCH --nodes=1
-#SBATCH --cpus-per-task=48
-#SBATCH --mem=600G
-#SBATCH --time=180:00:00
-#SBATCH --partition=bigmem
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
-
-# soft masking the draft assembly with Earl Grey // do this prior to Hi-C incorporation
-
-# activate the conda env
-source ~/.bash_profile
-conda activate earlgrey
-
-# path to draft assembly == does not contain mitogenome
-path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa
-
-# output path
-outpath=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/
-mkdir -p $outpath
-
-# run Earl Grey
-# -d flag == Create soft-masked genome at the end? (yes/no, Default: no)
-earlGrey -g ${path_to_asm} -s Gloydius_ussuriensis -o ${outpath} -d yes -t ${SLURM_CPUS_PER_TASK}
-```
-
-
 ## 7) Genome annotation
 ### Setup
 Let's create new conda environments for packages to be used in genome annotation. Trimmomatic will be used for trimming Illumina adaptera. The funannotation package provides an automated pipeline for gene prediction, annotation, and comparison. The Earl Grey package automates transposable element annotation.
@@ -1448,6 +1406,46 @@ The outputs will show that we have:
 
 These results seem to be in great shape in terms of transcript evidence-building. We will put a pause here, finish Hi-C incorporation, and move on to final annotation once our assembly is at the scaffold level. 
 
+----------------------------------------------------------------------------------------------------
+### (Post-Hi-C) Repeat masking (soft masking) using Earl Grey
+Before moving on to final annotation, it is necessary to annotate the repeats and soft mask the genome. We can do this using the Earl Grey pipeline (https://github.com/TobyBaril/EarlGrey), which is a fully-automated pipeline for transposable element (TE)/repeat annotation.
+
+Let's start by creating a separate conda environment and install Earl Grey: 
+
+```
+# create a conda environment for Earl Grey and install it
+conda create -n earlgrey -c conda-forge -c bioconda earlgrey=7.0.1
+```
+
+Once this is done, run Earl Grey with the script below on Mendel:
+```sh
+#!/bin/bash
+#SBATCH --job-name=earlGrey_ussuri
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=48
+#SBATCH --mem=600G
+#SBATCH --time=180:00:00
+#SBATCH --partition=bigmem
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# activate the conda env
+source ~/.bash_profile
+conda activate earlgrey
+
+# path to draft assembly == does not contain mitogenome
+path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa
+
+# output path
+outpath=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/
+mkdir -p $outpath
+
+# run Earl Grey
+# -d flag == Create soft-masked genome at the end? (yes/no, Default: no)
+earlGrey -g ${path_to_asm} -s Gloydius_ussuriensis -o ${outpath} -d yes -t ${SLURM_CPUS_PER_TASK}
+```
 ----------------------------------------------------------------------------------------------------
 ### Transcriptome assembly
 ----------------------------------------------------------------------------------------------------
