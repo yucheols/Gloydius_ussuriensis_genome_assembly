@@ -1447,11 +1447,11 @@ mkdir -p $outpath
 earlGrey -g ${path_to_asm} -s Gloydius_ussuriensis -o ${outpath} -d yes -t ${SLURM_CPUS_PER_TASK}
 ```
 ----------------------------------------------------------------------------------------------------
-### Transcriptome assembly
+### (Post-Hi-C) Re-run HiSat2 and StringTie on the scaffolded and masked genome
 ----------------------------------------------------------------------------------------------------
-### Structural annotation
+### (Post-Hi-C) Structural annotation
 ----------------------------------------------------------------------------------------------------
-### Functional annotation
+### (Post-Hi-C) Functional annotation
 
 ## 8) Mitogenome assembly
 ### "Manual" annotation with MITOS2
