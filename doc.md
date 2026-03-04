@@ -1403,7 +1403,7 @@ awk '$3=="transcript" {match($0,/gene_id "[^"]+"/,a); if(a[0]!=""){gsub(/gene_id
 ```
 The outputs will show that we have:
   - 381,058 exons
-  - 37.147 transcripts
+  - 37,147 transcripts
   - 20,527 genes
 
 These results seem to be in great shape in terms of transcript evidence-building. We will put a pause here, finish Hi-C incorporation, and move on to final annotation once our assembly is at the scaffold level. 
