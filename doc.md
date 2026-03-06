@@ -1042,6 +1042,11 @@ So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the read
 ```
 # create a directory for scaffolding
 mkdir -p /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding
+
+# clone YaHS from github to the assembly project directory (/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo)
+git clone https://github.com/c-zhou/yahs.git
+cd yahs
+make
 ```
 ## 7) Genome annotation
 ### Setup
