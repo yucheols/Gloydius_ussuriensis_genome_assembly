@@ -1039,6 +1039,7 @@ So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the read
 
 ## 6) Scaffolding through Hi-C data incorporation
 ### Setup
+Let's create a directory for scaffolding and install YaHS, which is a scaffolding tool for Hi-C data.
 ```
 # create a directory for scaffolding
 mkdir -p /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding
