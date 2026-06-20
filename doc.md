@@ -1038,6 +1038,9 @@ cat AMNH_21010_noMito_k21.completeness.stats
 So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the reads are not present in the assembly likely due to: 1) Repeat complexity, 2) *k*-mers specific to alternative alleles at heterozygous loci not present in collapsed primary assembly, 3) Filtering based on read coverage. This does not mean that ~9.4% of the genome is missing. For these reasons, the haploid genome size estimated by jellyfish (1.18Gb) is likely and underestimation of the true genome size (1.6Gb) due to repeats and heterozygosity.
 
 ## 6) Scaffolding through Hi-C data incorporation
+### Hi-C sequencing overview
+Hi-C sequencing was done at Texas A&M Institute for Genome Sciences and Society (TIGGS) on three lanes of Illumina NovaSeq X Plus, using the same blood sample used for PacBio sequencing. 
+
 ### Setup
 Let's create a directory for scaffolding and install YaHS, which is a scaffolding tool for Hi-C data.
 ```
@@ -1049,6 +1052,48 @@ git clone https://github.com/c-zhou/yahs.git
 cd yahs
 make
 ```
+
+Let's also create a conda env for scaffolding on Mendel.
+```
+conda create -n scaffolding
+conda activate scaffolding
+```
+
+### Combine sequencing reads across lanes
+The sample was sequenced on three Illuminal lanes. So, there are six files total (two reads x three lanes). 
+![alt text](/etc/hic_reads.png)
+
+Let's combine reads across lanes.
+```
+# run under the scaffolding directory in Mendel
+mkdir -p combined
+
+cat \
+  lane_1/26231TGS_Gloydius-ussuriensis-21010_S5_L001_R1_001.fastq.gz \
+  lane_2/26231TGS_Gloydius-ussuriensis-21010_S5_L002_R1_001.fastq.gz \
+  lane_3/26231TGS_Gloydius-ussuriensis-21010_S5_L005_R1_001.fastq.gz \
+  > combined/Gloydius_ussuriensis_HiC_R1.fastq.gz
+
+cat \
+  lane_1/26231TGS_Gloydius-ussuriensis-21010_S5_L001_R2_001.fastq.gz \
+  lane_2/26231TGS_Gloydius-ussuriensis-21010_S5_L002_R2_001.fastq.gz \
+  lane_3/26231TGS_Gloydius-ussuriensis-21010_S5_L005_R2_001.fastq.gz \
+  > combined/Gloydius_ussuriensis_HiC_R2.fastq.gz
+```
+
+The MultiQC report from TIGGS showed low adapter content across reads. But let's use fastp to remove adapters. This will infer and remove adapter sequences based on paired-end read information without having to manually specify adapter sequences (using the "--detect_adapter_for_pe" flag).  
+
+Let's first install fastp.
+```
+# in the scaffolding conda env
+conda install -c bioconda fastp
+```
+
+Then run fastp as below.
+```
+```
+
+
 ## 7) Genome annotation
 ### Setup
 Let's create new conda environments for packages to be used in genome annotation. Trimmomatic will be used for trimming Illumina adaptera. The funannotation package provides an automated pipeline for gene prediction, annotation, and comparison. The Earl Grey package automates transposable element annotation.
