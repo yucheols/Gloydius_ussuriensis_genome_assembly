@@ -21,7 +21,8 @@ __Note:__ I created this documentation in the hopes that my friends and future R
 6. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-scaffolding-through-hi-c-data-incorporation)__
    - __Setup__
    - __Combine sequencing reads across lanes__
-   - __Adapter trimming__
+   - __Adapter trimming and post-trimming QC__
+   - __Map trimmed Hi-C reads to the draft genome__
 7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-genome-annotation)__
    - __Setup__
    - __RNA read QC (pre-trimming)__
@@ -1083,7 +1084,7 @@ cat \
   > combined/Gloydius_ussuriensis_HiC_R2.fastq.gz
 ```
 
-### Adapter trimming
+### Adapter trimming and post-trimming QC
 The MultiQC report from TIGGS showed low adapter content across reads. But let's use fastp to remove adapters. This will infer and remove adapter sequences based on paired-end read information without having to manually specify adapter sequences (using the "--detect_adapter_for_pe" flag).  
 
 Let's first install fastp.
@@ -1126,6 +1127,64 @@ fastp \
   --html Gloydius_ussuriensis_HiC_fastp.html \
   --json Gloydius_ussuriensis_HiC_fastp.json
 ```
+After this is done, run FastQC on the trimmed reads and use MultiQC to summarize the results. FastQC is already installed in the "genome_assembly" conda env. Install MultiQC on Mendel as below:
+```
+conda create -n multiqc -c conda-forge multiqc
+conda activate multiqc
+multiqc --help
+```
+
+Then, run script below is run under the "scaffolding/combined" directory on Mendel.
+```sh
+#!/bin/bash
+#SBATCH --job-name=fastqc_hic
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=04:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# initiate conda and activate the conda environment
+source ~/.bash_profile
+conda activate genome_assembly
+
+# cd into working directory
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/combined
+mkdir -p posttrim_qc
+
+
+fastqc \
+  Gloydius_ussuriensis_HiC_R1_trimmed.fastq.gz \
+  Gloydius_ussuriensis_HiC_R2_trimmed.fastq.gz \
+  -o posttrim_qc \
+  -t 8
+
+# activate multiqc conda env 
+conda activate multiqc
+
+# run multiqc
+multiqc -o posttrim_qc --filename "HiC_posttrim_QC" posttrim_qc 
+```
+### Map trimmed Hi-C reads to the draft genome
+The next step is to prepare the PacBio draft genome and map Hi-C reads to it. Let's symlink the draft directory into the scaffolding directory.
+
+```sh
+# under the scaffolding directory on Mendel
+mkdir -p draft
+ln -s /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa draft/Gloydius_ussuriensis_AMNH_21010_noMito.fa
+```
+
+To index the draft genome and to map Hi-C reads to it, we need to install BWA.
+
+```sh
+# in the scaffolding conda env
+conda install bioconda::bwa
+```
+
+### Scaffolding with YaHS
+
 
 
 ## 7) Genome annotation
@@ -1281,13 +1340,6 @@ Let's open up the results for heart RNA reads:
 We can see that the adapters are basically gone after trimming.
    
 It can be annoying to look through all the different .html files containing QC results for each tissue type. MultiQC (https://github.com/MultiQC/MultiQC) is a really neat tool that enables the user to merge outputs from different bioinformatics software to generate one, clean QC output.
-
-Install MultiQC:
-```txt
-conda create -n multiqc -c conda-forge multiqc
-conda activate multiqc
-multiqc --help
-```
 
 You only need to supply MultiQC some options and path to the files you want to merge (e.g., path to multiple FastQC outputs).
 ```sh
