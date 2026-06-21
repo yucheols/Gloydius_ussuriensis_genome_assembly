@@ -23,6 +23,7 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __Combine sequencing reads across lanes__
    - __Adapter trimming and post-trimming QC__
    - __Map trimmed Hi-C reads to the draft genome__
+   - __Scaffolding with YaHS__
 7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-genome-annotation)__
    - __Setup__
    - __RNA read QC (pre-trimming)__
