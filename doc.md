@@ -1326,6 +1326,11 @@ Submit the above script with the following SLURM dependency (the script will sta
 sbatch --dependency=afterok:10720964 G_ussuri_YaHS.sh
 ```
 
+### Hi-C contact map visualization with Juicer/Juicer Tools
+Juicer is already installed together with YaHS. Also install Juicer Tools.
+```
+conda install bioconda::juicertools
+```
 
 ## 7) Genome annotation
 ### Setup
