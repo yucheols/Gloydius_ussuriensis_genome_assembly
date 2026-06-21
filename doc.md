@@ -19,6 +19,7 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __Genome assembly stats with QUAST__
    - __*k*-mer based assembly evaluation with Merqury__
 6. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-scaffolding-through-hi-c-data-incorporation)__
+   - __Hi-C sequencing overview__
    - __Setup__
    - __Combine sequencing reads across lanes__
    - __Adapter trimming and post-trimming QC__
@@ -1227,25 +1228,62 @@ After the above script finishes running, map Hi-C reads to the draft using bwa-m
 source ~/.bash_profile
 conda activate genome_assembly
 
-# set directory
-REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/draft/Gloydius_ussuriensis_AMNH_21010_noMito.fa"
-R1="Gloydius_ussuriensis_HiC_R1_trimmed.fastq.gz"
-R2="Gloydius_ussuriensis_HiC_R2_trimmed.fastq.gz"
+# make sure the job will stop if any step fails
+set -euo pipefail
+
+# set directories
+indir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/combined"
 outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding"
 
+# set variables
+REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/draft/Gloydius_ussuriensis_AMNH_21010_noMito.fa"
+R1="${indir}/Gloydius_ussuriensis_HiC_R1_trimmed.fastq.gz"
+R2="${indir}/Gloydius_ussuriensis_HiC_R2_trimmed.fastq.gz"
+BAM_PREFIX="${outdir}/Gloydius_ussuriensis_HiC_to_draft"
+
 # run bwa mem
-bwa mem -5SP -t ${SLURM_CPUS_PER_TASK} ${REF} ${R1} ${R2} | \
+bwa mem -5SP -t ${SLURM_CPUS_PER_TASK} "${REF}" "${R1}" "${R2}" | \
   samtools view -@ 16 -bS - | \
-  samtools sort -@ 16 -o ${outdir}/Gloydius_ussuriensis_HiC_to_draft.sorted.bam
+  samtools sort -@ 16 -o "${BAM_PREFIX}.sorted.bam"
 
-samtools index ${outdir}/Gloydius_ussuriensis_HiC_to_draft.sorted.bam
+samtools index "${BAM_PREFIX}.sorted.bam"
+
+# name-sort for fixmate
+samtools sort -@ 16 -n \
+  -o "${BAM_PREFIX}.namesort.bam" \
+  "${BAM_PREFIX}.sorted.bam"
+
+# add mate information
+samtools fixmate -@ 16 -m \
+  "${BAM_PREFIX}.namesort.bam" \
+  "${BAM_PREFIX}.fixmate.bam"
+
+# coordinate-sort again
+samtools sort -@ 16 \
+  -o "${BAM_PREFIX}.fixmate.coordsort.bam" \
+  "${BAM_PREFIX}.fixmate.bam"
+
+# mark duplicates
+samtools markdup -@ 16 \
+  "${BAM_PREFIX}.fixmate.coordsort.bam" \
+  "${BAM_PREFIX}.markdup.bam"
+
+samtools index "${BAM_PREFIX}.markdup.bam"
+
+# produce basic mapping summary
+samtools flagstat "${BAM_PREFIX}.markdup.bam" > "${BAM_PREFIX}.markdup.flagstat.txt"
 ``` 
-In the above script, bwa-mem produces SAM text, samtools view reads that SAM from the pipe and converts it to BAM, samtools sort sorts the BAM and produces the final output.
-
-Submit this script to Mendel with a SLURM dependency so that it starts running once the indexing job finishes running.
-```sh
-sbatch --dependency=afterok:10711968 G_ussuri_HiC_map2draft.sh
-```
+The above script has the following steps:
+  1) bwa-mem maps the trimmed Hi-C reads to the draft HiFi genome and outputs alignments as SAM text
+  2) samtools view reads that SAM from the pipe and converts it to BAM
+  3) samtools sort coordinate-sorts the BAM and writes a sorted bam file
+  4) samtools index creates an index for the coordinate-sorted BAM.
+  5) samtools sort -n creates a name-sorted BAM (read pairs are placed next to each other)
+  6) samtools fixmate adds/corrects mate-pair information needed for duplicate marking
+  7) samtools sort coordinate-sorts the BAM again
+  8) samtools markdup marks duplicate alignments in the BAM
+  9) samtools index indexes the duplicate-marked BAM
+  10) samtools flagstat summarizes the final duplicate-marked BAM
 
 ### Scaffolding with YaHS
 After mapping is done, run scaffolding with YaHS. YaHS takes optional arguments, a contig fasta file (i.e., draft genome), and one of several possible Hi-C input format (e.g., bed, bam, pa5, bin).
@@ -1265,21 +1303,27 @@ After mapping is done, run scaffolding with YaHS. YaHS takes optional arguments,
 source ~/.bash_profile
 conda activate scaffolding
 
+# stop if anything fails
+set -euo pipefail
+
 # set paths
-REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/draft/Gloydius_ussuriensis_AMNH_21010_noMito.fa"
-BAM="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/Gloydius_ussuriensis_HiC_to_draft.sorted.bam"
+indir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding"
+outdir="${indir}/yahs_out"
+
+REF="${indir}/draft/Gloydius_ussuriensis_AMNH_21010_noMito.fa"
+BAM="${indir}/Gloydius_ussuriensis_HiC_to_draft.markdup.bam"
 
 # make yahs outdir
-mkdir -p yahs_out
-cd yahs_out
+mkdir -p "$outdir"
+cd "$outdir"
 
 # run yahs
-yahs ${REF} ${BAM} -o Gloydius_ussuriensis_AMNH_21010_yahs
+yahs "$REF" "$BAM" -o Gloydius_ussuriensis_AMNH_21010_yahs
 ```
 
 Submit the above script with the following SLURM dependency (the script will start running once the mapping job is done).
 ```sh
-sbatch --dependency=afterok:10713094 G_ussuri_YaHS.sh
+sbatch --dependency=afterok:10720964 G_ussuri_YaHS.sh
 ```
 
 

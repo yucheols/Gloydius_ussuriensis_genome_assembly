@@ -12,15 +12,47 @@
 source ~/.bash_profile
 conda activate genome_assembly
 
-# set directory
-REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/draft/Gloydius_ussuriensis_AMNH_21010_noMito.fa"
-R1="Gloydius_ussuriensis_HiC_R1_trimmed.fastq.gz"
-R2="Gloydius_ussuriensis_HiC_R2_trimmed.fastq.gz"
+# make sure the job will stop if any step fails
+set -euo pipefail
+
+# set directories
+indir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/combined"
 outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding"
 
-# run bwa mem
-bwa mem -5SP -t ${SLURM_CPUS_PER_TASK} ${REF} ${R1} ${R2} | \
-  samtools view -@ 16 -bS - | \
-  samtools sort -@ 16 -o ${outdir}/Gloydius_ussuriensis_HiC_to_draft.sorted.bam
+# set variables
+REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/draft/Gloydius_ussuriensis_AMNH_21010_noMito.fa"
+R1="${indir}/Gloydius_ussuriensis_HiC_R1_trimmed.fastq.gz"
+R2="${indir}/Gloydius_ussuriensis_HiC_R2_trimmed.fastq.gz"
+BAM_PREFIX="${outdir}/Gloydius_ussuriensis_HiC_to_draft"
 
-samtools index ${outdir}/Gloydius_ussuriensis_HiC_to_draft.sorted.bam
+# run bwa mem
+bwa mem -5SP -t ${SLURM_CPUS_PER_TASK} "${REF}" "${R1}" "${R2}" | \
+  samtools view -@ 16 -bS - | \
+  samtools sort -@ 16 -o "${BAM_PREFIX}.sorted.bam"
+
+samtools index "${BAM_PREFIX}.sorted.bam"
+
+# name-sort for fixmate
+samtools sort -@ 16 -n \
+  -o "${BAM_PREFIX}.namesort.bam" \
+  "${BAM_PREFIX}.sorted.bam"
+
+# add mate information
+samtools fixmate -@ 16 -m \
+  "${BAM_PREFIX}.namesort.bam" \
+  "${BAM_PREFIX}.fixmate.bam"
+
+# coordinate-sort again
+samtools sort -@ 16 \
+  -o "${BAM_PREFIX}.fixmate.coordsort.bam" \
+  "${BAM_PREFIX}.fixmate.bam"
+
+# mark duplicates
+samtools markdup -@ 16 \
+  "${BAM_PREFIX}.fixmate.coordsort.bam" \
+  "${BAM_PREFIX}.markdup.bam"
+
+samtools index "${BAM_PREFIX}.markdup.bam"
+
+# produce basic mapping summary
+samtools flagstat "${BAM_PREFIX}.markdup.bam" > "${BAM_PREFIX}.markdup.flagstat.txt"

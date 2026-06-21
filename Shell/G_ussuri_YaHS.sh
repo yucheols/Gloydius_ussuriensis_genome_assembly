@@ -12,13 +12,19 @@
 source ~/.bash_profile
 conda activate scaffolding
 
+# stop if anything fails
+set -euo pipefail
+
 # set paths
-REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/draft/Gloydius_ussuriensis_AMNH_21010_noMito.fa"
-BAM="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/Gloydius_ussuriensis_HiC_to_draft.sorted.bam"
+indir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding"
+outdir="${indir}/yahs_out"
+
+REF="${indir}/draft/Gloydius_ussuriensis_AMNH_21010_noMito.fa"
+BAM="${indir}/Gloydius_ussuriensis_HiC_to_draft.markdup.bam"
 
 # make yahs outdir
-mkdir -p yahs_out
-cd yahs_out
+mkdir -p "$outdir"
+cd "$outdir"
 
 # run yahs
-yahs ${REF} ${BAM} -o Gloydius_ussuriensis_AMNH_21010_yahs
+yahs "$REF" "$BAM" -o Gloydius_ussuriensis_AMNH_21010_yahs
