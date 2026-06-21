@@ -1046,20 +1046,19 @@ Hi-C sequencing was done at Texas A&M Institute for Genome Sciences and Society 
 
 ### Setup
 Let's create a directory for scaffolding and install YaHS, which is a scaffolding tool for Hi-C data.
-```
+```sh
 # create a directory for scaffolding
 mkdir -p /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding
-
-# clone YaHS from github to the assembly project directory (/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo)
-git clone https://github.com/c-zhou/yahs.git
-cd yahs
-make
 ```
 
-Let's also create a conda env for scaffolding on Mendel.
-```
+Let's also create a conda env for scaffolding on Mendel and install YaHS.
+```sh
+# create conda env for scaffolding
 conda create -n scaffolding
 conda activate scaffolding
+
+# install YaHS
+conda install bioconda::yahs
 ```
 
 ### Combine sequencing reads across lanes
@@ -1067,7 +1066,7 @@ The sample was sequenced on three Illuminal lanes. So, there are six files total
 ![alt text](/etc/hic_reads.png)
 
 Let's combine reads across lanes.
-```
+```sh
 # run under the scaffolding directory in Mendel
 mkdir -p combined
 
@@ -1088,7 +1087,7 @@ cat \
 The MultiQC report from TIGGS showed low adapter content across reads. But let's use fastp to remove adapters. This will infer and remove adapter sequences based on paired-end read information without having to manually specify adapter sequences (using the "--detect_adapter_for_pe" flag).  
 
 Let's first install fastp.
-```
+```sh
 # in the scaffolding conda env
 conda install -c bioconda fastp
 ```
@@ -1128,7 +1127,7 @@ fastp \
   --json Gloydius_ussuriensis_HiC_fastp.json
 ```
 After this is done, run FastQC on the trimmed reads and use MultiQC to summarize the results. FastQC is already installed in the "genome_assembly" conda env. Install MultiQC on Mendel as below:
-```
+```sh
 conda create -n multiqc -c conda-forge multiqc
 conda activate multiqc
 multiqc --help
@@ -1167,6 +1166,9 @@ conda activate multiqc
 # run multiqc
 multiqc -o posttrim_qc --filename "HiC_posttrim_QC" posttrim_qc 
 ```
+
+After this job finishes running, scp the output .html file into a local directory and inspect the results. The result looks good enough to proceed to mapping/scaffolding, with reduced adapter content, 150 bp median read length, and excellent quality scores. 
+
 ### Map trimmed Hi-C reads to the draft genome
 The next step is to prepare the PacBio draft genome and map Hi-C reads to it. Let's symlink the draft directory into the scaffolding directory.
 
@@ -1176,15 +1178,108 @@ mkdir -p draft
 ln -s /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa draft/Gloydius_ussuriensis_AMNH_21010_noMito.fa
 ```
 
-To index the draft genome and to map Hi-C reads to it, we need to install BWA.
+To index the draft genome and to map Hi-C reads to it, we need to install BWA. Also install samtools.
 
 ```sh
 # in the scaffolding conda env
 conda install bioconda::bwa
+conda install bioconda::samtools
+```
+
+Then, run the script below to index the draft genome.
+```sh
+#!/bin/bash
+#SBATCH --job-name=bwa_index
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=08:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# initiate conda and activate the conda environment
+source ~/.bash_profile
+conda activate scaffolding
+
+# set directory
+indir=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/draft
+
+# run bwa
+bwa index ${indir}/Gloydius_ussuriensis_AMNH_21010_noMito.fa
+samtools faidx ${indir}/Gloydius_ussuriensis_AMNH_21010_noMito.fa
+```
+
+After the above script finishes running, map Hi-C reads to the draft using bwa-mem.
+```sh
+#!/bin/bash
+#SBATCH --job-name=hic_map
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=100G
+#SBATCH --time=48:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# initiate conda and activate the conda environment
+source ~/.bash_profile
+conda activate genome_assembly
+
+# set directory
+REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/draft/Gloydius_ussuriensis_AMNH_21010_noMito.fa"
+R1="Gloydius_ussuriensis_HiC_R1_trimmed.fastq.gz"
+R2="Gloydius_ussuriensis_HiC_R2_trimmed.fastq.gz"
+outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding"
+
+# run bwa mem
+bwa mem -5SP -t ${SLURM_CPUS_PER_TASK} ${REF} ${R1} ${R2} | \
+  samtools view -@ 16 -bS - | \
+  samtools sort -@ 16 -o ${outdir}/Gloydius_ussuriensis_HiC_to_draft.sorted.bam
+
+samtools index ${outdir}/Gloydius_ussuriensis_HiC_to_draft.sorted.bam
+``` 
+In the above script, bwa-mem produces SAM text, samtools view reads that SAM from the pipe and converts it to BAM, samtools sort sorts the BAM and produces the final output.
+
+Submit this script to Mendel with a SLURM dependency so that it starts running once the indexing job finishes running.
+```sh
+sbatch --dependency=afterok:10711968 G_ussuri_HiC_map2draft.sh
 ```
 
 ### Scaffolding with YaHS
+After mapping is done, run scaffolding with YaHS. YaHS takes optional arguments, a contig fasta file (i.e., draft genome), and one of several possible Hi-C input format (e.g., bed, bam, pa5, bin).
 
+```sh
+#!/bin/bash
+#SBATCH --job-name=yahs_hic
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=100G
+#SBATCH --time=48:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.err
+
+# initiate conda and activate the conda environment
+source ~/.bash_profile
+conda activate scaffolding
+
+# set paths
+REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/draft/Gloydius_ussuriensis_AMNH_21010_noMito.fa"
+BAM="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/Gloydius_ussuriensis_HiC_to_draft.sorted.bam"
+
+# make yahs outdir
+mkdir -p yahs_out
+cd yahs_out
+
+# run yahs
+yahs ${REF} ${BAM} -o Gloydius_ussuriensis_AMNH_21010_yahs
+```
+
+Submit the above script with the following SLURM dependency (the script will start running once the mapping job is done).
+```sh
+sbatch --dependency=afterok:10713094 G_ussuri_YaHS.sh
+```
 
 
 ## 7) Genome annotation
