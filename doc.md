@@ -1693,6 +1693,17 @@ The outputs will show that we have:
 These results seem to be in great shape in terms of transcript evidence-building. We will put a pause here, finish Hi-C incorporation, and move on to final annotation once our assembly is at the scaffold level. 
 
 ----------------------------------------------------------------------------------------------------
+### (Pre-Hi-C) Venom gland transcriptome data
+Park et al. (2026) produced venom gland transcriptome data for the three *Gloydius* species found in South Korea. This can be useful for placing expressed venom gene candidates to specific scaffolds.
+
+First, create a new directory under the annotation directory
+```
+mkdir -p venom_gland venom_gland/sra venom_gland/fastq venom_gland/tmp
+```
+Then, download SRA files and convert to paied FASTQ.
+```
+```
+----------------------------------------------------------------------------------------------------
 ### (Post-Hi-C) Repeat masking (soft masking) using Earl Grey
 Before moving on to final annotation, it is necessary to annotate the repeats and soft mask the genome. We can do this using the Earl Grey pipeline (https://github.com/TobyBaril/EarlGrey), which is a fully-automated pipeline for transposable element (TE)/repeat annotation.
 
