@@ -1044,7 +1044,7 @@ So, the *k*-mer completeness is very high. The ~9.4% of the *k*-mers in the read
 
 ## 6) Scaffolding through Hi-C data incorporation
 ### Hi-C sequencing overview
-Hi-C sequencing was done at Texas A&M Institute for Genome Sciences and Society (TIGGS) on three lanes of Illumina NovaSeq X Plus, using the same blood sample used for PacBio sequencing. 
+Hi-C sequencing was done at Texas A&M Institute for Genome Sciences and Society (TIGGS) on three lanes of Illumina NovaSeq X Plus, using the same blood sample used for PacBio sequencing. The sequencing libraries were prepared using the Dovetail Omni-C kit.
 
 ### Setup
 Let's create a directory for scaffolding and install YaHS, which is a scaffolding tool for Hi-C data.
@@ -1084,92 +1084,7 @@ cat \
   lane_3/26231TGS_Gloydius-ussuriensis-21010_S5_L005_R2_001.fastq.gz \
   > combined/Gloydius_ussuriensis_HiC_R2.fastq.gz
 ```
-
-### Adapter trimming and post-trimming QC
-The MultiQC report from TIGGS showed low adapter content across reads. But let's use fastp to remove adapters. This will infer and remove adapter sequences based on paired-end read information without having to manually specify adapter sequences (using the "--detect_adapter_for_pe" flag).  
-
-Let's first install fastp.
-```sh
-# in the scaffolding conda env
-conda install -c bioconda fastp
-```
-
-Then run fastp as below.
-```sh
-#!/bin/bash
-#SBATCH --job-name=fastp_HiC
-#SBATCH --nodes=1
-#SBATCH --mem=32G
-#SBATCH --cpus-per-task=32
-#SBATCH --partition=compute
-#SBATCH --time=20:00:00
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
-
-# initiate conda and activate the conda environment
-source ~/.bash_profile
-conda activate scaffolding
-
-# path to HiC reads
-path_to_seq=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/combined
-
-# run fastp
-fastp \
-  -i ${path_to_seq}/Gloydius_ussuriensis_HiC_R1.fastq.gz \
-  -I ${path_to_seq}/Gloydius_ussuriensis_HiC_R2.fastq.gz \
-  -o ${path_to_seq}/Gloydius_ussuriensis_HiC_R1_trimmed.fastq.gz \
-  -O ${path_to_seq}/Gloydius_ussuriensis_HiC_R2_trimmed.fastq.gz \
-  --detect_adapter_for_pe \
-  --qualified_quality_phred 20 \
-  --length_required 30 \
-  --thread 16 \
-  --html Gloydius_ussuriensis_HiC_fastp.html \
-  --json Gloydius_ussuriensis_HiC_fastp.json
-```
-After this is done, run FastQC on the trimmed reads and use MultiQC to summarize the results. FastQC is already installed in the "genome_assembly" conda env. Install MultiQC on Mendel as below:
-```sh
-conda create -n multiqc -c conda-forge multiqc
-conda activate multiqc
-multiqc --help
-```
-
-Then, run script below is run under the "scaffolding/combined" directory on Mendel.
-```sh
-#!/bin/bash
-#SBATCH --job-name=fastqc_hic
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=16G
-#SBATCH --time=04:00:00
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
-
-# initiate conda and activate the conda environment
-source ~/.bash_profile
-conda activate genome_assembly
-
-# cd into working directory
-cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/combined
-mkdir -p posttrim_qc
-
-
-fastqc \
-  Gloydius_ussuriensis_HiC_R1_trimmed.fastq.gz \
-  Gloydius_ussuriensis_HiC_R2_trimmed.fastq.gz \
-  -o posttrim_qc \
-  -t 8
-
-# activate multiqc conda env 
-conda activate multiqc
-
-# run multiqc
-multiqc -o posttrim_qc --filename "HiC_posttrim_QC" posttrim_qc 
-```
-
-After this job finishes running, scp the output .html file into a local directory and inspect the results. The result looks good enough to proceed to mapping/scaffolding, with reduced adapter content, 150 bp median read length, and excellent quality scores. 
+Also note that it is not necessary to adapter/quality trim reads for Dovetail Omni-C libraries. Proceed to Hi-C mapping and scaffolding.
 
 ### Map trimmed Hi-C reads to the draft genome
 The next step is to prepare the PacBio draft genome and map Hi-C reads to it. Let's symlink the draft directory into the scaffolding directory.
@@ -1357,7 +1272,7 @@ yahs "$REF" "$BAM" -o Gloydius_ussuriensis_AMNH_21010_yahs
 
 Submit the above script with the following SLURM dependency (the script will start running once the mapping job is done).
 ```sh
-sbatch --dependency=afterok:10768827 G_ussuri_YaHS.sh
+sbatch --dependency=afterok:10798620 G_ussuri_YaHS.sh
 ```
 
 ### Hi-C contact map visualization with Juicer/Juicer Tools
