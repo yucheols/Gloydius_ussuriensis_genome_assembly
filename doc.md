@@ -1325,7 +1325,7 @@ yahs "$REF" "$BAM" -o Gloydius_ussuriensis_AMNH_21010_yahs
 
 Submit the above script with the following SLURM dependency (the script will start running once the mapping job is done).
 ```sh
-sbatch --dependency=afterok:10768816 G_ussuri_YaHS.sh
+sbatch --dependency=afterok:10768827 G_ussuri_YaHS.sh
 ```
 
 ### Hi-C contact map visualization with Juicer/Juicer Tools
