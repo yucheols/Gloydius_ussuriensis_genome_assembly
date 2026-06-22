@@ -1,8 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=hic_map
+#SBATCH --nodes=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=100G
 #SBATCH --time=48:00:00
+#SBATCH --partition=bigmem
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
@@ -10,7 +12,7 @@
 
 # initiate conda and activate the conda environment
 source ~/.bash_profile
-conda activate genome_assembly
+conda activate scaffolding
 
 # make sure the job will stop if any step fails
 set -euo pipefail

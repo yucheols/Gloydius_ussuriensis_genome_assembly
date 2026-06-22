@@ -1216,9 +1216,11 @@ After the above script finishes running, map Hi-C reads to the draft using bwa-m
 ```sh
 #!/bin/bash
 #SBATCH --job-name=hic_map
+#SBATCH --nodes=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=100G
 #SBATCH --time=48:00:00
+#SBATCH --partition=bigmem
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/outfiles/slurm-%x_%j.out
@@ -1323,7 +1325,7 @@ yahs "$REF" "$BAM" -o Gloydius_ussuriensis_AMNH_21010_yahs
 
 Submit the above script with the following SLURM dependency (the script will start running once the mapping job is done).
 ```sh
-sbatch --dependency=afterok:10720964 G_ussuri_YaHS.sh
+sbatch --dependency=afterok:10768816 G_ussuri_YaHS.sh
 ```
 
 ### Hi-C contact map visualization with Juicer/Juicer Tools
