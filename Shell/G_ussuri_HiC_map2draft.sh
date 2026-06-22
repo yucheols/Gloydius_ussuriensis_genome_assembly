@@ -30,8 +30,8 @@ mkdir -p "${outdir}/logs"
 
 # set variables
 REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/draft/Gloydius_ussuriensis_AMNH_21010_noMito.fa"
-R1="${indir}/Gloydius_ussuriensis_HiC_R1_trimmed.fastq.gz"
-R2="${indir}/Gloydius_ussuriensis_HiC_R2_trimmed.fastq.gz"
+R1="${indir}/Gloydius_ussuriensis_HiC_R1.fastq.gz"
+R2="${indir}/Gloydius_ussuriensis_HiC_R2.fastq.gz"
 BAM_PREFIX="${outdir}/Gloydius_ussuriensis_HiC_to_draft"
 
 # basic checks
