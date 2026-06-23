@@ -1723,6 +1723,59 @@ fasterq-dump "$sradir/SRR35908238/SRR35908238.sra" \
 gzip "$fastqdir"/*.fastq
 ```
 
+After this, run a quick sanity check from the fastq directory.
+```sh
+# verify the files have sequences
+zcat SRR35908235_1.fastq.gz | head -n 4
+zcat SRR35908235_2.fastq.gz | head -n 4
+
+zcat SRR35908238_1.fastq.gz | head -n 4
+zcat SRR35908238_2.fastq.gz | head -n 4
+
+# check file size == R1/R2 files should have the same size
+ls -lh
+```
+Then QC the files using FastQC and MultiQC.
+```sh
+#!/bin/bash
+#SBATCH --job-name=venom_gland_qc
+#SBATCH --nodes=1
+#SBATCH --partition=compute
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=20G
+#SBATCH --time=04:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+set -euo pipefail
+
+# initiate conda and activate the conda environment
+source ~/.bash_profile
+conda activate genome_assembly
+
+# set directory
+basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland"
+cd "$basedir"
+
+# make output dir
+mkdir -p qc_fastqc
+
+# run fastqc
+fastqc fastq/*.fastq.gz \
+  -o qc_fastqc \
+  -t 12
+
+# activate multiqc conda env 
+conda activate multiqc
+
+# run multiqc
+multiqc qc_fastqc \
+  -o qc_fastqc
+```
+
 ----------------------------------------------------------------------------------------------------
 ### (Post-Hi-C) Repeat masking (soft masking) using Earl Grey
 Before moving on to final annotation, it is necessary to annotate the repeats and soft mask the genome. We can do this using the Earl Grey pipeline (https://github.com/TobyBaril/EarlGrey), which is a fully-automated pipeline for transposable element (TE)/repeat annotation.
@@ -1771,6 +1824,20 @@ earlGrey -g ${path_to_asm} -s Gloydius_ussuriensis -o ${outpath} -d yes -t ${SLU
 ### (Post-Hi-C) Functional annotation
 
 ## 8) Chromosomal synteny
+There are several chromosom-level snake reference genome assemblies available. We can use these to investigate the synteny across species.
+
+### Setup
+First, set up a directory for synteny analyses.
+```sh
+# under the "G_ussuriensis_Chromo" directory
+mkdir -p synteny/{raw_ncbi,assemblies,gff3,proteins,metadata,logs,scripts}
+```
+
+Also install NCBI Datasets
+```sh
+conda create -n ncbi_datasets -c conda-forge ncbi-datasets-cli unzip seqkit -y
+conda activate ncbi_datasets
+```
 
 ## 9) Mitogenome assembly
 ### "Manual" annotation with MITOS2

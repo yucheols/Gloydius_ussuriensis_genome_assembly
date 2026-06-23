@@ -14,7 +14,6 @@
 set -euo pipefail
 
 ### commands start here ###
-
 # path to SRA toolkit
 export PATH=$PWD/sratoolkit.3.4.1-alma_linux64/bin:$PATH
 
