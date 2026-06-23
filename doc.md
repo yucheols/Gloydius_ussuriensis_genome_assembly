@@ -1655,7 +1655,7 @@ Park et al. (2026) produced venom gland transcriptome data for the three *Gloydi
 
 First, create a new directory under the annotation directory
 ```sh
-mkdir -p venom_gland venom_gland/ncbi_seq
+mkdir -p venom_gland venom_gland/ncbi_seq venom_gland/fastq
 ```
 Then, download NCBI SRA Toolkit on Mendel. Go to the following link (https://github.com/ncbi/sra-tools/wiki/01.-Downloading-SRA-Toolkit) and copy the link for AlmaLinux 64 bit architecture. Then:
 ```sh
@@ -1678,7 +1678,7 @@ Then submit the script below to SLURM.
 #SBATCH --nodes=1
 #SBATCH --partition=compute
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=12
 #SBATCH --mem=50G
 #SBATCH --time=25:00:00
 #SBATCH --mail-type=ALL
@@ -1686,18 +1686,42 @@ Then submit the script below to SLURM.
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
+set -euo pipefail
+
 ### commands start here ###
-# always include the PATH export command so it knows where the program you are calling is 
+
+# path to SRA toolkit
 export PATH=$PWD/sratoolkit.3.4.1-alma_linux64/bin:$PATH
 
-# use prefetch tool to download files
-prefetch SRR35908235 -O /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland/ncbi_seq  # sample 1
-prefetch SRR35908238 -O /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland/ncbi_seq  # sample 2
+# set directories
+basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland"
+sradir="${basedir}/ncbi_seq"
+fastqdir="${basedir}/fastq"
+tmpdir="${basedir}/tmp"
 
-# use fasterq-dump tool to convert .sra files to fastq files
-fasterq-dump SRR35908235
-fasterq-dump SRR35908238
+mkdir -p "$sradir" "$fastqdir" "$tmpdir"
+
+# download SRA files
+prefetch SRR35908235 -O "$sradir"
+prefetch SRR35908238 -O "$sradir"
+
+# convert .sra files to FASTQ files
+fasterq-dump "$sradir/SRR35908235/SRR35908235.sra" \
+  --split-files \
+  --threads 12 \
+  --temp "$tmpdir" \
+  -O "$fastqdir"
+
+fasterq-dump "$sradir/SRR35908238/SRR35908238.sra" \
+  --split-files \
+  --threads 12 \
+  --temp "$tmpdir" \
+  -O "$fastqdir"
+
+# gzip FASTQ files
+gzip "$fastqdir"/*.fastq
 ```
+
 ----------------------------------------------------------------------------------------------------
 ### (Post-Hi-C) Repeat masking (soft masking) using Earl Grey
 Before moving on to final annotation, it is necessary to annotate the repeats and soft mask the genome. We can do this using the Earl Grey pipeline (https://github.com/TobyBaril/EarlGrey), which is a fully-automated pipeline for transposable element (TE)/repeat annotation.

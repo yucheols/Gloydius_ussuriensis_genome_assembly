@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --partition=compute
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=12
 #SBATCH --mem=50G
 #SBATCH --time=25:00:00
 #SBATCH --mail-type=ALL
@@ -11,14 +11,37 @@
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
+set -euo pipefail
+
 ### commands start here ###
-# always include the PATH export command so it knows where the program you are calling is 
+
+# path to SRA toolkit
 export PATH=$PWD/sratoolkit.3.4.1-alma_linux64/bin:$PATH
 
-# use prefetch tool to download files
-prefetch SRR35908235 -O /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland/ncbi_seq  # sample 1
-prefetch SRR35908238 -O /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland/ncbi_seq  # sample 2
+# set directories
+basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland"
+sradir="${basedir}/ncbi_seq"
+fastqdir="${basedir}/fastq"
+tmpdir="${basedir}/tmp"
 
-# use fasterq-dump tool to convert .sra files to fastq files
-fasterq-dump SRR35908235
-fasterq-dump SRR35908238
+mkdir -p "$sradir" "$fastqdir" "$tmpdir"
+
+# download SRA files
+prefetch SRR35908235 -O "$sradir"
+prefetch SRR35908238 -O "$sradir"
+
+# convert .sra files to FASTQ files
+fasterq-dump "$sradir/SRR35908235/SRR35908235.sra" \
+  --split-files \
+  --threads 12 \
+  --temp "$tmpdir" \
+  -O "$fastqdir"
+
+fasterq-dump "$sradir/SRR35908238/SRR35908238.sra" \
+  --split-files \
+  --threads 12 \
+  --temp "$tmpdir" \
+  -O "$fastqdir"
+
+# gzip FASTQ files
+gzip "$fastqdir"/*.fastq
