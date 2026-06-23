@@ -22,8 +22,12 @@ indir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding
 outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding"
 tmpdir="${outdir}/tmp_hic_map_${SLURM_JOB_ID}"
 
-# make a directory for temp files
-mkdir -p "${tmpdir}"
+# make directories for temp files
+sort1_tmp="${tmpdir}/sort1"
+namesort_tmp="${tmpdir}/namesort"
+coordsort_tmp="${tmpdir}/coordsort"
+
+mkdir -p "${sort1_tmp}" "${namesort_tmp}" "${coordsort_tmp}"
 
 # make a directory for bwa logs
 mkdir -p "${outdir}/logs"
@@ -53,12 +57,17 @@ df -h "${outdir}" || true
 # run bwa mem
 bwa mem -5SP -t ${SLURM_CPUS_PER_TASK} "${REF}" "${R1}" "${R2}" 2> "${outdir}/logs/bwa_mem.log" | \
   samtools view -@ 16 -bS - | \
-  samtools sort -@ 16 -m 4G -T "${tmpdir}/sort1" -o "${BAM_PREFIX}.sorted.bam" -
+  samtools sort -@ 16 -m 4G -T "${sort1_tmp}/sort1" -o "${BAM_PREFIX}.sorted.bam" -
 
 samtools index "${BAM_PREFIX}.sorted.bam"
 
 # name-sort for fixmate
-samtools sort -@ 16 -m 4G -T "${tmpdir}/namesort" -n \
+echo "Starting name-sort: $(date)"
+ls -ld "${namesort_tmp}"
+df -h "${namesort_tmp}" || true
+quota -s || true
+
+samtools sort -@ 16 -m 4G -T "${namesort_tmp}/namesort" -n \
   -o "${BAM_PREFIX}.namesort.bam" \
   "${BAM_PREFIX}.sorted.bam"
 
@@ -68,7 +77,7 @@ samtools fixmate -@ 16 -m \
   "${BAM_PREFIX}.fixmate.bam"
 
 # coordinate-sort again
-samtools sort -@ 16 -m 4G -T "${tmpdir}/coordsort" \
+samtools sort -@ 16 -m 4G -T "${coordsort_tmp}/coordsort" \
   -o "${BAM_PREFIX}.fixmate.coordsort.bam" \
   "${BAM_PREFIX}.fixmate.bam"
 
