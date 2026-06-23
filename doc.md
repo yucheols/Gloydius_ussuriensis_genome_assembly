@@ -31,6 +31,7 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __Adapter trimming & post-trimming QC__ 
    - __(Pre-Hi-C) RNA alignment to draft using HiSat2__
    - __(Pre-Hi-C) Draft-guided transcriptome assembly using StringTie__
+   - __(Pre-Hi-C) Venom gland transcriptome data__
    - __(Post-Hi-C) Repeat masking (soft masking) using Earl Grey__
    - __(Post-Hi-C) Re-run HiSat2 and StringTie on the scaffolded and masked genome__
    - __(Post-Hi-C) Structural annotation__
@@ -1671,7 +1672,7 @@ export PATH=$PWD/sratoolkit.3.4.1-alma_linux64/bin:$PATH
 ```
 
 Then submit the script below to SLURM.
-```
+```sh
 #!/bin/bash
 #SBATCH --job-name=get_venom_data
 #SBATCH --nodes=1
