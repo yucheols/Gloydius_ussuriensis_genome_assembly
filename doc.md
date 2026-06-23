@@ -36,7 +36,8 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __(Post-Hi-C) Re-run HiSat2 and StringTie on the scaffolded and masked genome__
    - __(Post-Hi-C) Structural annotation__
    - __(Post-Hi-C) Functional annotation__
-8. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-mitogenome-assembly)__
+8. __[Chromosomal synteny]()__
+9. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-mitogenome-assembly)__
     - __"Manual" annotation with MITOS2__
     - __Submitting mitogenome to GenBank__
 
@@ -1769,7 +1770,9 @@ earlGrey -g ${path_to_asm} -s Gloydius_ussuriensis -o ${outpath} -d yes -t ${SLU
 ----------------------------------------------------------------------------------------------------
 ### (Post-Hi-C) Functional annotation
 
-## 8) Mitogenome assembly
+## 8) Chromosomal synteny
+
+## 9) Mitogenome assembly
 ### "Manual" annotation with MITOS2
 Running mitofifi will automatically give you the annotated mitogenome. This is an alternative method for annotating the mitogenome that is more time consuming (but I guess it is still valuabe for the purpose of learning). 
 
