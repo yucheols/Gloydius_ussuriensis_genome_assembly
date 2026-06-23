@@ -1653,11 +1653,49 @@ These results seem to be in great shape in terms of transcript evidence-building
 Park et al. (2026) produced venom gland transcriptome data for the three *Gloydius* species found in South Korea. This can be useful for placing expressed venom gene candidates to specific scaffolds.
 
 First, create a new directory under the annotation directory
+```sh
+mkdir -p venom_gland venom_gland/ncbi_seq
 ```
-mkdir -p venom_gland venom_gland/sra venom_gland/fastq venom_gland/tmp
+Then, download NCBI SRA Toolkit on Mendel. Go to the following link (https://github.com/ncbi/sra-tools/wiki/01.-Downloading-SRA-Toolkit) and copy the link for AlmaLinux 64 bit architecture. Then:
+```sh
+wget https://ftp-trace.ncbi.nlm.nih.gov/sra/sdk/3.4.1/sratoolkit.3.4.1-alma_linux64.tar.gz
 ```
-Then, download SRA files and convert to paied FASTQ.
+You should see a tar.gz file created under the annotation directory. Untar this file like so:
+```sh
+tar -xzvf sratoolkit.3.4.1-alma_linux64.tar.gz
+rm *.tar.gz
 ```
+Then add the executable to the PATH variable:
+```sh
+export PATH=$PWD/sratoolkit.3.4.1-alma_linux64/bin:$PATH
+```
+
+Then submit the script below to SLURM.
+```
+#!/bin/bash
+#SBATCH --job-name=get_venom_data
+#SBATCH --nodes=1
+#SBATCH --partition=compute
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=50G
+#SBATCH --time=25:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+### commands start here ###
+# always include the PATH export command so it knows where the program you are calling is 
+export PATH=$PWD/sratoolkit.3.4.1-alma_linux64/bin:$PATH
+
+# use prefetch tool to download files
+prefetch SRR35908235 -O /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland/ncbi_seq  # sample 1
+prefetch SRR35908238 -O /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland/ncbi_seq  # sample 2
+
+# use fasterq-dump tool to convert .sra files to fastq files
+fasterq-dump SRR35908235
+fasterq-dump SRR35908238
 ```
 ----------------------------------------------------------------------------------------------------
 ### (Post-Hi-C) Repeat masking (soft masking) using Earl Grey
