@@ -2,9 +2,9 @@
 #SBATCH --job-name=juicer
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=100G
+#SBATCH --mem=450G
 #SBATCH --time=24:00:00
-#SBATCH --partition=compute
+#SBATCH --partition=bigmem
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
@@ -88,7 +88,7 @@ head -n 5 "${JBAT}.txt"
 # run juicer tools directly with java
 echo "Creating .hic file: $(date)"
 
-java -Xmx80G -jar "$JUICER_TOOLS_JAR" pre \
+java -Xmx400G -jar "$JUICER_TOOLS_JAR" pre \
     "${JBAT}.txt" \
     "${JBAT}.hic" \
     "${JBAT}.chrom.sizes" \

@@ -25,6 +25,7 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __Adapter trimming and post-trimming QC__
    - __Map trimmed Hi-C reads to the draft genome__
    - __Scaffolding with YaHS__
+   - __Hi-C contact map visualization with Juicer/Juicer Tools__
 7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-genome-annotation)__
    - __Setup__
    - __RNA read QC (pre-trimming)__
@@ -1323,9 +1324,9 @@ Run juicer/juicer tools as below. One thing to note is that I'm feeding it the o
 #SBATCH --job-name=juicer
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=100G
+#SBATCH --mem=450G
 #SBATCH --time=24:00:00
-#SBATCH --partition=compute
+#SBATCH --partition=bigmem
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
@@ -1409,7 +1410,7 @@ head -n 5 "${JBAT}.txt"
 # run juicer tools directly with java
 echo "Creating .hic file: $(date)"
 
-java -Xmx80G -jar "$JUICER_TOOLS_JAR" pre \
+java -Xmx400G -jar "$JUICER_TOOLS_JAR" pre \
     "${JBAT}.txt" \
     "${JBAT}.hic" \
     "${JBAT}.chrom.sizes" \
@@ -1433,7 +1434,7 @@ cat "${JBAT}.hic_read_test.txt"
 
 echo "Done: $(date)"
 ```
-I added a final .hic file validation step because initial runs without this chunk ran without errors but produced unreadable .hic file. 
+I added a final .hic file validation step because initial runs without this chunk ran without errors but produced unreadable .hic file (this was due to a Java heap space limit; I increased mem and switched to the bigmem node). 
 
 This will generate .hic and .assembly files. scp these to a local directory and inspect them in Juicebox GUI.
 
