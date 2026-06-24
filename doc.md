@@ -1285,12 +1285,142 @@ Submit the above script with the following SLURM dependency (the script will sta
 ```sh
 sbatch --dependency=afterok:10822420 G_ussuri_YaHS.sh
 ```
+Check the assembly stats in the log file after YaHS finishes running.
+![alt text](yahs_out.png)
+
+We can see that the scaffold N50 = 203.1 Mb and L50 = 3, which is much more contiguous than our PacBio N50 = 127.5 Mb and L50 = 3.
+
+The key output here is "Gloydius_ussuriensis_AMNH_21010_yahs_scaffolds_final.fa." Let's index this file. This will generate a ".fai" file.
+```
+# activate the scaffolding conda env first to access samtools
+samtools faidx Gloydius_ussuriensis_AMNH_21010_yahs_scaffolds_final.fa
+```
+Let's inspect scaffold sizes.
+```
+cut -f1,2 Gloydius_ussuriensis_AMNH_21010_yahs_scaffolds_final.fa.fai | sort -k2,2nr | head -n 30
+```
+This will show that there are 9 very large scaffolds (57–341 Mb), several medium scaffolds (8–27 Mb), and many small leftover scaffolds.
+
+To see if these scaffolds are correctly oriented and joined, we need to look at the Hi-C contact map.
 
 ### Hi-C contact map visualization with Juicer/Juicer Tools
 Juicer is already installed together with YaHS. Also install Juicer Tools.
 ```
-conda install bioconda::juicertools
+# in the scaffolding conda env
+# install java
+conda install -c conda-forge openjdk=11
+
+# make dir for juicer tools
+mkdir -p /home/yshin/mendel-nas1/juicer_tools
+
+# install jucer tools
+wget https://s3.amazonaws.com/hicfiles.tc4ga.com/public/juicer/juicer_tools_1.22.01.jar
 ```
+
+Run juicer/juicer tools as below. One thing to note is that I'm feeding it the original PacBio draft .fai file. I did this because the job crashed when I gave it the scaffold .fai file because juicer looked for the original contig name. 
+```sh
+#!/bin/bash
+#SBATCH --job-name=juicer
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=100G
+#SBATCH --time=24:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# initiate conda and activate the conda environment
+source ~/.bash_profile
+conda activate scaffolding
+
+# set dir
+workdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/yahs_out"
+prefix="Gloydius_ussuriensis_AMNH_21010_yahs"
+
+# set vars
+BIN="${workdir}/${prefix}.bin"
+AGP="${workdir}/${prefix}_scaffolds_final.agp"
+FASTA="${workdir}/${prefix}_scaffolds_final.fa"
+FAI="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa.fai"   # IMPORTANT: use the original PacBio draft FASTA index here, not the final YaHS scaffolded FASTA index
+JBAT="${workdir}/${prefix}_JBAT"
+
+# standalone juicer_tools jar directory
+JUICER_TOOLS_DIR="/home/yshin/mendel-nas1/juicer_tools"
+JUICER_TOOLS_JAR="$(find "$JUICER_TOOLS_DIR" -maxdepth 1 -name '*.jar' | head -n 1)"
+
+# cd into working dir
+cd "$workdir"
+
+# sanity checks
+echo "Checking files: $(date)"
+ls -lh "$BIN"
+ls -lh "$AGP"
+ls -lh "$FASTA"
+ls -lh "$FAI"
+ls -lh "$JUICER_TOOLS_JAR"
+
+which juicer
+which java
+which samtools
+
+echo "Using juicer tools jar:"
+echo "$JUICER_TOOLS_JAR"
+
+# fail clearly if jar was not found
+if [ -z "$JUICER_TOOLS_JAR" ]; then
+    echo "ERROR: Could not find a .jar file in $JUICER_TOOLS_DIR"
+    exit 1
+fi
+
+# run juicer pre from YaHS
+echo "Running juicer pre: $(date)"
+juicer pre \
+    -a \
+    -o "$JBAT" \
+    "$BIN" \
+    "$AGP" \
+    "$FAI" \
+    > "${JBAT}.log" 2>&1
+
+echo "Finished juicer pre: $(date)"
+
+# make chromosome sizes file from juicer pre log
+echo "Making chromosome sizes file from juicer pre log: $(date)"
+grep PRE_C_SIZE "${JBAT}.log" | awk '{print $2, $3}' > "${JBAT}.chrom.sizes"
+
+echo "Chromosome sizes:"
+cat "${JBAT}.chrom.sizes"
+
+# check JBAT outputs
+echo "Checking JBAT outputs:"
+ls -lh "${JBAT}"*
+
+# make sure JBAT txt exists and has contacts
+echo "Checking JBAT contact file:"
+ls -lh "${JBAT}.txt"
+head -n 5 "${JBAT}.txt"
+
+# run juicer tools directly with java
+echo "Creating .hic file: $(date)"
+rm -f "${JBAT}.hic"
+
+java -Xmx80G -jar "$JUICER_TOOLS_JAR" pre \
+    "${JBAT}.txt" \
+    "${JBAT}.hic" \
+    "${JBAT}.chrom.sizes"
+
+echo "Finished creating .hic file: $(date)"
+
+# final check
+echo "Final JBAT files:"
+ls -lh "${JBAT}.hic" "${JBAT}.assembly" "${JBAT}.chrom.sizes" "${JBAT}.txt"
+
+echo "Done: $(date)"
+```
+
+This will generate .hic and .assembly files. scp these to a local directory and inspect them in Juicebox GUI.
 
 ## 7) Genome annotation
 ### Setup
@@ -1774,6 +1904,92 @@ conda activate multiqc
 # run multiqc
 multiqc qc_fastqc \
   -o qc_fastqc
+```
+
+The MultiQC report shows considerable adapter content. Use fastp for automatic adapter detection and trimming for Illumina paired-end reads.
+```sh
+#!/bin/bash
+#SBATCH --job-name=venom_trim
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=12:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+source ~/.bash_profile
+conda activate scaffolding
+
+# set directories
+basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland"
+indir="${basedir}/fastq"
+outdir="${basedir}/trimmed_fastq"
+reportdir="${basedir}/fastp_reports"
+
+mkdir -p "$outdir" "$reportdir"
+
+ACCESSIONS=(
+  SRR35908235
+  SRR35908238
+)
+
+for acc in "${ACCESSIONS[@]}"; do
+  echo "Trimming ${acc}"
+
+  fastp \
+    -i "${indir}/${acc}_1.fastq.gz" \
+    -I "${indir}/${acc}_2.fastq.gz" \
+    -o "${outdir}/${acc}_1.trimmed.fastq.gz" \
+    -O "${outdir}/${acc}_2.trimmed.fastq.gz" \
+    --detect_adapter_for_pe \
+    --thread 8 \
+    --html "${reportdir}/${acc}.fastp.html" \
+    --json "${reportdir}/${acc}.fastp.json"
+
+  echo "Finished ${acc}"
+done
+```
+
+After this is done, run FastQC and MultiQC again on trimmed reads.
+```sh
+#!/bin/bash
+#SBATCH --job-name=venom_gland_posttrim_qc
+#SBATCH --nodes=1
+#SBATCH --partition=compute
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=20G
+#SBATCH --time=04:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# initiate conda and activate the conda environment
+source ~/.bash_profile
+conda activate genome_assembly
+
+# set directory
+basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland"
+cd "$basedir"
+
+# make output dir
+mkdir -p postrrim_qc_fastqc
+
+# run fastqc
+fastqc trimmed_fastq/*.fastq.gz \
+  -o postrrim_qc_fastqc \
+  -t 12
+
+# activate multiqc conda env 
+conda activate multiqc
+
+# run multiqc
+multiqc postrrim_qc_fastqc \
+  -o postrrim_qc_fastqc
 ```
 
 ----------------------------------------------------------------------------------------------------
