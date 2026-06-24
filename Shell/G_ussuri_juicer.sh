@@ -14,6 +14,9 @@
 source ~/.bash_profile
 conda activate scaffolding
 
+# stop if anything fails
+set -euo pipefail
+
 # set dir
 workdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/yahs_out"
 prefix="Gloydius_ussuriensis_AMNH_21010_yahs"
@@ -22,12 +25,15 @@ prefix="Gloydius_ussuriensis_AMNH_21010_yahs"
 BIN="${workdir}/${prefix}.bin"
 AGP="${workdir}/${prefix}_scaffolds_final.agp"
 FASTA="${workdir}/${prefix}_scaffolds_final.fa"
-FAI="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa.fai"   # IMPORTANT: use the original PacBio draft FASTA index here, not the final YaHS scaffolded FASTA index
+
+# IMPORTANT: use the original PacBio draft FASTA index here,
+# not the final YaHS scaffolded FASTA index
+FAI="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa.fai"
+
 JBAT="${workdir}/${prefix}_JBAT"
 
-# standalone juicer_tools jar directory
-JUICER_TOOLS_DIR="/home/yshin/mendel-nas1/juicer_tools"
-JUICER_TOOLS_JAR="$(find "$JUICER_TOOLS_DIR" -maxdepth 1 -name '*.jar' | head -n 1)"
+# standalone juicer_tools jar
+JUICER_TOOLS_JAR="/home/yshin/mendel-nas1/juicer_tools/juicer_tools_1.22.01.jar"
 
 # cd into working dir
 cd "$workdir"
@@ -42,16 +48,14 @@ ls -lh "$JUICER_TOOLS_JAR"
 
 which juicer
 which java
+java -version
 which samtools
 
 echo "Using juicer tools jar:"
 echo "$JUICER_TOOLS_JAR"
 
-# fail clearly if jar was not found
-if [ -z "$JUICER_TOOLS_JAR" ]; then
-    echo "ERROR: Could not find a .jar file in $JUICER_TOOLS_DIR"
-    exit 1
-fi
+# remove previous incomplete hic only
+rm -f "${JBAT}.hic"
 
 # run juicer pre from YaHS
 echo "Running juicer pre: $(date)"
@@ -83,17 +87,27 @@ head -n 5 "${JBAT}.txt"
 
 # run juicer tools directly with java
 echo "Creating .hic file: $(date)"
-rm -f "${JBAT}.hic"
 
 java -Xmx80G -jar "$JUICER_TOOLS_JAR" pre \
     "${JBAT}.txt" \
     "${JBAT}.hic" \
-    "${JBAT}.chrom.sizes"
+    "${JBAT}.chrom.sizes" \
+    > "${JBAT}.make_hic.stdout" \
+    2> "${JBAT}.make_hic.stderr"
 
 echo "Finished creating .hic file: $(date)"
 
 # final check
 echo "Final JBAT files:"
 ls -lh "${JBAT}.hic" "${JBAT}.assembly" "${JBAT}.chrom.sizes" "${JBAT}.txt"
+
+echo "Testing whether .hic is readable:"
+java -jar "$JUICER_TOOLS_JAR" dump observed NONE \
+    "${JBAT}.hic" \
+    assembly assembly BP 1000000 | head \
+    > "${JBAT}.hic_read_test.txt"
+
+echo "Read test output:"
+cat "${JBAT}.hic_read_test.txt"
 
 echo "Done: $(date)"
