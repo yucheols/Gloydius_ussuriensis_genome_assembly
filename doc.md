@@ -1483,6 +1483,45 @@ md5sum Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa \
        > Gloydius_ussuriensis_AMNH_21010_final_assembly.md5
 ```
 
+### Assignment of scaffolds to chromosomes
+Our Hi-C genome is currently at the scaffold level, i.e., they are not assigned to chromosomes yet. To do so, we will first use the Eastern Diamondback (*Crotalus adamanteus*) reference genome assembly. I decided to use this one instead of the *C. viridis* genome because the *C. adamanteus* genome was assembled from a female (ZW). 
+
+Let's download this genome.
+```sh
+# cd into dir to store the assembly
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies
+
+# create a conda env and install NCBI Datasets CLI
+conda create -n ncbi_datasets -c conda-forge ncbi-datasets-cli unzip seqkit -y
+conda activate ncbi_datasets
+
+# download the genome
+datasets download genome accession GCA_039797435.1 \
+  --include genome,seq-report \
+  --filename Crotalus_adamanteus_GCA_039797435.1.zip
+
+# unzip the genome
+unzip Crotalus_adamanteus_GCA_039797435.1.zip -d Crotalus_adamanteus_GCA_039797435.1
+
+# symlink the genome
+ln -s $(find Crotalus_adamanteus_GCA_039797435.1 -type f -name "*.fna" | head -n 1) \
+      Crotalus_adamanteus_GCA_039797435.1.fa
+```
+
+Then index the genome and check chromosome names
+```
+# index
+conda activate scaffolding
+samtools faidx Crotalus_adamanteus_GCA_039797435.1.fa
+
+# check names
+cut -f1,2 Crotalus_adamanteus_GCA_039797435.1.fa.fai \
+  | sort -k2,2nr \
+  | head -n 40
+```
+
+Now proceed with whole-genome alignment.
+
 ## 7) Genome annotation
 ### Setup
 Let's create new conda environments for packages to be used in genome annotation. Trimmomatic will be used for trimming Illumina adaptera. The funannotation package provides an automated pipeline for gene prediction, annotation, and comparison. The Earl Grey package automates transposable element annotation.
@@ -2123,9 +2162,8 @@ First, set up a directory for synteny analyses.
 mkdir -p synteny/{raw_ncbi,assemblies,gff3,proteins,metadata,logs,scripts}
 ```
 
-Also install NCBI Datasets
+Activate the conda env to access NCBI Datasets CLI
 ```sh
-conda create -n ncbi_datasets -c conda-forge ncbi-datasets-cli unzip seqkit -y
 conda activate ncbi_datasets
 ```
 
