@@ -1438,6 +1438,51 @@ I added a final .hic file validation step because initial runs without this chun
 
 This will generate .hic and .assembly files. scp these to a local directory and inspect them in Juicebox GUI.
 
+The Hi-C contact map showed a strong diagonal signal and about nine distinct square blocks (likely macrochromosomes). Since we don't see any evidence of major misjoins (e.g., off-diagonal signals), we can proceed to the annnotation step.
+
+Let's create the final assembly folder and copy the final FASTA, AGP, Hi-C files, and QC summaries:
+```
+# make the final assembly dir
+mkdir -p /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly
+
+# copy files
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly
+
+cp ../scaffolding/yahs_out/Gloydius_ussuriensis_AMNH_21010_yahs_scaffolds_final.fa \
+   Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa
+
+cp ../scaffolding/yahs_out/Gloydius_ussuriensis_AMNH_21010_yahs_scaffolds_final.agp \
+   Gloydius_ussuriensis_AMNH_21010_chromosome_level.agp
+
+cp ../scaffolding/yahs_out/Gloydius_ussuriensis_AMNH_21010_yahs_JBAT.hic \
+   Gloydius_ussuriensis_AMNH_21010_chromosome_level_JBAT.hic
+
+cp ../scaffolding/yahs_out/Gloydius_ussuriensis_AMNH_21010_yahs_JBAT.assembly \
+   Gloydius_ussuriensis_AMNH_21010_chromosome_level_JBAT.assembly
+```
+
+Then, index the final assembly FASTA
+```
+conda activate scaffolding
+samtools faidx Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa
+```
+
+Create a scaffold size table
+```
+cut -f1,2 Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa.fai \
+  | sort -k2,2nr \
+  > Gloydius_ussuriensis_AMNH_21010_chromosome_level.scaffold_sizes.tsv
+```
+
+Generate checksums:
+```
+md5sum Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa \
+       Gloydius_ussuriensis_AMNH_21010_chromosome_level.agp \
+       Gloydius_ussuriensis_AMNH_21010_chromosome_level_JBAT.hic \
+       Gloydius_ussuriensis_AMNH_21010_chromosome_level_JBAT.assembly \
+       > Gloydius_ussuriensis_AMNH_21010_final_assembly.md5
+```
+
 ## 7) Genome annotation
 ### Setup
 Let's create new conda environments for packages to be used in genome annotation. Trimmomatic will be used for trimming Illumina adaptera. The funannotation package provides an automated pipeline for gene prediction, annotation, and comparison. The Earl Grey package automates transposable element annotation.
@@ -2033,20 +2078,33 @@ Once this is done, run Earl Grey with the script below on Mendel:
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
+# soft masking the scaffolded assembly with Earl Grey
+
 # activate the conda env
 source ~/.bash_profile
 conda activate earlgrey
 
-# path to draft assembly == does not contain mitogenome
-path_to_asm=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/no_mito/Gloydius_ussuriensis_AMNH_21010_noMito.fa
+# set variables
+GENOME="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa"
+SPECIES="Gloydius_ussuriensis"
 
 # output path
-outpath=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/
+outpath=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked
 mkdir -p $outpath
 
 # run Earl Grey
+echo "Starting EarlGrey: $(date)"
+
 # -d flag == Create soft-masked genome at the end? (yes/no, Default: no)
-earlGrey -g ${path_to_asm} -s Gloydius_ussuriensis -o ${outpath} -d yes -t ${SLURM_CPUS_PER_TASK}
+earlGrey -g ${GENOME} -s ${SPECIES} -o ${outpath} -d yes -t ${SLURM_CPUS_PER_TASK}
+
+echo "Finished EarlGrey: $(date)"
+
+# list outputs
+echo "EarlGrey output files:"
+find "$outdir" -maxdepth 3 -type f | head -n 50
+
+echo "Done: $(date)"
 ```
 ----------------------------------------------------------------------------------------------------
 ### (Post-Hi-C) Re-run HiSat2 and StringTie on the scaffolded and masked genome
@@ -2210,7 +2268,7 @@ Note that this genome is also 17,211bp long, like the assembly generated through
 Finally, recall that our mitogenome was contained in the contig ptg000073c and that this contig was 68,844 bp in length. Since our mitogenome is 17.211 bp in length, this mean that the contig has four complete mitogenomes stitched back to back four times. Let's make sure this is actually the case by splitting up this contig into four equal chunks and see if each of them is indeed a complete mitogenome.
 
 First, let's cd into the "genome_cleanup" directory on Mendel, which is where the ptg000073c contig fasta file is located in. Activate the "genome_assembly" conda env and use seqkit to check the length of this contig:
-```txt
+```sh
 # in the "genome_cleanup" directory
 conda activate genome_assembly
 seqkit stats ptg000073c.fa
@@ -2218,7 +2276,7 @@ seqkit stats ptg000073c.fa
 ![alt text](etc/mito_dup.PNG)
 
 Now, let's create a "mito_chunks" directory under the current directory to store the split files, and use the samtools faidx command to slice this contig into four chunks, each exactlty 17,211 bp in length. 
-```txt
+```sh
 # make the directory
 mkdir mito_chunks
 
@@ -2241,7 +2299,7 @@ samtools faidx ptg000073c.fa ${c_name}:34423-51633 > mito_part3.fa
 samtools faidx ptg000073c.fa ${c_name}:51634-68844 > mito_part4.fa
 ```
 Let's use seqkit to verify the size of each chunk
-```txt
+```sh
 seqkit stats mito_part*
 ```
 ![alt text](etc/mito_chunk_size.PNG)
@@ -2253,7 +2311,7 @@ scp this folder to our local device and run blast on each of them. The results w
 Let's submit the completed mitogenome assembly to GenBank. Prior to this step. I loaded the final mitogenome output from mitohifi on to Geneious Prime and manually annotated the two D-loops and replication origin. I did this by extracting these sequences from the conspecific reference mitogenome and mapping them to the assembled mitogenome using the "Map to reference" tool. I then downloaded this as a fasta file. This file is stored in a new directory at "/home/yshin/Gloydius_ussuriensis_genome_assembly/outfiles/mitogenome_GenBank_submission"
 
 Let's also copy the "final_mitogenome.gb" file from the mitohifi output directory to this directory:
-```txt
+```sh
 # cd into mitohifi output directory
 cd /home/yshin/Gloydius_ussuriensis_genome_assembly/outfiles/mitohifi
 
@@ -2263,3 +2321,52 @@ cp final_mitogenome.gb /home/yshin/Gloydius_ussuriensis_genome_assembly/outfiles
 # cd into mitogenome submission directory
 cd /home/yshin/Gloydius_ussuriensis_genome_assembly/outfiles/mitogenome_GenBank_submission
 ```
+
+## 10) Telomere identification
+```sh
+conda create -n tidk
+conda activate tidk
+conda install -c bioconda tidk
+```
+
+Run tidk and search for vertebrate telomeric motifs [(TTAGGG)n] across scaffolds using the "search" command.
+```sh
+#!/bin/bash
+#SBATCH --job-name=find_telomere
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=48
+#SBATCH --mem=300G
+#SBATCH --time=100:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# activate the conda env
+source ~/.bash_profile
+conda activate tidk
+
+# set output dir
+outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/find_telomere"
+mkdir -p ${outdir}
+cd ${outdir}
+
+# input scaffolded genome
+GENOME="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa"
+
+# run tidk
+echo "Running tidk search for vertebrate telomere repeat TTAGGG: $(date)"
+tidk search \
+  --string TTAGGG \
+  --output Gloydius_ussuriensis_tidk \
+  --dir ${outdir} \
+  "$GENOME"
+```
+After this is done, go to the output directory and run the "plot" command to generate a plot from the output .tsv file.
+```sh
+# in the "find_telomere" direcrtory
+tidk plot --tsv Gloydius_ussuriensis_tidk_telomeric_repeat_windows.tsv
+```
+
+Next, summarize this output and count the number of telomeric repeats in the first and last 50 Kb of each chromosome. If there are >= 100 telomeric motifs present, interpret this as both ends having telomeres enriched.
