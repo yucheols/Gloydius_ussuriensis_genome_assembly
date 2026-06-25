@@ -1520,7 +1520,144 @@ cut -f1,2 Crotalus_adamanteus_GCA_039797435.1.fa.fai \
   | head -n 40
 ```
 
-Now proceed with whole-genome alignment.
+Now proceed with whole-genome alignment using minimap2
+```sh
+#!/bin/bash
+#SBATCH --job-name=assign_chromo
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=100G
+#SBATCH --time=24:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# activate the conda env
+source ~/.bash_profile
+conda activate genome_assembly  # to access minimap2
+
+set -euo pipefail
+
+# set dir
+workdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Crotalus_adamanteus"
+mkdir -p "$workdir"
+cd "$workdir"
+
+# set variables
+QUERY="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa"
+REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies/Crotalus_adamanteus_GCA_039797435.1.fa"
+
+# sanity checks
+echo "Checking files:"
+ls -lh "$QUERY" "$REF"
+which minimap2
+
+# run minimap2
+echo "Starting minimap2: $(date)"
+minimap2 -x asm20 -t "${SLURM_CPUS_PER_TASK}" "$REF" "$QUERY" \
+  > Gloydius_vs_Crotalus_adamanteus.asm20.paf
+
+echo "Finished minimap2: $(date)"
+ls -lh Gloydius_vs_Crotalus_adamanteus.asm20.paf
+```
+
+This will generate a .paf file. Summarize this into a scaffold-to-reference chromosome assignment table by running the Python script below.
+```py
+#!/usr/bin/env python3
+
+import sys
+from collections import defaultdict
+
+paf = sys.argv[1]
+
+# qname -> qlen
+query_lengths = {}
+
+# qname -> ref -> list of query intervals
+intervals = defaultdict(lambda: defaultdict(list))
+
+def merge_intervals(ints):
+    if not ints:
+        return []
+    ints = sorted(ints)
+    merged = [ints[0]]
+    for start, end in ints[1:]:
+        last_start, last_end = merged[-1]
+        if start <= last_end:
+            merged[-1] = (last_start, max(last_end, end))
+        else:
+            merged.append((start, end))
+    return merged
+
+def interval_total(ints):
+    return sum(end - start for start, end in ints)
+
+with open(paf) as f:
+    for line in f:
+        if not line.strip():
+            continue
+
+        fields = line.rstrip("\n").split("\t")
+
+        qname = fields[0]
+        qlen = int(fields[1])
+        qstart = int(fields[2])
+        qend = int(fields[3])
+
+        rname = fields[5]
+        aln_len = int(fields[10])
+        mapq = int(fields[11])
+
+        # filter small/noisy alignments
+        if aln_len < 10000:
+            continue
+        if mapq < 5:
+            continue
+
+        query_lengths[qname] = qlen
+        intervals[qname][rname].append((qstart, qend))
+
+print(
+    "query_scaffold\tquery_length\tbest_reference_chromosome\t"
+    "best_unique_query_bp\ttotal_unique_query_bp\t"
+    "best_fraction_of_aligned\tbest_fraction_of_scaffold"
+)
+
+for qname in sorted(query_lengths, key=lambda x: query_lengths[x], reverse=True):
+    ref_intervals = intervals[qname]
+
+    if not ref_intervals:
+        continue
+
+    ref_unique = {}
+    all_intervals = []
+
+    for rname, ints in ref_intervals.items():
+        merged = merge_intervals(ints)
+        bp = interval_total(merged)
+        ref_unique[rname] = bp
+        all_intervals.extend(ints)
+
+    total_unique = interval_total(merge_intervals(all_intervals))
+    best_ref, best_bp = max(ref_unique.items(), key=lambda x: x[1])
+
+    best_fraction_of_aligned = best_bp / total_unique if total_unique else 0
+    best_fraction_of_scaffold = best_bp / query_lengths[qname] if query_lengths[qname] else 0
+
+    print(
+        f"{qname}\t{query_lengths[qname]}\t{best_ref}\t"
+        f"{best_bp}\t{total_unique}\t"
+        f"{best_fraction_of_aligned:.4f}\t{best_fraction_of_scaffold:.4f}"
+    )
+```
+
+Run it like this:
+```
+# go to the Python scripts dir
+python chromo_assign_summary.py /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Crotalus_adamanteus/Gloydius_vs_Crotalus_adamanteus.asm20.paf > /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Crotalus_adamanteus/Gloydius_to_Crotalus_adamanteus_scaffold_assignment.tsv
+```
 
 ## 7) Genome annotation
 ### Setup
