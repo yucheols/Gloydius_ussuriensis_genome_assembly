@@ -326,7 +326,7 @@ funannotate predict \
     -s "Gloydius ussuriensis" \
     --isolate AMNH_21010 \
     --cpus 32 \
-    --busco_db sauropsida \
+    --busco_db tetrapoda \
     --organism other \
     --transcript_evidence "$main_transcripts" \
     --force
