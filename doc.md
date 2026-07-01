@@ -2283,7 +2283,98 @@ find "$outdir" -maxdepth 3 -type f | head -n 50
 echo "Done: $(date)"
 ```
 ----------------------------------------------------------------------------------------------------
-### (Post-Hi-C) Re-run HiSat2 and StringTie on the scaffolded and masked genome
+### (Post-Hi-C) Annotation using funannotate
+Let's start by symlinking the softmasked fasta for annotation.
+```sh
+# symlink softmasked fasta output from earl grey
+ln -s /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta \
+  Gloydius_ussuriensis.softmasked.fa
+```
+Then activate the funannotate conda env and install gffread.
+```sh
+conda activate funannotate
+conda install bioconda::gffread
+```
+
+####  Setup funannotate 1: GeneMark
+funannotate also requires an initial database setup step. Run setup as below:
+```sh
+# create db path
+db_path="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/an
+notation/funannotate_db"
+
+mkdir -p ${db_path}
+
+# check dependencies
+funannotate check --show-versions
+
+# setup db
+funannotate setup -d ${db_path} -i all --wget
+
+# run this once the setup is done
+echo 'export FUNANNOTATE_DB=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate_db' >> ~/.bash_profile
+```
+After this, if you run "funannotate check --show-versions", you'll see the current configuration is missing some key dependencies, such as eggnog mapper ("ERROR: emapper.py not installed"), GeneMark ("ERROR: gmes_petap.pl not installed"), and signalp ("ERROR: signalp not installed"). 
+
+GeneMark cannot be installed through conda. We need to manually download the .tar.gz file from the GeneMark website and scp it to Mendel.
+```
+# on Mendel
+mkdir -p "/home/yshin/mendel-nas1/gmes_linux_64"
+cd "/home/yshin/mendel-nas1/gmes_linux_64"
+
+# in local device
+scp gmes_linux_64_4.tar.gz yshin@mendel.sdmz.amnh.org:/home/yshin/mendel-nas1/gmes_linux_64
+
+# unzip on Mendel
+tar -xvzf gmes_linux_64_4.tar.gz
+```
+
+Now, set the GeneMark path:
+```
+export GENEMARK_PATH="/home/yshin/mendel-nas1/gmes_linux_64/gmes_linux_64_4"
+export PATH="$GENEMARK_PATH:$PATH"
+```
+
+Also, download the key file from the website (Linux 64 bit) and scp it to the Mendel home directory. After that, run:
+```
+zcat gm_key_64.gz > ~/.gm_key
+chmod 600 ~/.gm_key
+```
+
+Then, run a full check
+```sh
+conda activate funannotate
+
+export FUNANNOTATE_DB="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate_db"
+export GENEMARK_PATH="/home/yshin/mendel-nas1/gmes_linux_64/gmes_linux_64_4"
+export PATH="$GENEMARK_PATH:$PATH"
+
+funannotate check --show-versions
+```
+Now you shouldn't see the GeneMark error.
+
+####  Setup funannotate 2: eggNOG-mapper
+```
+# in the funannotate conda env 
+conda install -c conda-forge -c bioconda eggnog-mapper
+
+# download eggnog db
+export EGGNOG_DATA_DIR="/home/yshin/mendel-nas1/eggnog_db"
+mkdir -p "$EGGNOG_DATA_DIR"
+cd "$EGGNOG_DATA_DIR"
+
+BASE="http://eggnog5.embl.de/download/emapperdb-5.0.2"
+
+wget -c -O eggnog.db.gz "$BASE/eggnog.db.gz"
+wget -c -O eggnog.taxa.tar.gz "$BASE/eggnog.taxa.tar.gz"
+wget -c -O eggnog_proteins.dmnd.gz "$BASE/eggnog_proteins.dmnd.gz"
+
+# check installation
+which emapper.py
+emapper.py --version
+```
+
+
 ----------------------------------------------------------------------------------------------------
 ### (Post-Hi-C) Structural annotation
 ----------------------------------------------------------------------------------------------------
