@@ -17,7 +17,7 @@ source ~/.bash_profile
 conda activate earlgrey
 
 # set variables
-GENOME="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa"
+GENOME="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/curated/Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa"
 SPECIES="Gloydius_ussuriensis"
 
 # output path

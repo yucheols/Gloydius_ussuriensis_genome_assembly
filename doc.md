@@ -2681,7 +2681,7 @@ Let's start by creating a separate conda environment and install Earl Grey:
 conda create -n earlgrey -c conda-forge -c bioconda earlgrey=7.0.1
 ```
 
-Once this is done, run Earl Grey with the script below on Mendel:
+Once this is done, run Earl Grey with the script below on Mendel (make sure the input genome is the final, curated chromosome-level assembly):
 ```sh
 #!/bin/bash
 #SBATCH --job-name=earlGrey_ussuri
@@ -2702,7 +2702,7 @@ source ~/.bash_profile
 conda activate earlgrey
 
 # set variables
-GENOME="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa"
+GENOME="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/curated/Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa"
 SPECIES="Gloydius_ussuriensis"
 
 # output path
