@@ -1484,9 +1484,9 @@ md5sum Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa \
 ```
 
 ### Assignment of scaffolds to chromosomes
-Our Hi-C genome is currently at the scaffold level, i.e., they are not assigned to chromosomes yet. To do so, we will use the Eastern Diamondback (*Crotalus adamanteus*) reference genome assembly (assembled from a female [ZW]) and the Prairie Rattlesnake (*Crotalus viridis*) reference genome (assembled from a male [ZZ]).  
+Our Hi-C genome is currently at the scaffold level, i.e., they are not assigned to chromosomes yet. To do so, we will use the Eastern Diamondback (*Crotalus adamanteus*) reference genome assembly (assembled from a female [ZW]), the Prairie Rattlesnake (*Crotalus viridis*) reference genome (assembled from a male [ZZ]), and the Adder (*Vipera berus*) reference genome (assembled from a female [ZW]).  
 
-Let's download these genomes. Below is for the *C.adamanteus* genome. Repeat for the *C.viridis* genome.
+Let's download these genomes. Below is for the *C.adamanteus* genome. Repeat for the *C.viridis* and *v. berus* genomes.
 ```sh
 # cd into dir to store the assembly
 cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies
@@ -1657,6 +1657,447 @@ Run it like this:
 ```
 # go to the Python scripts dir
 python chromo_assign_summary.py /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Crotalus_adamanteus/Gloydius_vs_Crotalus_adamanteus.asm20.paf > /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Crotalus_adamanteus/Gloydius_to_Crotalus_adamanteus_scaffold_assignment.tsv
+```
+
+Repeat this for *C. adamanteus*, *C. viridis*, and *V. berus* genomes. This will show that *C. adamanteus* and *C. viridis* chromosome 18 and *V. berus* chromosome 16 are "missing" from the *G. ussuriensis* assembly. To veify whether these chromosomes are truly missing from the assembly, or whether two chromosome were misjoined, let's inspect the raw. paf file and the Hi-C contact map. Although the first look at the contact map did not show any obvious misjoins, it's worth checking again. 
+
+First, for the *C. adamanteus* .paf file, run:
+```
+awk '$6=="CM077934.1" {bp[$1]+=$11; n[$1]++}END {  for (s in bp) print s, bp[s], n[s]}' Gloydius_vs_Crotalus_adamanteus.asm20.paf | sort -k2,2nr | head -30
+```
+This command basically shows which *G. ussuriensis* scaffolds align to *C. adamanteus* chromosome 18, and how much sequence from each scaffold aligns there. In the .paf file, $1 is the *G. ussuriensis* scaffold, $6 is the *C. adamanteus* chromosome, and $11 is the aligned length. The output will show that *G. ussuriensis* scaffold 11 has ~11.06 Mb aligned to *C. adamanteus* chromosome 18.
+
+Now, run below for the *C. viridis* .paf file.
+```
+awk '$6=="CM012322.1" {bp[$1]+=$11; n[$1]++}
+END {
+  for (s in bp) print s, bp[s], n[s]
+}' Gloydius_vs_Crotalus_viridis.asm20.paf | sort -k2,2nr | head -30
+```
+The output will show that *G. ussuriensis* scaffold 11 has ~6.52 Mb aligned to *C. viridis* chromosome 18.
+
+Lastly, run this for the *V. berus* .paf file:
+```
+awk '$6=="OZ077574.1" {
+    bp[$1]+=$11;
+    n[$1]++;
+}
+END {
+    for (s in bp) print s, bp[s], n[s]
+}' Gloydius_vs_Vipera_berus.asm20.paf | sort -k2,2nr | head -30
+```
+The output will show that *G. ussuriensis* scaffold 11 has ~11.37 Mb aligned to *V. berus* chromosome 16.
+
+Since the *G. ussuriensis* scaffold 11 had highest matches to chromosome 11 in *C. adamanteus* and *C. viridis*, and chromosome 12 in *V. berus*, this suggests that two chromosomes were likely misjoined in the assembly. 
+
+When you zoom into scaffold 11 in the Hi-C contact map, you will see the block corresponding to chromosome 11 actually contains two distinct chunks.
+
+![alt_text](/etc/scaff_11.png)
+
+Now, let's identify where to break this misjoin. I'm using *C. adamanteus* and *V. berus* here because the output from *C. viridis* paf file was noisier (but it didn't contract the results from the other two species).
+
+Run below for *C. adamanteus*
+```
+awk '$1=="scaffold_11" && ($6=="CM077927.1" || $6=="CM077934.1") {
+    ref=($6=="CM077927.1" ? "C_adamanteus_Chr11_like" : "C_adamanteus_Chr18_like");
+    print $3, $4, ref, $6, $8, $9, $11, $5
+}' Gloydius_vs_Crotalus_adamanteus.asm20.paf | sort -k1,1n | column -t
+```            
+This will identify where on scaffold 11 the transition happens from *C. adamanteus* "chr11 like" sequence to C. adamanteus "chr18 like" sequence. The output will show that chr11-like ends at position 17,166,186 and chr18-like starts at position 17,183,323.
+
+
+And for *V. berus*
+```
+awk '$1=="scaffold_11" && ($6=="OZ077570.1" || $6=="OZ077574.1") {
+    ref=($6=="OZ077570.1" ? "V_berus_Chr12_like" : "V_berus_Chr16_like");
+    print $3, $4, ref, $6, $8, $9, $11, $5
+}' Gloydius_vs_Vipera_berus.asm20.paf | sort -k1,1n | column -t
+```
+This will show that in scaffold 11, *V. berus* chr12-like portion ends at position 17,164,430 and chr16-like portion starts at position 17,183,534.
+
+From the *C. adamanteus* result, we can see that there is a small gap between the transition point. We can take the midpoint of this gap ((17,166,186 + 17,183,323) / 2 = 17,174,754.5) to break this misjoin, rounded to 17,175,000.
+
+Let's go to the final assmebly dir and create a directory for the curated assembly
+```
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly
+
+mkdir -p curated
+cd curated
+```
+Then, run this:
+```
+# set variables
+ASM="../Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa"
+CUT=17175000
+
+OUT="Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa"
+UNPLACED="Gloydius_ussuriensis_AMNH_21010_unplaced_lowconf_scaffolds.fa"
+MAP="Gloydius_ussuriensis_AMNH_21010_chromosome_renaming.tsv"
+
+# index & check assembly
+conda activate scaffolding
+samtools faidx "$ASM"
+cut -f1,2 "$ASM.fai" | column -t | head -40
+```
+Run the below script from the "final_assembly" dir.
+```sh
+#!/bin/bash
+set -euo pipefail
+
+# Input final assembly
+ASM="Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa"
+
+# Split point for scaffold_11
+CUT=17175000
+
+# Output directory
+OUTDIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/curated"
+mkdir -p "$OUTDIR"
+
+# Output files
+OUT="${OUTDIR}/Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa"
+UNPLACED="${OUTDIR}/Gloydius_ussuriensis_AMNH_21010_unplaced_lowconf_scaffolds.fa"
+MAP="${OUTDIR}/Gloydius_ussuriensis_AMNH_21010_chromosome_rename.tsv"
+
+# ------------------------------------------------------------
+# Index input assembly
+# ------------------------------------------------------------
+
+samtools faidx "$ASM"
+
+# Get scaffold_11 length
+len11=$(awk '$1=="scaffold_11" {print $2}' "${ASM}.fai")
+
+echo "scaffold_11 length: $len11"
+echo "split coordinate:   $CUT"
+echo "Chr11-like length:  $CUT"
+echo "Chr18-like length:  $((len11 - CUT))"
+
+# Remove previous outputs if present
+rm -f "$OUT" "$OUT.fai" "$UNPLACED" "$UNPLACED.fai" "$MAP"
+
+# ------------------------------------------------------------
+# Write renaming / coordinate tracking table
+# ------------------------------------------------------------
+
+cat > "$MAP" <<EOF
+old_scaffold	old_start	old_end	new_name	final_call
+scaffold_1	1	end	G_ussuri_chr1	Chr1
+scaffold_2	1	end	G_ussuri_chr2	Chr2
+scaffold_3	1	end	G_ussuri_chr3	Chr3
+scaffold_5	1	end	G_ussuri_chr4	Chr4
+scaffold_6	1	end	G_ussuri_chr5	Chr5
+scaffold_7	1	end	G_ussuri_chr6	Chr6
+scaffold_8	1	end	G_ussuri_chr7	Chr7
+scaffold_4	1	end	G_ussuri_chrZ	Z
+scaffold_9	1	end	G_ussuri_chrW	W
+scaffold_12	1	end	G_ussuri_chr9	Chr9
+scaffold_10	1	end	G_ussuri_chr10	Chr10
+scaffold_11	1	17175000	G_ussuri_chr11	Chr11
+scaffold_13	1	end	G_ussuri_chr12	Chr12
+scaffold_15	1	end	G_ussuri_chr13	Chr13
+scaffold_14	1	end	G_ussuri_chr14	Chr14
+scaffold_17	1	end	G_ussuri_chr15	Chr15
+scaffold_18	1	end	G_ussuri_chr16	Chr16
+scaffold_16	1	end	G_ussuri_chr17	Chr17
+scaffold_11	17175001	end	G_ussuri_chr18	Chr18
+EOF
+
+# ------------------------------------------------------------
+# Helper function: extract full scaffold and rename FASTA header
+# ------------------------------------------------------------
+
+extract_full () {
+    old="$1"
+    new="$2"
+
+    if ! grep -q -w "$old" "${ASM}.fai"; then
+        echo "ERROR: $old not found in ${ASM}.fai"
+        exit 1
+    fi
+
+    samtools faidx "$ASM" "$old" | sed "1s/.*/>${new}/" >> "$OUT"
+}
+
+# ------------------------------------------------------------
+# Build curated chromosome-only FASTA
+# ------------------------------------------------------------
+
+# Large autosomes
+extract_full scaffold_1  G_ussuri_chr1
+extract_full scaffold_2  G_ussuri_chr2
+extract_full scaffold_3  G_ussuri_chr3
+extract_full scaffold_5  G_ussuri_chr4
+extract_full scaffold_6  G_ussuri_chr5
+extract_full scaffold_7  G_ussuri_chr6
+extract_full scaffold_8  G_ussuri_chr7
+
+# Sex chromosomes
+extract_full scaffold_4  G_ussuri_chrZ
+extract_full scaffold_9  G_ussuri_chrW
+
+# Smaller autosomes
+extract_full scaffold_12 G_ussuri_chr9
+extract_full scaffold_10 G_ussuri_chr10
+
+# Split scaffold_11: first piece = Chr11
+samtools faidx "$ASM" "scaffold_11:1-${CUT}" | \
+    sed "1s/.*/>G_ussuri_chr11/" >> "$OUT"
+
+extract_full scaffold_13 G_ussuri_chr12
+extract_full scaffold_15 G_ussuri_chr13
+extract_full scaffold_14 G_ussuri_chr14
+extract_full scaffold_17 G_ussuri_chr15
+extract_full scaffold_18 G_ussuri_chr16
+extract_full scaffold_16 G_ussuri_chr17
+
+# Split scaffold_11: second piece = Chr18
+samtools faidx "$ASM" "scaffold_11:$((CUT + 1))-${len11}" | \
+    sed "1s/.*/>G_ussuri_chr18/" >> "$OUT"
+
+# Index curated FASTA
+samtools faidx "$OUT"
+
+# ------------------------------------------------------------
+# Save low-confidence / unplaced scaffolds separately
+# ------------------------------------------------------------
+
+HIGHCONF="${OUTDIR}/highconf_scaffolds.txt"
+ALL="${OUTDIR}/all_scaffolds.txt"
+LOWCONF="${OUTDIR}/lowconf_scaffolds.txt"
+
+cat > "$HIGHCONF" <<EOF
+scaffold_1
+scaffold_2
+scaffold_3
+scaffold_4
+scaffold_5
+scaffold_6
+scaffold_7
+scaffold_8
+scaffold_9
+scaffold_10
+scaffold_11
+scaffold_12
+scaffold_13
+scaffold_14
+scaffold_15
+scaffold_16
+scaffold_17
+scaffold_18
+EOF
+
+cut -f1 "${ASM}.fai" > "$ALL"
+
+grep -vxFf "$HIGHCONF" "$ALL" > "$LOWCONF"
+
+while read -r s; do
+    samtools faidx "$ASM" "$s" >> "$UNPLACED"
+done < "$LOWCONF"
+
+samtools faidx "$UNPLACED"
+
+# ------------------------------------------------------------
+# Final checks
+# ------------------------------------------------------------
+
+echo
+echo "Curated chromosome FASTA:"
+echo "$OUT"
+echo
+
+echo "Number of curated chromosome sequences:"
+grep -c "^>" "$OUT"
+
+echo
+echo "Curated chromosome sizes:"
+cut -f1,2 "$OUT.fai" | column -t
+
+echo
+echo "Split scaffold_11 pieces:"
+grep -E "G_ussuri_chr11|G_ussuri_chr18" "$OUT.fai" | column -t
+
+echo
+echo "Unplaced / low-confidence scaffolds:"
+echo "$UNPLACED"
+echo "Number of unplaced sequences:"
+grep -c "^>" "$UNPLACED"
+
+echo
+echo "Renaming table:"
+echo "$MAP"
+
+echo
+echo "Done."
+```
+
+After this, run a quick check on the curated assembly:
+```
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/curated
+
+OUT="Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa"
+UNPLACED="Gloydius_ussuriensis_AMNH_21010_unplaced_lowconf_scaffolds.fa"
+
+echo "Number of curated chromosome sequences:"
+grep -c "^>" "$OUT"
+
+echo "Curated chromosome sizes:"
+cut -f1,2 "$OUT.fai" | column -t
+
+echo "Split scaffold_11 pieces:"
+grep -E "G_ussuri_chr11|G_ussuri_chr18" "$OUT.fai" | column -t
+
+echo "Number of unplaced/low-confidence scaffolds:"
+grep -c "^>" "$UNPLACED" 
+```
+
+Then make a checksum
+```
+md5sum Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa \
+  > Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa.md5
+
+md5sum Gloydius_ussuriensis_AMNH_21010_unplaced_lowconf_scaffolds.fa \
+  > Gloydius_ussuriensis_AMNH_21010_unplaced_lowconf_scaffolds.fa.md5
+```
+
+Also check the size of the curated assembly
+```
+awk '{sum+=$2} END{print "curated_bp", sum}' \
+Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa.fai
+```
+After this, run a final synteny check with the *C. adamanteus* genome and re-build the Hi-C contact map.
+
+When you re-run minimap2 with the curated assembly and *C. adamanteus* genome, you will see the output shows excellent chromosome assignment summary, with 1:1 matches between each *G. ussuriensis* scaffold and named *C. adamanteus* chromosome. 
+
+To rebuild the Hi-C contact map, run the script below:
+```sh
+#!/bin/bash
+#SBATCH --job-name=curated_hicmap
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=450G
+#SBATCH --time=72:00:00
+#SBATCH --partition=bigmem
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# init conda env
+source ~/.bash_profile
+conda activate scaffolding
+
+set -euo pipefail
+
+THREADS="${SLURM_CPUS_PER_TASK}"
+
+# working directory for rebuilt Hi-C map
+workdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/curated/hic_rebuild"
+mkdir -p "$workdir"
+cd "$workdir"
+
+# curated split assembly
+FASTA="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/curated/Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa"
+
+# path to hic reads
+hicdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scaffolding/combined"
+R1="${hicdir}/Gloydius_ussuriensis_HiC_R1.fastq.gz"
+R2="${hicdir}/Gloydius_ussuriensis_HiC_R2.fastq.gz"
+
+# output prefix
+prefix="Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split"
+
+# juicer .jar path
+JUICER_TOOLS_JAR="/home/yshin/mendel-nas1/juicer_tools/juicer_tools_1.22.01.jar"
+
+# sanity checks
+echo "Checking input files: $(date)"
+ls -lh "$FASTA"
+ls -lh "$R1"
+ls -lh "$R2"
+ls -lh "$JUICER_TOOLS_JAR"
+
+which bwa-mem2
+which samtools
+which yahs
+which juicer
+which java
+
+java -version
+
+echo "Indexing curated FASTA: $(date)"
+samtools faidx "$FASTA"
+
+if [ ! -e "${FASTA}.0123" ] && [ ! -e "${FASTA}.bwt.2bit.64" ]; then
+    bwa-mem2 index "$FASTA"
+fi
+
+# map hic reads to curated split assembly
+echo "Mapping Hi-C reads to curated split FASTA: $(date)"
+bwa-mem2 mem -5SP -t "$THREADS" "$FASTA" "$R1" "$R2" | \
+    samtools view -@ "$THREADS" -b -F 3340 - | \
+    samtools sort -@ "$THREADS" -o "${prefix}.sorted.bam" -
+
+samtools index "${prefix}.sorted.bam"
+
+# run yahs
+echo "Running YaHS on curated split assembly: $(date)"
+yahs "$FASTA" "${prefix}.sorted.bam" -o "$prefix"
+
+# run juicer pre to generate .hic file
+echo "Running juicer pre: $(date)"
+juicer pre \
+    -a \
+    -o "${prefix}_JBAT" \
+    "${prefix}.bin" \
+    "${prefix}_scaffolds_final.agp" \
+    "${FASTA}.fai" \
+    > "${prefix}_JBAT.log" 2>&1
+
+echo "Making chromosome sizes file: $(date)"
+grep PRE_C_SIZE "${prefix}_JBAT.log" | awk '{print $2, $3}' > "${prefix}_JBAT.chrom.sizes"
+
+echo "Chromosome sizes:"
+cat "${prefix}_JBAT.chrom.sizes"
+
+echo "Checking JBAT contact file:"
+ls -lh "${prefix}_JBAT.txt"
+head -n 5 "${prefix}_JBAT.txt"
+
+echo "Creating .hic file: $(date)"
+java -Xmx400G -jar "$JUICER_TOOLS_JAR" pre \
+    "${prefix}_JBAT.txt" \
+    "${prefix}_JBAT.hic" \
+    "${prefix}_JBAT.chrom.sizes" \
+    > "${prefix}_JBAT.make_hic.stdout" \
+    2> "${prefix}_JBAT.make_hic.stderr"
+
+echo "Final files:"
+ls -lh "${prefix}_JBAT.hic" "${prefix}_JBAT.assembly" "${prefix}_JBAT.chrom.sizes" "${prefix}_JBAT.txt"
+
+# test .hic readability
+echo "Testing .hic readability:"
+java -jar "$JUICER_TOOLS_JAR" dump observed NONE \
+    "${prefix}_JBAT.hic" \
+    assembly assembly BP 1000000 | head \
+    > "${prefix}_JBAT.hic_read_test.txt" || true
+
+cat "${prefix}_JBAT.hic_read_test.txt" || true
+
+echo "Done: $(date)"
+```
+
+Before running the script, also install BWA-MEM2 in the scaffolding conda env:
+```
+conda install bioconda::bwa-mem2
+```
+
+While the above script is running, run __one final QC__ on the curated assembly by re-running QUAST, compleasm, and Merqury. 
+
+Create the final QC dir and re-run:
+```
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/curated
+mkdir final_QC final_QC/QUAST final_QC/compleasm final_QC/Merqury
 ```
 
 ## 7) Genome annotation

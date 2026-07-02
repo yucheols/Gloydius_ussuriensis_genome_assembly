@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=assign_chromo
+#SBATCH --job-name=synteny_check
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=100G
@@ -22,7 +22,7 @@ mkdir -p "$workdir"
 cd "$workdir"
 
 # set variables
-QUERY="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa"
+QUERY="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/curated/Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa"
 REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies/Crotalus_adamanteus_GCA_039797435.1.fa"
 
 # sanity checks
@@ -33,7 +33,7 @@ which minimap2
 # run minimap2
 echo "Starting minimap2: $(date)"
 minimap2 -x asm20 -t "${SLURM_CPUS_PER_TASK}" "$REF" "$QUERY" \
-  > Gloydius_vs_Crotalus_adamanteus.asm20.paf
+  > Gloydius_Curated_vs_Crotalus_adamanteus.asm20.paf
 
 echo "Finished minimap2: $(date)"
-ls -lh Gloydius_vs_Crotalus_adamanteus.asm20.paf
+ls -lh Gloydius_Curated_vs_Crotalus_adamanteus.asm20.paf
