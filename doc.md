@@ -1484,9 +1484,9 @@ md5sum Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa \
 ```
 
 ### Assignment of scaffolds to chromosomes
-Our Hi-C genome is currently at the scaffold level, i.e., they are not assigned to chromosomes yet. To do so, we will first use the Eastern Diamondback (*Crotalus adamanteus*) reference genome assembly. I decided to use this one instead of the *C. viridis* genome because the *C. adamanteus* genome was assembled from a female (ZW). 
+Our Hi-C genome is currently at the scaffold level, i.e., they are not assigned to chromosomes yet. To do so, we will use the Eastern Diamondback (*Crotalus adamanteus*) reference genome assembly (assembled from a female [ZW]) and the Prairie Rattlesnake (*Crotalus viridis*) reference genome (assembled from a male [ZZ]).  
 
-Let's download this genome.
+Let's download these genomes. Below is for the *C.adamanteus* genome. Repeat for the *C.viridis* genome.
 ```sh
 # cd into dir to store the assembly
 cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies
@@ -2384,8 +2384,44 @@ rm -f eggnog.taxa.tar.gz
 which emapper.py
 emapper.py --version
 ```
+
+####  Setup funannotate 3: SignalP
+Install signalp from the software website and scp it to Mendel. After that:
+```
+# make install directory
+mkdir -p /home/yshin/mendel-nas1/signalp
+
+# unpack
+tar -xvzf /home/yshin/mendel-nas1/signalp-6.0i.fast.tar.gz -C /home/yshin/mendel-nas1/signalp
+
+# cd into the package dir
+/home/yshin/mendel-nas1/signalp/signalp6_fast/signalp-6-package
+
+# put pip cache and temp files on nas, not /home, to prevent disk quota error
+mkdir -p /home/yshin/mendel-nas1/tmp/pip_cache
+mkdir -p /home/yshin/mendel-nas1/tmp/pip_tmp
+
+export PIP_CACHE_DIR="/home/yshin/mendel-nas1/tmp/pip_cache"
+export TMPDIR="/home/yshin/mendel-nas1/tmp/pip_tmp"
+
+# install
+python -m pip install --no-cache-dir .
+
+# symlink for funannotate
+export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
+
+cd "$CONDA_PREFIX/bin"
+ln -sf signalp6 signalp
+```
+
+Then run a final check. This should print "All 37 external dependencies are installed" at the end.
+```
+funannotate check --show-versions
+```
+
+
 ####  Run funannotate
-Run funannotate using the script below:
+Run funannotate with the script below.
 ```sh
 #!/bin/bash
 #SBATCH --job-name=funannotate
@@ -2406,23 +2442,35 @@ Run funannotate using the script below:
 
 source ~/.bash_profile
 conda activate funannotate
-export FUNANNOTATE_DB=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate_db
 
+# Important: set -u only after conda activation
 set -euo pipefail
+
+# Avoid system libstdc++ issue for SignalP / PIL / matplotlib
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
+
+# Funannotate databases and external tools
+export FUNANNOTATE_DB="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate_db"
+
+export GENEMARK_PATH="/home/yshin/mendel-nas1/gmes_linux_64/gmes_linux_64_4"
+export PATH="$GENEMARK_PATH:$PATH"
+
+export EGGNOG_DATA_DIR="/home/yshin/mendel-nas1/eggnog_db"
 
 # ============================================================
 # 2. Set paths
 # ============================================================
+
 basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation"
 
 # Earl Grey softmasked genome
-genome="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
+genome="${basedir}/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
 
 # Main tissue RNA-seq reads
-main_reads="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/paired_RNAseq_reads"
+main_reads="${basedir}/paired_RNAseq_reads"
 
 # Published venom-gland RNA-seq reads
-venom_reads="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland/trimmed_fastq"
+venom_reads="${basedir}/venom_gland/trimmed_fastq"
 
 # Working directory
 workdir="${basedir}/funannotate"
@@ -2433,15 +2481,32 @@ main_mapdir="${workdir}/rnaseq_main_hisat2"
 venom_mapdir="${workdir}/rnaseq_venom_hisat2"
 main_stringtie="${workdir}/stringtie_main"
 venom_stringtie="${workdir}/stringtie_venom"
+tmpdir="${workdir}/tmp"
+
+# Funannotate output
 outdir="${workdir}/G_ussuriensis_funannotate"
 
-mkdir -p "$workdir" "$indexdir" "$main_mapdir" "$venom_mapdir" "$main_stringtie" "$venom_stringtie"
+mkdir -p \
+    "$workdir" \
+    "$indexdir" \
+    "$main_mapdir" \
+    "$venom_mapdir" \
+    "$main_stringtie" \
+    "$venom_stringtie" \
+    "$tmpdir"
+
+export TMPDIR="$tmpdir"
+export TEMP="$tmpdir"
+export TMP="$tmpdir"
 
 cd "$workdir"
 
 # ============================================================
-# 3. Check inputs
+# 3. Check environment and inputs
 # ============================================================
+
+echo "Checking Funannotate environment..."
+funannotate check --show-versions
 
 if [ ! -s "$genome" ]; then
     echo "ERROR: Genome file not found or empty:"
@@ -2461,6 +2526,7 @@ if [ ! -d "$venom_reads" ]; then
     exit 1
 fi
 
+echo
 echo "Genome:"
 echo "$genome"
 echo
@@ -2470,34 +2536,40 @@ echo
 echo "Venom-gland RNA-seq path:"
 echo "$venom_reads"
 echo
+echo "TMPDIR:"
+echo "$TMPDIR"
+echo
 
 # ============================================================
-# 4. Clean and sort genome for funannotate
+# 4. Clean and sort genome for Funannotate
 # ============================================================
 
-if [ ! -s Gloydius_ussuriensis.clean.fa ]; then
+clean_genome="${workdir}/Gloydius_ussuriensis.clean.fa"
+sorted_genome="${workdir}/Gloydius_ussuriensis.clean.sorted.fa"
+
+if [ ! -s "$clean_genome" ]; then
     echo "Running funannotate clean..."
 
     funannotate clean \
         -i "$genome" \
-        -o Gloydius_ussuriensis.clean.fa \
+        -o "$clean_genome" \
         --minlen 1000
 else
-    echo "Gloydius_ussuriensis.clean.fa already exists. Skipping clean."
+    echo "$clean_genome already exists. Skipping clean."
 fi
 
-if [ ! -s Gloydius_ussuriensis.clean.sorted.fa ]; then
+if [ ! -s "$sorted_genome" ]; then
     echo "Running funannotate sort..."
 
     funannotate sort \
-        -i Gloydius_ussuriensis.clean.fa \
-        -o Gloydius_ussuriensis.clean.sorted.fa \
+        -i "$clean_genome" \
+        -o "$sorted_genome" \
         --minlen 1000
 else
-    echo "Gloydius_ussuriensis.clean.sorted.fa already exists. Skipping sort."
+    echo "$sorted_genome already exists. Skipping sort."
 fi
 
-annot_genome="${workdir}/Gloydius_ussuriensis.clean.sorted.fa"
+annot_genome="$sorted_genome"
 
 # ============================================================
 # 5. Build HISAT2 index
@@ -2518,27 +2590,49 @@ fi
 # ============================================================
 
 map_rnaseq_dir () {
-    reads_dir="$1"
-    map_dir="$2"
-    sample_prefix="$3"
+    local reads_dir="$1"
+    local map_dir="$2"
+    local sample_prefix="$3"
 
+    echo
     echo "Mapping RNA-seq reads from:"
     echo "$reads_dir"
+    echo
 
-    # This assumes files contain _R1 and _R2.
-    # Example:
-    # sample_R1.fq.gz / sample_R2.fq.gz
-    # sample_R1.trim.fq.gz / sample_R2.trim.fq.gz
+    mkdir -p "$map_dir"
 
-    found_any="no"
+    shopt -s nullglob
 
-    for r1 in "$reads_dir"/*_R1*.fq.gz "$reads_dir"/*_R1*.fastq.gz "$reads_dir"/*_1*.fq.gz "$reads_dir"/*_1*.fastq.gz
+    local found_any="no"
+    declare -A seen_r1
+
+    for r1 in \
+        "$reads_dir"/*_R1*.fq.gz \
+        "$reads_dir"/*_R1*.fastq.gz \
+        "$reads_dir"/*_1.fq.gz \
+        "$reads_dir"/*_1.fastq.gz
     do
         [ -e "$r1" ] || continue
 
-        # Try to infer R2 name
-        r2="${r1/_R1/_R2}"
-        r2="${r2/_1/_2}"
+        # Avoid duplicate processing if multiple glob patterns overlap
+        if [[ -n "${seen_r1[$r1]:-}" ]]; then
+            continue
+        fi
+        seen_r1[$r1]=1
+
+        local r2=""
+
+        if [[ "$r1" == *_R1* ]]; then
+            r2="${r1/_R1/_R2}"
+        elif [[ "$r1" == *_1.fq.gz ]]; then
+            r2="${r1/%_1.fq.gz/_2.fq.gz}"
+        elif [[ "$r1" == *_1.fastq.gz ]]; then
+            r2="${r1/%_1.fastq.gz/_2.fastq.gz}"
+        else
+            echo "WARNING: Could not infer read pattern for:"
+            echo "$r1"
+            continue
+        fi
 
         if [ ! -s "$r2" ]; then
             echo "WARNING: Could not find matching R2 for:"
@@ -2550,13 +2644,25 @@ map_rnaseq_dir () {
 
         found_any="yes"
 
-        sample=$(basename "$r1")
-        sample=${sample%%.fastq.gz}
-        sample=${sample%%.fq.gz}
-        sample=${sample/_R1*/}
-        sample=${sample/_1*/}
+        local base
+        local sample
+        local bam
+        local sam
+
+        base=$(basename "$r1")
+        base=${base%.fastq.gz}
+        base=${base%.fq.gz}
+
+        if [[ "$base" == *_R1* ]]; then
+            sample="${base%%_R1*}"
+        elif [[ "$base" == *_1* ]]; then
+            sample="${base%%_1*}"
+        else
+            sample="$base"
+        fi
 
         bam="${map_dir}/${sample_prefix}_${sample}.sorted.bam"
+        sam="${map_dir}/${sample_prefix}_${sample}.sam"
 
         if [ -s "$bam" ]; then
             echo "BAM already exists for $sample. Skipping mapping."
@@ -2573,26 +2679,36 @@ map_rnaseq_dir () {
             -2 "$r2" \
             -p 32 \
             --dta \
-            -S "${map_dir}/${sample_prefix}_${sample}.sam" \
+            -S "$sam" \
             2> "${map_dir}/${sample_prefix}_${sample}.hisat2.log"
 
         samtools sort \
             -@ 16 \
+            -T "${tmpdir}/${sample_prefix}_${sample}.sorttmp" \
             -o "$bam" \
-            "${map_dir}/${sample_prefix}_${sample}.sam"
+            "$sam"
 
-        samtools index "$bam"
+        samtools index \
+            -@ 8 \
+            "$bam"
 
-        samtools flagstat "$bam" \
+        samtools flagstat \
+            -@ 8 \
+            "$bam" \
             > "${map_dir}/${sample_prefix}_${sample}.flagstat.txt"
 
-        rm "${map_dir}/${sample_prefix}_${sample}.sam"
+        rm -f "$sam"
+
+        echo "Finished mapping sample: $sample"
+        echo
     done
+
+    shopt -u nullglob
 
     if [ "$found_any" = "no" ]; then
         echo "ERROR: No paired FASTQ files found in:"
         echo "$reads_dir"
-        echo "Check file naming. Expected patterns include *_R1*.fq.gz or *_1*.fq.gz"
+        echo "Expected patterns include *_R1*.fq.gz, *_R1*.fastq.gz, *_1.fq.gz, or *_1.fastq.gz"
         exit 1
     fi
 }
@@ -2605,136 +2721,225 @@ map_rnaseq_dir "$main_reads" "$main_mapdir" "main"
 map_rnaseq_dir "$venom_reads" "$venom_mapdir" "venom"
 
 # ============================================================
-# 8. Assemble main RNA-seq transcripts with StringTie
+# 8. Function to assemble transcripts with StringTie
 # ============================================================
 
-echo "Running StringTie on main RNA-seq BAMs..."
+run_stringtie_dir () {
+    local map_dir="$1"
+    local stringtie_dir="$2"
+    local label="$3"
+    local merged_gtf="$4"
+    local transcript_fa="$5"
 
-for bam in "$main_mapdir"/*.sorted.bam
-do
-    sample=$(basename "$bam" .sorted.bam)
-    gtf="${main_stringtie}/${sample}.gtf"
+    echo
+    echo "Running StringTie for $label RNA-seq BAMs..."
+    echo
 
-    if [ ! -s "$gtf" ]; then
-        stringtie "$bam" \
-            -p 32 \
-            -o "$gtf"
+    mkdir -p "$stringtie_dir"
+
+    shopt -s nullglob
+
+    local bam_files=("$map_dir"/*.sorted.bam)
+
+    if [ "${#bam_files[@]}" -eq 0 ]; then
+        echo "ERROR: No sorted BAM files found in:"
+        echo "$map_dir"
+        exit 1
     fi
-done
 
-ls "$main_stringtie"/*.gtf > "${main_stringtie}/main_gtf_list.txt"
+    for bam in "${bam_files[@]}"
+    do
+        local sample
+        local gtf
 
-if [ ! -s "${main_stringtie}/Gloydius_main_merged.gtf" ]; then
-    stringtie --merge \
-        -p 32 \
-        -o "${main_stringtie}/Gloydius_main_merged.gtf" \
-        "${main_stringtie}/main_gtf_list.txt"
-fi
+        sample=$(basename "$bam" .sorted.bam)
+        gtf="${stringtie_dir}/${sample}.gtf"
 
-if [ ! -s "${main_stringtie}/Gloydius_main_rnaseq_transcripts.fa" ]; then
-    gffread "${main_stringtie}/Gloydius_main_merged.gtf" \
-        -g "$annot_genome" \
-        -w "${main_stringtie}/Gloydius_main_rnaseq_transcripts.fa"
-fi
+        if [ ! -s "$gtf" ]; then
+            echo "Running StringTie for $sample"
 
+            stringtie "$bam" \
+                -p 32 \
+                -o "$gtf"
+        else
+            echo "GTF already exists for $sample. Skipping StringTie."
+        fi
+    done
+
+    shopt -u nullglob
+
+    ls "$stringtie_dir"/*.gtf > "${stringtie_dir}/${label}_gtf_list.txt"
+
+    if [ ! -s "$merged_gtf" ]; then
+        echo "Merging StringTie GTFs for $label..."
+
+        stringtie --merge \
+            -p 32 \
+            -o "$merged_gtf" \
+            "${stringtie_dir}/${label}_gtf_list.txt"
+    else
+        echo "Merged GTF already exists for $label. Skipping merge."
+    fi
+
+    if [ ! -s "$transcript_fa" ]; then
+        echo "Extracting transcript FASTA for $label..."
+
+        gffread "$merged_gtf" \
+            -g "$annot_genome" \
+            -w "$transcript_fa"
+    else
+        echo "Transcript FASTA already exists for $label. Skipping gffread."
+    fi
+
+    if [ ! -s "$transcript_fa" ]; then
+        echo "ERROR: Transcript FASTA was not created:"
+        echo "$transcript_fa"
+        exit 1
+    fi
+
+    echo "Transcript FASTA for $label:"
+    echo "$transcript_fa"
+}
+
+# ============================================================
+# 9. Assemble main and venom transcripts
+# ============================================================
+
+main_merged_gtf="${main_stringtie}/Gloydius_main_merged.gtf"
 main_transcripts="${main_stringtie}/Gloydius_main_rnaseq_transcripts.fa"
 
-# ============================================================
-# 9. Assemble venom-gland RNA-seq transcripts with StringTie
-# ============================================================
-
-echo "Running StringTie on venom-gland RNA-seq BAMs..."
-
-for bam in "$venom_mapdir"/*.sorted.bam
-do
-    sample=$(basename "$bam" .sorted.bam)
-    gtf="${venom_stringtie}/${sample}.gtf"
-
-    if [ ! -s "$gtf" ]; then
-        stringtie "$bam" \
-            -p 32 \
-            -o "$gtf"
-    fi
-done
-
-ls "$venom_stringtie"/*.gtf > "${venom_stringtie}/venom_gtf_list.txt"
-
-if [ ! -s "${venom_stringtie}/Gloydius_venom_merged.gtf" ]; then
-    stringtie --merge \
-        -p 32 \
-        -o "${venom_stringtie}/Gloydius_venom_merged.gtf" \
-        "${venom_stringtie}/venom_gtf_list.txt"
-fi
-
-if [ ! -s "${venom_stringtie}/Gloydius_venom_gland_transcripts.fa" ]; then
-    gffread "${venom_stringtie}/Gloydius_venom_merged.gtf" \
-        -g "$annot_genome" \
-        -w "${venom_stringtie}/Gloydius_venom_gland_transcripts.fa"
-fi
-
+venom_merged_gtf="${venom_stringtie}/Gloydius_venom_merged.gtf"
 venom_transcripts="${venom_stringtie}/Gloydius_venom_gland_transcripts.fa"
 
+run_stringtie_dir \
+    "$main_mapdir" \
+    "$main_stringtie" \
+    "main" \
+    "$main_merged_gtf" \
+    "$main_transcripts"
+
+run_stringtie_dir \
+    "$venom_mapdir" \
+    "$venom_stringtie" \
+    "venom" \
+    "$venom_merged_gtf" \
+    "$venom_transcripts"
+
 # ============================================================
-# 10. Check transcript evidence files
+# 10. Combine transcript evidence
 # ============================================================
 
-if [ ! -s "$main_transcripts" ]; then
-    echo "ERROR: Main transcript evidence file was not created:"
-    echo "$main_transcripts"
+combined_transcripts="${workdir}/Gloydius_main_plus_venom_transcripts.fa"
+
+if [ ! -s "$combined_transcripts" ]; then
+    echo
+    echo "Combining main + venom transcript evidence..."
+
+    cat "$main_transcripts" "$venom_transcripts" > "$combined_transcripts"
+else
+    echo
+    echo "Combined transcript evidence already exists. Skipping concat."
+fi
+
+if [ ! -s "$combined_transcripts" ]; then
+    echo "ERROR: Combined transcript evidence file was not created:"
+    echo "$combined_transcripts"
     exit 1
 fi
 
-if [ ! -s "$venom_transcripts" ]; then
-    echo "ERROR: Venom transcript file was not created:"
-    echo "$venom_transcripts"
+n_transcripts=$(grep -c "^>" "$combined_transcripts" || true)
+
+echo
+echo "Combined transcript evidence:"
+echo "$combined_transcripts"
+echo "Number of transcript records: $n_transcripts"
+
+if [ "$n_transcripts" -eq 0 ]; then
+    echo "ERROR: Combined transcript FASTA has zero records."
     exit 1
 fi
 
-echo "Main transcript evidence:"
-echo "$main_transcripts"
+# ============================================================
+# 11. Build comma-separated RNA BAM list for Funannotate
+# ============================================================
 
-echo "Venom-gland transcript evidence:"
-echo "$venom_transcripts"
+rna_bams=$(find "$main_mapdir" "$venom_mapdir" -name "*.sorted.bam" | sort | paste -sd, -)
+
+if [ -z "$rna_bams" ]; then
+    echo "ERROR: No RNA-seq BAM files found for --rna_bam"
+    exit 1
+fi
+
+echo
+echo "RNA BAM evidence for Funannotate:"
+echo "$rna_bams"
+echo
 
 # ============================================================
-# 11. Run funannotate predict
+# 12. Check Funannotate output directory
 # ============================================================
 
 if [ -d "$outdir" ]; then
-    echo "ERROR: funannotate output directory already exists:"
+    echo "ERROR: Funannotate output directory already exists:"
     echo "$outdir"
-    echo "Remove it or change outdir if you want to rerun."
+    echo
+    echo "Because a previous run failed partway, remove it before rerunning:"
+    echo "rm -rf \"$outdir\""
     exit 1
 fi
 
-echo "Running funannotate predict using MAIN RNA-seq transcript evidence..."
+# ============================================================
+# 13. Run Funannotate predict
+# ============================================================
+
+echo
+echo "Running funannotate predict..."
+echo
 
 funannotate predict \
     -i "$annot_genome" \
     -o "$outdir" \
     -s "Gloydius ussuriensis" \
     --isolate AMNH_21010 \
+    --name GUS \
     --cpus 32 \
     --busco_db tetrapoda \
     --organism other \
-    --transcript_evidence "$main_transcripts" \
+    --max_intronlen 100000 \
+    --rna_bam "$rna_bams" \
+    --transcript_evidence "$combined_transcripts" \
     --force
 
-echo "Funannotate predict finished."
-
 echo
+echo "Funannotate predict finished."
+echo
+
+# ============================================================
+# 14. Final summary
+# ============================================================
+
 echo "Important files:"
-echo "Main RNA-seq transcript evidence:"
+echo
+echo "Clean sorted genome:"
+echo "$annot_genome"
+echo
+echo "Main transcript evidence:"
 echo "$main_transcripts"
 echo
-echo "Venom-gland transcript evidence, for later venom-gene curation:"
+echo "Venom-gland transcript evidence:"
 echo "$venom_transcripts"
+echo
+echo "Combined transcript evidence used for prediction:"
+echo "$combined_transcripts"
+echo
+echo "RNA BAM evidence used for prediction:"
+echo "$rna_bams"
 echo
 echo "Funannotate output:"
 echo "$outdir"
+echo
+echo "Done."
 ```
-
-
 
 ----------------------------------------------------------------------------------------------------
 ### (Post-Hi-C) Structural annotation
