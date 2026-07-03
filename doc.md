@@ -37,10 +37,11 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __(Post-Hi-C) Re-run HiSat2 and StringTie on the scaffolded and masked genome__
    - __(Post-Hi-C) Structural annotation__
    - __(Post-Hi-C) Functional annotation__
-8. __[Chromosomal synteny]()__
-9. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-mitogenome-assembly)__
+8. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-chromosomal-synteny)__
+9. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#9-mitogenome-assembly)__
     - __"Manual" annotation with MITOS2__
     - __Submitting mitogenome to GenBank__
+10. __[Telomere identification](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#10-telomere-identification)__
 
 ## 1) A quick sanity check on the dataset
 Even before doing anything, let's do a very quick sanity check on the HiFi data to check the reads we have are actually from our target species. Let's take a chunk from the HiFi FASTQ file, after cd'ing into the directory containing the fastq.gz file:
