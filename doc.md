@@ -22,10 +22,10 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __Hi-C sequencing overview__
    - __Setup__
    - __Combine sequencing reads across lanes__
-   - __Adapter trimming and post-trimming QC__
-   - __Map trimmed Hi-C reads to the draft genome__
+   - __Map Hi-C reads to the draft genome__
    - __Scaffolding with YaHS__
    - __Hi-C contact map visualization with Juicer/Juicer Tools__
+   - __Assignment of scaffolds to chromosomes and manual assembly curation__
 7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-genome-annotation)__
    - __Setup__
    - __RNA read QC (pre-trimming)__
@@ -34,10 +34,11 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __(Pre-Hi-C) Draft-guided transcriptome assembly using StringTie__
    - __(Pre-Hi-C) Venom gland transcriptome data__
    - __(Post-Hi-C) Repeat masking (soft masking) using Earl Grey__
-   - __(Post-Hi-C) Re-run HiSat2 and StringTie on the scaffolded and masked genome__
+   - __(Post-Hi-C) Annotation using funannotate__
    - __(Post-Hi-C) Structural annotation__
    - __(Post-Hi-C) Functional annotation__
 8. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-chromosomal-synteny)__
+   - Setup
 9. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#9-mitogenome-assembly)__
     - __"Manual" annotation with MITOS2__
     - __Submitting mitogenome to GenBank__
@@ -1090,7 +1091,7 @@ cat \
 ```
 Also note that it is not necessary to adapter/quality trim reads for Dovetail Omni-C libraries. Proceed to Hi-C mapping and scaffolding.
 
-### Map trimmed Hi-C reads to the draft genome
+### Map Hi-C reads to the draft genome
 The next step is to prepare the PacBio draft genome and map Hi-C reads to it. Let's symlink the draft directory into the scaffolding directory.
 
 ```sh
@@ -1484,7 +1485,7 @@ md5sum Gloydius_ussuriensis_AMNH_21010_chromosome_level.fa \
        > Gloydius_ussuriensis_AMNH_21010_final_assembly.md5
 ```
 
-### Assignment of scaffolds to chromosomes
+### Assignment of scaffolds to chromosomes and manual assembly curation
 Our Hi-C genome is currently at the scaffold level, i.e., they are not assigned to chromosomes yet. To do so, we will use the Eastern Diamondback (*Crotalus adamanteus*) reference genome assembly (assembled from a female [ZW]), the Prairie Rattlesnake (*Crotalus viridis*) reference genome (assembled from a male [ZZ]), and the Adder (*Vipera berus*) reference genome (assembled from a female [ZW]).  
 
 Let's download these genomes. Below is for the *C.adamanteus* genome. Repeat for the *C.viridis* and *v. berus* genomes.
