@@ -26,6 +26,7 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __Scaffolding with YaHS__
    - __Hi-C contact map visualization with Juicer/Juicer Tools__
    - __Assignment of scaffolds to chromosomes and manual assembly curation__
+   - __Sex chromosome validation based on sex-specific read coverage patterns__
 7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-genome-annotation)__
    - __Setup__
    - __RNA read QC (pre-trimming)__
@@ -2100,6 +2101,236 @@ Create the final QC dir and re-run:
 ```
 cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/curated
 mkdir final_QC final_QC/QUAST final_QC/compleasm final_QC/Merqury
+```
+
+### Sex chromosome validation based on sex-specific read coverage patterns
+Create a directory for this analysis.
+```
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly
+mkdir -p sex_chr_coverage
+cd sex_chr_coverage
+```
+
+And create a low coverage WGS sample metadata file. 
+```
+# create the metadata file
+cat > sample_metadata.tsv <<'EOF'
+sample	sex	locality
+AMNH_21010	F	Hwacheon
+AMNH_21050	M	Jeju
+AMNH_21060	M	Jeju
+AMNH_21070	F	Udo
+AMNH_21073	F	Udo
+AMNH_21128	F	Gumi
+AMNH_21147	M	Daejeon
+AMNH_21161	F	Sancheong
+AMNH_21162	F	Sancheong
+AMNH_21164	F	Yeoncheon
+AMNH_21172	F	Busan
+AMNH_21185	M	Yangyang
+EOF
+
+# use printf so bash inserts real tab characters
+printf "sample\tsex\tlocality\n" > sample_metadata.tsv
+printf "AMNH_21010\tF\tHwacheon\n" >> sample_metadata.tsv
+printf "AMNH_21050\tM\tJeju\n" >> sample_metadata.tsv
+printf "AMNH_21060\tM\tJeju\n" >> sample_metadata.tsv
+printf "AMNH_21070\tF\tUdo\n" >> sample_metadata.tsv
+printf "AMNH_21073\tF\tUdo\n" >> sample_metadata.tsv
+printf "AMNH_21128\tF\tGumi\n" >> sample_metadata.tsv
+printf "AMNH_21147\tM\tDaejeon\n" >> sample_metadata.tsv
+printf "AMNH_21161\tF\tSancheong\n" >> sample_metadata.tsv
+printf "AMNH_21162\tF\tSancheong\n" >> sample_metadata.tsv
+printf "AMNH_21164\tF\tYeoncheon\n" >> sample_metadata.tsv
+printf "AMNH_21172\tF\tBusan\n" >> sample_metadata.tsv
+printf "AMNH_21185\tM\tYangyang\n" >> sample_metadata.tsv
+```
+
+Then, prep the *G. ussuriensis* reference assembly.
+```sh
+# in the "sex_chr_coverage" dir
+# set ref genome as a var
+ref="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/curated/Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa"
+
+# take the first two columns from the fasta index file and save it to a new file called "ref.genome"
+cut -f1,2 "${ref}.fai" > ref.genome
+```
+
+check the chromosome names in the assembly fasta.
+```sh
+awk '{print NR, $1, $2}' "${ref}.fai" | sort -k3,3nr | head -30
+```
+
+create a chromosome name classification file.
+```
+# make chromosome class file
+cat > chr_sets.tsv <<'EOF'
+chrom	class
+G_ussuri_chr1	AUTO
+G_ussuri_chr2	AUTO
+G_ussuri_chr3	AUTO
+G_ussuri_chr4	AUTO
+G_ussuri_chr5	AUTO
+G_ussuri_chr6	AUTO
+G_ussuri_chr7	AUTO
+G_ussuri_chrZ	Z
+G_ussuri_chrW	W
+G_ussuri_chr9	AUTO
+G_ussuri_chr10	AUTO
+G_ussuri_chr11	AUTO
+G_ussuri_chr12	AUTO
+G_ussuri_chr13	AUTO
+G_ussuri_chr14	AUTO
+G_ussuri_chr15	AUTO
+G_ussuri_chr16	AUTO
+G_ussuri_chr17	AUTO
+G_ussuri_chr18	AUTO
+EOF
+
+# use printf so bash inserts real tab characters
+printf "chrom\tclass\n" > chr_sets.tsv
+printf "G_ussuri_chr1\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr2\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr3\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr4\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr5\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr6\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr7\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chrZ\tZ\n" >> chr_sets.tsv
+printf "G_ussuri_chrW\tW\n" >> chr_sets.tsv
+printf "G_ussuri_chr9\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr10\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr11\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr12\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr13\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr14\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr15\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr16\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr17\tAUTO\n" >> chr_sets.tsv
+printf "G_ussuri_chr18\tAUTO\n" >> chr_sets.tsv
+```
+
+Next, make 100 kb windows using bedtools. First, install bedtools into the scaffolding conda env:
+```
+conda install bioconda::bedtools
+```
+Then run:
+```
+bedtools makewindows -g ref.genome -w 100000 > windows_100kb.bed
+```
+
+After this, map reads and calculate window coverage:
+```sh
+#!/bin/bash
+#SBATCH --job-name=sex_chr_depth
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=80G
+#SBATCH --time=24:00:00
+#SBATCH --partition=compute
+#SBATCH --array=1-12
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# activate conda env
+source ~/.bash_profile
+conda activate scaffolding
+
+set -euo pipefail
+
+# project dir
+project="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/sex_chr_coverage"
+
+# chromosome level assembly
+ref="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/curated/Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa"
+
+# low coverage whole genome sequencing reads
+reads="/home/yshin/mendel-nas1/ussuri_popgen/Genome_seq/04.Trimmed"
+
+# metadata and window files
+metadata="${project}/sample_metadata.tsv"
+windows="${project}/windows_100kb.bed"
+
+# slurm threads
+threads="${SLURM_CPUS_PER_TASK}"
+
+# chooses which sample an array task should process
+sample=$(awk -v n="${SLURM_ARRAY_TASK_ID}" 'NR==n+1 {print $1}' "$metadata")
+
+r1="${reads}/${sample}_R1.trimmed.fq.gz"
+r2="${reads}/${sample}_R2.trimmed.fq.gz"
+
+echo "Sample: $sample"
+echo "R1: $r1"
+echo "R2: $r2"
+
+# spit out errors if read files are missing
+if [[ ! -s "$r1" ]]; then
+    echo "ERROR: missing R1: $r1"
+    exit 1
+fi
+
+if [[ ! -s "$r2" ]]; then
+    echo "ERROR: missing R2: $r2"
+    exit 1
+fi
+
+# create output & other directories
+mkdir -p "${project}/bam" "${project}/depth" "${project}/tmp"
+
+tmpdir="${project}/tmp/${sample}"
+mkdir -p "$tmpdir"
+
+if command -v bwa-mem2 >/dev/null 2>&1; then
+    aligner="bwa-mem2 mem"
+else
+    aligner="bwa mem"
+fi
+
+echo "Using aligner: $aligner"
+
+# Name-sort for duplicate marking
+$aligner -t "$threads" \
+    -R "@RG\tID:${sample}\tSM:${sample}\tPL:ILLUMINA" \
+    "$ref" "$r1" "$r2" \
+    | samtools sort -n -@ "$threads" -T "${tmpdir}/${sample}.name" \
+      -o "${tmpdir}/${sample}.name.bam" -
+
+# Fix mate information
+samtools fixmate -m \
+    "${tmpdir}/${sample}.name.bam" \
+    "${tmpdir}/${sample}.fixmate.bam"
+
+# Coordinate sort
+samtools sort -@ "$threads" -T "${tmpdir}/${sample}.coord" \
+    -o "${tmpdir}/${sample}.coord.bam" \
+    "${tmpdir}/${sample}.fixmate.bam"
+
+# Remove duplicates
+samtools markdup -r -@ "$threads" \
+    "${tmpdir}/${sample}.coord.bam" \
+    "${project}/bam/${sample}.markdup.bam"
+
+samtools index -@ "$threads" "${project}/bam/${sample}.markdup.bam"
+
+# Windowed depth.
+# MAPQ 30 keeps mainly confidently mapped reads.
+mosdepth -t "$threads" \
+    --mapq 30 \
+    --by "$windows" \
+    "${project}/depth/${sample}" \
+    "${project}/bam/${sample}.markdup.bam"
+
+# Basic mapping statistics
+samtools flagstat -@ "$threads" \
+    "${project}/bam/${sample}.markdup.bam" \
+    > "${project}/bam/${sample}.flagstat.txt"
+
+rm -rf "$tmpdir"
+
+echo "Finished sample: $sample"
 ```
 
 ## 7) Genome annotation
