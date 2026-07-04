@@ -149,16 +149,16 @@ p2 <- ggplot(class_summary, aes(x = sample, y = median_norm_depth, fill = class)
 print(p2)
 
 # plot 3: known sex comparison by chromosome class
-p3 <- class_summary %>%
-  filter(class %in% c('AUTO', 'Z', 'W')) %>%
-  ggplot(aes(x = sex, y = median_norm_depth)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_jitter(width = 0.15, height = 0, size = 2) +
-  facet_wrap(~class, scales = 'free_y') +
-  labs(x = 'Known sex', y = 'Median normalized depth') +
-  theme_bw()
+#p3 <- class_summary %>%
+#  filter(class %in% c('AUTO', 'Z', 'W')) %>%
+#  ggplot(aes(x = sex, y = median_norm_depth)) +
+#  geom_boxplot(outlier.shape = NA) +
+#  geom_jitter(width = 0.15, height = 0, size = 2) +
+#  facet_wrap(~class, scales = 'free_y') +
+#  labs(x = 'Known sex', y = 'Median normalized depth') +
+#  theme_bw()
 
-print(p3)
+#print(p3)
 
 # save plots
 ggsave(filename = file.path(plot_dir, 'Z_vs_W_normalized_depth.png'), plot = p1, width = 7, height = 6, dpi = 800)
