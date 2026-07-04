@@ -431,19 +431,77 @@ if [ "$n_transcripts" -eq 0 ]; then
 fi
 
 # ============================================================
-# 11. Build comma-separated RNA BAM list for Funannotate
+# 11. Merge RNA BAMs for Funannotate
 # ============================================================
 
-rna_bams=$(find "$main_mapdir" "$venom_mapdir" -name "*.sorted.bam" | sort | paste -sd, -)
+merged_rna_bam="${workdir}/Gloydius_all_RNAseq_merged.sorted.bam"
 
-if [ -z "$rna_bams" ]; then
+mapfile -t RNA_BAM_ARRAY < <(
+    find "$main_mapdir" "$venom_mapdir" -name "*.sorted.bam" | sort
+)
+
+if [ "${#RNA_BAM_ARRAY[@]}" -eq 0 ]; then
     echo "ERROR: No RNA-seq BAM files found for --rna_bam"
     exit 1
 fi
 
 echo
-echo "RNA BAM evidence for Funannotate:"
-echo "$rna_bams"
+echo "RNA BAM files to merge for Funannotate:"
+printf '%s\n' "${RNA_BAM_ARRAY[@]}"
+echo
+
+for bam in "${RNA_BAM_ARRAY[@]}"; do
+    if [ ! -s "$bam" ]; then
+        echo "ERROR: Missing or empty BAM:"
+        echo "$bam"
+        exit 1
+    fi
+
+    if [ ! -s "${bam}.bai" ]; then
+        echo "Indexing BAM:"
+        echo "$bam"
+        samtools index -@ 8 "$bam"
+    fi
+
+    samtools quickcheck "$bam" || {
+        echo "ERROR: samtools quickcheck failed for:"
+        echo "$bam"
+        exit 1
+    }
+done
+
+if [ ! -s "$merged_rna_bam" ]; then
+    echo
+    echo "Merging all RNA-seq BAMs into one BAM for Funannotate:"
+    echo "$merged_rna_bam"
+    echo
+
+    samtools merge \
+        -@ 16 \
+        -f \
+        "$merged_rna_bam" \
+        "${RNA_BAM_ARRAY[@]}"
+
+    samtools index -@ 16 "$merged_rna_bam"
+else
+    echo
+    echo "Merged RNA BAM already exists. Skipping merge:"
+    echo "$merged_rna_bam"
+
+    if [ ! -s "${merged_rna_bam}.bai" ]; then
+        samtools index -@ 16 "$merged_rna_bam"
+    fi
+fi
+
+samtools quickcheck "$merged_rna_bam" || {
+    echo "ERROR: merged RNA BAM failed samtools quickcheck:"
+    echo "$merged_rna_bam"
+    exit 1
+}
+
+echo
+echo "Merged RNA BAM evidence for Funannotate:"
+echo "$merged_rna_bam"
 echo
 
 # ============================================================
@@ -477,7 +535,7 @@ funannotate predict \
     --busco_db tetrapoda \
     --organism other \
     --max_intronlen 100000 \
-    --rna_bam "$rna_bams" \
+    --rna_bam "$merged_rna_bam" \
     --transcript_evidence "$combined_transcripts" \
     --force
 
@@ -504,7 +562,7 @@ echo "Combined transcript evidence used for prediction:"
 echo "$combined_transcripts"
 echo
 echo "RNA BAM evidence used for prediction:"
-echo "$rna_bams"
+echo "$merged_rna_bam"
 echo
 echo "Funannotate output:"
 echo "$outdir"
