@@ -182,8 +182,8 @@ map_rnaseq_dir () {
     for r1 in \
         "$reads_dir"/*_R1*.fq.gz \
         "$reads_dir"/*_R1*.fastq.gz \
-        "$reads_dir"/*_1.fq.gz \
-        "$reads_dir"/*_1.fastq.gz
+        "$reads_dir"/*_1*.fq.gz \
+        "$reads_dir"/*_1*.fastq.gz
     do
         [ -e "$r1" ] || continue
 
@@ -197,10 +197,8 @@ map_rnaseq_dir () {
 
         if [[ "$r1" == *_R1* ]]; then
             r2="${r1/_R1/_R2}"
-        elif [[ "$r1" == *_1.fq.gz ]]; then
-            r2="${r1/%_1.fq.gz/_2.fq.gz}"
-        elif [[ "$r1" == *_1.fastq.gz ]]; then
-            r2="${r1/%_1.fastq.gz/_2.fastq.gz}"
+        elif [[ "$r1" == *_1* ]]; then
+            r2="${r1/_1/_2}"
         else
             echo "WARNING: Could not infer read pattern for:"
             echo "$r1"
@@ -281,7 +279,7 @@ map_rnaseq_dir () {
     if [ "$found_any" = "no" ]; then
         echo "ERROR: No paired FASTQ files found in:"
         echo "$reads_dir"
-        echo "Expected patterns include *_R1*.fq.gz, *_R1*.fastq.gz, *_1.fq.gz, or *_1.fastq.gz"
+        echo "Expected patterns include *_R1*.fq.gz, *_R1*.fastq.gz, *_1*.fq.gz, or *_1*.fastq.gz"
         exit 1
     fi
 }
