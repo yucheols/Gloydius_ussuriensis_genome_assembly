@@ -26,10 +26,8 @@ export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 
 # Funannotate databases and external tools
 export FUNANNOTATE_DB="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate_db"
-
 export GENEMARK_PATH="/home/yshin/mendel-nas1/gmes_linux_64/gmes_linux_64_4"
 export PATH="$GENEMARK_PATH:$PATH"
-
 export EGGNOG_DATA_DIR="/home/yshin/mendel-nas1/eggnog_db"
 
 # ============================================================

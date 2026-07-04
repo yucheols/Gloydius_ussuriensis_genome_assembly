@@ -2104,6 +2104,9 @@ mkdir final_QC final_QC/QUAST final_QC/compleasm final_QC/Merqury
 ```
 
 ### Sex chromosome validation based on sex-specific read coverage patterns
+Our synteny-based chromosome assignment, using *C. adamanteus* (ZW), *C. viridis* (ZZ), and *V. berus* (ZW) assemblies, identified Z and W chromosomes in the *G. ussuriensis* assembly. As an independent validation od this assignment, we will use low-coverage whole-genome resequencing data from 4 males and 8 females and map sequencing reads from these samples to the reference *G. ussuriensis* assembly. 
+
+
 Create a directory for this analysis.
 ```
 cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly
@@ -2210,9 +2213,10 @@ printf "G_ussuri_chr17\tAUTO\n" >> chr_sets.tsv
 printf "G_ussuri_chr18\tAUTO\n" >> chr_sets.tsv
 ```
 
-Next, make 100 kb windows using bedtools. First, install bedtools into the scaffolding conda env:
+Next, make 100 kb windows using bedtools. First, install bedtools and mosdepth into the scaffolding conda env:
 ```
 conda install bioconda::bedtools
+conda install bioconda::mosdepth
 ```
 Then run:
 ```
@@ -2331,6 +2335,10 @@ samtools flagstat -@ "$threads" \
 rm -rf "$tmpdir"
 
 echo "Finished sample: $sample"
+```
+
+After this finishes running, summarize and plot normalized Z/W/autosome coverage in R.
+```
 ```
 
 ## 7) Genome annotation
