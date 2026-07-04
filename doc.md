@@ -39,7 +39,7 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __(Post-Hi-C) Structural annotation__
    - __(Post-Hi-C) Functional annotation__
 8. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-chromosomal-synteny)__
-   - Setup
+   - __Setup__
 9. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#9-mitogenome-assembly)__
     - __"Manual" annotation with MITOS2__
     - __Submitting mitogenome to GenBank__
