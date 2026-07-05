@@ -1290,6 +1290,8 @@ Submit the above script with the following SLURM dependency (the script will sta
 sbatch --dependency=afterok:10822420 G_ussuri_YaHS.sh
 ```
 Check the assembly stats in the log file after YaHS finishes running.
+
+
 ![alt text](etc/yahs_out.png)
 
 We can see that the scaffold N50 = 203.1 Mb and L50 = 3, which is much more contiguous than our PacBio N50 = 127.5 Mb and L50 = 3.
