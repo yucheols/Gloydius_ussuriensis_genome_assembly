@@ -549,7 +549,29 @@ echo "Funannotate predict finished."
 echo
 
 # ============================================================
-# 14. Final summary
+# 14. Run Funannotate annotate
+# ============================================================
+
+echo
+echo "Running funannotate annotate..."
+echo
+
+funannotate annotate \
+    -i "$outdir" \
+    -s "Gloydius ussuriensis" \
+    --isolate AMNH_21010 \
+    --cpus 32 \
+    --busco_db tetrapoda \
+    --database "$FUNANNOTATE_DB" \
+    --tmpdir "$TMPDIR" \
+    --force
+
+echo
+echo "Funannotate annotate finished."
+echo
+
+# ============================================================
+# 15. Final summary
 # ============================================================
 
 echo "Important files:"
