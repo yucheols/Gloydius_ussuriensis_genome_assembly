@@ -3119,7 +3119,7 @@ Run funannotate with the script below.
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
 # ============================================================
-# 1. Activate environment
+# 1. Activate environment and set up analyses
 # ============================================================
 
 source ~/.bash_profile
@@ -3136,6 +3136,15 @@ export FUNANNOTATE_DB="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Ch
 export GENEMARK_PATH="/home/yshin/mendel-nas1/gmes_linux_64/gmes_linux_64_4"
 export PATH="$GENEMARK_PATH:$PATH"
 export EGGNOG_DATA_DIR="/home/yshin/mendel-nas1/eggnog_db"
+
+# use a short temporary directory to avoid Python AF_UNIX socket path limit
+export TMPDIR="/tmp/yshin_fun_${SLURM_JOB_ID}"
+export TEMP="$TMPDIR"
+export TMP="$TMPDIR"
+mkdir -p "$TMPDIR"
+
+# clean it on exit
+trap 'rm -rf "$TMPDIR"' EXIT
 
 # ============================================================
 # 2. Set paths
@@ -3161,7 +3170,7 @@ main_mapdir="${workdir}/rnaseq_main_hisat2"
 venom_mapdir="${workdir}/rnaseq_venom_hisat2"
 main_stringtie="${workdir}/stringtie_main"
 venom_stringtie="${workdir}/stringtie_venom"
-tmpdir="${workdir}/tmp"
+sort_tmpdir="${workdir}/tmp"
 
 # Funannotate output
 outdir="${workdir}/G_ussuriensis_funannotate"
@@ -3173,11 +3182,7 @@ mkdir -p \
     "$venom_mapdir" \
     "$main_stringtie" \
     "$venom_stringtie" \
-    "$tmpdir"
-
-export TMPDIR="$tmpdir"
-export TEMP="$tmpdir"
-export TMP="$tmpdir"
+    "$sort_tmpdir"
 
 cd "$workdir"
 
@@ -3362,7 +3367,7 @@ map_rnaseq_dir () {
 
         samtools sort \
             -@ 16 \
-            -T "${tmpdir}/${sample_prefix}_${sample}.sorttmp" \
+            -T "${sort_tmpdir}/${sample_prefix}_${sample}.sorttmp" \
             -o "$bam" \
             "$sam"
 
