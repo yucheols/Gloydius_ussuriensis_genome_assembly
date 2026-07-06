@@ -36,6 +36,7 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __(Pre-Hi-C) Venom gland transcriptome data__
    - __(Post-Hi-C) Repeat masking (soft masking) using Earl Grey__
    - __(Post-Hi-C) Annotation using funannotate__
+   - __(Post-Hi-C) Toxin gene annotation using ToxCodAn-Genome__
    - __(Post-Hi-C) Structural annotation__
    - __(Post-Hi-C) Functional annotation__
 8. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-chromosomal-synteny)__
@@ -3705,7 +3706,75 @@ echo "$outdir"
 echo
 echo "Done."
 ```
+----------------------------------------------------------------------------------------------------
+### (Post-Hi-C) Toxin gene annotation using ToxCodAn-Genome
+Snake toxin gene annotation can be tricky. [...]
 
+Install ToxCodAn-Genome and its dependencies.
+```
+# create conda env and install dependencies
+conda create -n ToxcodanGenome -c bioconda python biopython pandas blast exonerate miniprot gffread hisat2 samtools stringtie trinity spades
+
+# install ToxCodAn-Genome from github and add to PATH
+cd mendel-nas1/
+git clone https://github.com/pedronachtigall/ToxCodAn-Genome.git
+echo "export PATH=$PATH:$PWD/ToxCodAn-Genome/bin/" >> ~/.bashrc
+
+# test
+conda activate ToxcodanGenome
+python toxcodan-genome.py -h
+
+# apply permission to all executables
+chmod +x /home/yshin/mendel-nas1/ToxCodAn-Genome/bin/*
+```
+Run ToxCodAn on Mendel with the script below:
+```sh
+#!/bin/bash
+#SBATCH --job-name=ToxCodAn-Genome
+#SBATCH --nodes=1
+#SBATCH --mem=150G
+#SBATCH --cpus-per-task=32
+#SBATCH --partition=compute
+#SBATCH --time=20:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# activate conda env for mapping
+source ~/.bash_profile
+conda activate ToxcodanGenome
+
+# force UTF-8 output in non-interactive SLURM jobs
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+export PYTHONIOENCODING=UTF-8
+export PYTHONUTF8=1
+
+set -euo pipefail
+
+# toxcodan-genome path
+dir_toxcodan="/home/yshin/mendel-nas1/ToxCodAn-Genome/bin"
+cd ${dir_toxcodan}
+
+# set input paths
+genome="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
+venom_read_1="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland/trimmed_fastq/SRR35908235_1.trimmed.fastq.gz"
+venom_read_2="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland/trimmed_fastq/SRR35908235_2.trimmed.fastq.gz"
+db_dir="/home/yshin/mendel-nas1/ToxCodAn-Genome/Databases/Viperidae_db.fasta"
+
+# output dir
+outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation"
+mkdir -p ${outdir}
+
+# run ToxCodAn-Genome
+python toxcodan-genome.py \
+    -g ${genome} \
+    -d ${db_dir} \
+    -r ${venom_read_1},${venom_read_2} \
+    -o ${outdir} \
+    -c ${SLURM_CPUS_PER_TASK}
+```
 ----------------------------------------------------------------------------------------------------
 ### (Post-Hi-C) Structural annotation
 ----------------------------------------------------------------------------------------------------
