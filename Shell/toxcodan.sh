@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=ToxCodAn-Genome
 #SBATCH --nodes=1
-#SBATCH --mem=150G
+#SBATCH --mem=300G
 #SBATCH --cpus-per-task=32
 #SBATCH --partition=compute
 #SBATCH --time=300:00:00
