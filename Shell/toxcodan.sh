@@ -20,6 +20,9 @@ export LC_ALL=C.UTF-8
 export PYTHONIOENCODING=UTF-8
 export PYTHONUTF8=1
 
+# Trinity memory for ToxCodAn/Trinity
+export TRINITY_MEM=250G
+
 set -euo pipefail
 
 # toxcodan-genome path
