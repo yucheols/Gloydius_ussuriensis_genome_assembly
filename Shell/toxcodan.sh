@@ -36,6 +36,18 @@ db_dir="/home/yshin/mendel-nas1/ToxCodAn-Genome/Databases/Viperidae_db.fasta"
 outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation"
 mkdir -p ${outdir}
 
+# Patch TRassembly.py default Trinity memory to increase memory allocation for Trinity assembly step. 
+# This is necessary because the default 8G is insufficient for large genomes, and ToxCodAn does not allow passing -M to TRassembly.py directly.
+if grep -q "8G" "${dir_toxcodan}/TRassembly.py"; then
+    cp "${dir_toxcodan}/TRassembly.py" "${dir_toxcodan}/TRassembly.py.bak_before_memory_patch"
+    sed -i "s/default *= *['\"]8G['\"]/default='${TRINITY_MEM}'/g" "${dir_toxcodan}/TRassembly.py"
+    echo "Patched TRassembly.py Trinity memory default to ${TRINITY_MEM}"
+else
+    echo "TRassembly.py does not contain default 8G; checking current memory setting:"
+fi
+
+grep -n "max_memory\|default=.*G\|-M" "${dir_toxcodan}/TRassembly.py" || true
+
 # run ToxCodAn-Genome
 python toxcodan-genome.py \
     -g ${genome} \
