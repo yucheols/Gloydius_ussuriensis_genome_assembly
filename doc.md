@@ -3111,10 +3111,10 @@ Run funannotate with the script below.
 #!/bin/bash
 #SBATCH --job-name=funannotate
 #SBATCH --nodes=1
-#SBATCH --partition=compute
+#SBATCH --partition=bigmem
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
-#SBATCH --mem=250G
+#SBATCH --mem=500G
 #SBATCH --time=144:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org

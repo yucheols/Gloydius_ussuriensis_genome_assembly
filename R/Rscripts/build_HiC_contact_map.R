@@ -125,22 +125,18 @@ p <- ggplot(hic_plot, aes(x = x, y = y, fill = log_count)) +
   geom_raster() +
   coord_fixed(expand = F) +
   scale_y_reverse() +
-  scale_fill_viridis_c(
-    name = expression('log'[10]*'[Contacts + 1]'), 
-    option = 'inferno',
-    direction = -1
-  ) +
+  scale_fill_viridis_c(name = expression('log'[10]*'[Contacts + 1]'), 
+                       option = 'inferno',
+                       direction = -1) +
   theme_classic() +
-  theme(
-    axis.title = element_blank(),
-    axis.text.x = element_text(size = 14),
-    axis.text.y = element_text(size = 14),
-    axis.ticks = element_line(color = 'black'),
-    axis.ticks.length = unit(0.3, 'cm'),
-    legend.position = 'top',
-    legend.title = element_text(size = 14),
-    legend.text = element_text(size = 12)
-  )
+  theme(axis.title = element_blank(),
+        axis.text.x = element_text(size = 14),
+        axis.text.y = element_text(size = 14),
+        axis.ticks = element_line(color = 'black'),
+        axis.ticks.length = unit(0.3, 'cm'),
+        legend.position = 'top',
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12))
 
 # add boxes only around diagonal clusters
 if (nrow(box_df) > 0) {
