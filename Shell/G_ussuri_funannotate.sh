@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=funannotate
 #SBATCH --nodes=1
-#SBATCH --partition=bigmem
+#SBATCH --partition=compute
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
-#SBATCH --mem=500G
-#SBATCH --time=144:00:00
+#SBATCH --mem=350G
+#SBATCH --time=672:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
