@@ -41,23 +41,43 @@ db_dir="/home/yshin/mendel-nas1/ToxCodAn-Genome/Databases/Viperidae_db.fasta"
 # output dir
 outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added"
 mkdir -p ${outdir}
+mkdir -p ${outdir}/SRR35908235_TRassembly
 
-# Patch TRassembly.py default Trinity memory to increase memory allocation for Trinity assembly step. 
-# This is necessary because the default 8G is insufficient for large genomes, and ToxCodAn does not allow passing -M to TRassembly.py directly.
-#if grep -q "8G" "${dir_toxcodan}/TRassembly.py"; then
-#    cp "${dir_toxcodan}/TRassembly.py" "${dir_toxcodan}/TRassembly.py.bak_before_memory_patch"
-#    sed -i "s/default *= *['\"]8G['\"]/default='${TRINITY_MEM}'/g" "${dir_toxcodan}/TRassembly.py"
-#    echo "Patched TRassembly.py Trinity memory default to ${TRINITY_MEM}"
-#else
-#    echo "TRassembly.py does not contain default 8G; checking current memory setting:"
-#fi
+# run TRassembly.py to assemble venom gland RNA-seq reads
+python TRassembly.py \
+    -g ${genome} \
+    -r ${venom_read_1},${venom_read_2} \
+    -o ${outdir}/SRR35908235_TRassembly \
+    -c ${SLURM_CPUS_PER_TASK}
 
-#grep -n "max_memory\|default=.*G\|-M" "${dir_toxcodan}/TRassembly.py" || true
+# transition to ToxCodAn conda env and cd into dir containing the ToxCodAn executables
+conda deactivate
+conda activate Toxcodan
+cd /home/yshin/mendel-nas1/ToxCodAn/bin
+
+# output dir for ToxCodAn and ToxCodAn-Genome
+mkdir -p ${outdir}/SRR35908235_ToxCodAn
+mkdir -p ${outdir}/SRR35908235_ToxCodAn-Genome
+
+# run ToxCodAn to annotate the transcriptome
+python toxcodan.py \
+    -s SRR35908235 \
+    -t ${outdir}/SRR35908235_TRassembly/transcripts.fasta \
+    -m /home/yshin/mendel-nas1/ToxCodAn/models \
+    -o ${outdir}/SRR35908235_ToxCodAn \
+    -c ${SLURM_CPUS_PER_TASK}
+
+cat ${outdir}/SRR35908235_ToxCodAn/SRR35908235_Toxins_cds_RedundancyFiltered.fasta ${outdir}/SRR35908235_ToxCodAn/SRR35908235_PutativeToxins_cds_SPfiltered.fasta > ${outdir}/G_ussuriensis_VG_toxins.toxcodan.fasta
+
+# transition to ToxCodAn-Genome conda env and cd into dir containing the ToxCodAn-Genome executables
+conda deactivate
+conda activate ToxcodanGenome
+cd /home/yshin/mendel-nas1/ToxCodAn-Genome/bin
 
 # run ToxCodAn-Genome
 python toxcodan-genome.py \
     -g ${genome} \
     -d ${db_dir} \
-    -r ${venom_read_1},${venom_read_2} \
-    -o ${outdir} \
+    -C ${outdir}/G_ussuriensis_VG_toxins.toxcodan.fasta \
+    -o ${outdir}/SRR35908235_ToxCodAn-Genome \
     -c ${SLURM_CPUS_PER_TASK}
