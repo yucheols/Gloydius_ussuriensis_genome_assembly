@@ -529,6 +529,9 @@ fi
 echo
 echo "Running funannotate predict..."
 echo
+echo "DIAMOND executable: $(which diamond)"
+diamond version
+echo
 
 funannotate predict \
     -i "$annot_genome" \
@@ -542,6 +545,7 @@ funannotate predict \
     --max_intronlen 100000 \
     --rna_bam "$merged_rna_bam" \
     --transcript_evidence "$combined_transcripts" \
+    --tmpdir "$TMPDIR" \
     --force
 
 echo
