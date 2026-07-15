@@ -3774,7 +3774,7 @@ chmod 777 /home/yshin/mendel-nas1/ToxCodAn/bin/*
 ```
 
 
-Run the script below on Mendel. This script
+Run the script below on Mendel. This script includes venom gland transcriptome assembly using TRassembly.py, venom gland transcriptome annotation using toxcodan.py, and toxin gene annotation of the genome using toxcodan-genome.py.  
 ```sh
 #!/bin/bash
 #SBATCH --job-name=ToxCodAn-Genome
