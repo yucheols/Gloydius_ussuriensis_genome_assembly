@@ -3943,7 +3943,22 @@ grep -n 'ENV{SIGNALP}' signalp
 chmod 777 /home/yshin/mendel-nas1/ToxCodAn/bin/*
 ```
 
-First, run TRassembly.py included in the ToxCodAn-Genome package for venom gland transcriptome assembly:
+First, run TRassembly.py included in the ToxCodAn-Genome package for venom gland transcriptome assembly.
+
+Before running TRassembly, make sure the jellyfish k-mer counter is installed and accessible by Trinity (which is part of the TRassembly script). In my case, jellyfish was not installed in the ToxcodanGenome conda env and this caused TRassembly script to crash as soon as it entered the de novo transcriptome assembly step. Also, install bowtie2 and salmon alongside jellyfish.
+```sh
+# activate conda env
+conda activate ToxcodanGenome
+
+# install
+conda install --freeze-installed \
+    -c conda-forge \
+    -c bioconda \
+    bioconda::kmer-jellyfish \
+    bioconda::bowtie2 \
+    bioconda::salmon
+```
+Now, run the TRassembly.py script:
 ```sh
 #!/bin/bash
 #SBATCH --job-name=TRassembly
