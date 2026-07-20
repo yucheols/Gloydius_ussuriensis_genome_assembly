@@ -25,9 +25,11 @@ export PYTHONUTF8=1
 
 set -euo pipefail
 
-# toxcodan-genome path and cd into it
+# set toxcodan-genome path
 dir_toxcodan_genome="/home/yshin/mendel-nas1/ToxCodAn-Genome/bin"
-cd ${dir_toxcodan_genome}
+
+# allow ToxCodAn-Genome to find helper scripts
+export PATH="${dir_toxcodan_genome}:${PATH}"
 
 # set input paths
 genome="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
@@ -40,13 +42,8 @@ mkdir -p ${outdir}
 # output dir for ToxCodAn-Genome
 mkdir -p ${outdir}/SRR35908235_ToxCodAn-Genome
 
-# transition to ToxCodAn-Genome conda env and cd into dir containing the ToxCodAn-Genome executables
-conda deactivate
-conda activate ToxcodanGenome
-cd /home/yshin/mendel-nas1/ToxCodAn-Genome/bin
-
 # run ToxCodAn-Genome
-python toxcodan-genome.py \
+python ${dir_toxcodan_genome}/toxcodan-genome.py \
     -g ${genome} \
     -d ${db_dir} \
     -C ${outdir}/G_ussuriensis_VG_toxins.toxcodan.fasta \
