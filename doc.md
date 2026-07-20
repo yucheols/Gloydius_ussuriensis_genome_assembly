@@ -3945,7 +3945,7 @@ chmod 777 /home/yshin/mendel-nas1/ToxCodAn/bin/*
 
 First, run TRassembly.py included in the ToxCodAn-Genome package for venom gland transcriptome assembly.
 
-Before running TRassembly, make sure the jellyfish k-mer counter is installed and accessible by Trinity (which is part of the TRassembly script). In my case, jellyfish was not installed in the ToxcodanGenome conda env and this caused TRassembly script to crash as soon as it entered the de novo transcriptome assembly step. Also, install bowtie2 and salmon alongside jellyfish.
+Before running TRassembly, make sure the jellyfish k-mer counter is installed and accessible by Trinity (which is part of the TRassembly script). In my case, jellyfish was not installed in the ToxcodanGenome conda env and this caused TRassembly script to crash as soon as it entered the de novo transcriptome assembly step. Also, install bowtie/bowtie2 and salmon alongside jellyfish.
 ```sh
 # activate conda env
 conda activate ToxcodanGenome
@@ -3956,6 +3956,7 @@ conda install --freeze-installed \
     -c bioconda \
     bioconda::kmer-jellyfish \
     bioconda::bowtie2 \
+    bioconda::bowtie \
     bioconda::salmon
 ```
 Now, run the TRassembly.py script:
@@ -4045,9 +4046,13 @@ export PYTHONUTF8=1
 
 set -euo pipefail
 
-# toxcodan path
+# set toxcodan and signalp paths
 dir_toxcodan="/home/yshin/mendel-nas1/ToxCodAn/bin"
-cd ${dir_toxcodan}
+signalp_dir="/home/yshin/mendel-nas1/signalp-4.1"
+
+# make toxcodan and signalp available in the PATH
+export PATH="${dir_toxcodan}:${signalp_dir}:${PATH}"
+hash -r
 
 # set input paths
 models_dir="/home/yshin/mendel-nas1/ToxCodAn/models"
@@ -4060,7 +4065,7 @@ mkdir -p ${outdir}
 mkdir -p ${outdir}/SRR35908235_ToxCodAn
 
 # run ToxCodAn to annotate the transcriptome
-python toxcodan.py \
+python "${dir_toxcodan}/toxcodan.py" \
     -s SRR35908235 \
     -t ${outdir}/SRR35908235_TRassembly/transcripts.fasta \
     -m ${models_dir} \
@@ -4071,7 +4076,7 @@ cat ${outdir}/SRR35908235_ToxCodAn/SRR35908235_Toxins_cds_RedundancyFiltered.fas
 
 echo "ToxCodAn completed successfully."
 echo "The output files are located in ${outdir}/SRR35908235_ToxCodAn"
-ls ${outdir}/SRR35908235_ToxCodAn   
+ls ${outdir}/SRR35908235_ToxCodAn       
 ```
 
 Finally, run toxcodan-genome.py (the main script of ToxCodAn-Genome) for toxin gene annotation of the genome:

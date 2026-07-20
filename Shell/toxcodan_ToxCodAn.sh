@@ -25,9 +25,13 @@ export PYTHONUTF8=1
 
 set -euo pipefail
 
-# toxcodan path
+# set toxcodan and signalp paths
 dir_toxcodan="/home/yshin/mendel-nas1/ToxCodAn/bin"
-cd ${dir_toxcodan}
+signalp_dir="/home/yshin/mendel-nas1/signalp-4.1"
+
+# make toxcodan and signalp available in the PATH
+export PATH="${dir_toxcodan}:${signalp_dir}:${PATH}"
+hash -r
 
 # set input paths
 models_dir="/home/yshin/mendel-nas1/ToxCodAn/models"
@@ -40,7 +44,7 @@ mkdir -p ${outdir}
 mkdir -p ${outdir}/SRR35908235_ToxCodAn
 
 # run ToxCodAn to annotate the transcriptome
-python toxcodan.py \
+python "${dir_toxcodan}/toxcodan.py" \
     -s SRR35908235 \
     -t ${outdir}/SRR35908235_TRassembly/transcripts.fasta \
     -m ${models_dir} \
