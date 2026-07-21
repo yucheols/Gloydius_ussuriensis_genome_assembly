@@ -4141,7 +4141,7 @@ ls ${outdir}/SRR35908235_ToxCodAn-Genome
 After this finishes running, convert the output annotation .gtf file to a .tsv file using "fromCDStoGENE.py" script.
 ```sh
 # from "/home/yshin/mendel-nas1/ToxCodAn-Genome/bin" dir
-python3 fromCDStoGENE.py /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation/toxin_annotation.gtf  /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation/toxin_annotation.tsv
+python3 fromCDStoGENE.py /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/toxin_annotation.gtf  /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/toxin_annotation.tsv
 ```  
 After the .tsv is created, plot annotation using "PlotToxinLoci.R" script. First, install R and required packages on the conda env.
 ```sh
@@ -4152,7 +4152,7 @@ Then, run "PlotToxinLoci.R"
 ```sh
 # make a plot dir
 mkdir -p \
-  /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation/plots
+  /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/plots
 
 # cd to toxcodan genome dir
 cd /home/yshin/mendel-nas1/ToxCodAn-Genome/bin/
@@ -4160,8 +4160,8 @@ cd /home/yshin/mendel-nas1/ToxCodAn-Genome/bin/
 # run plotting script
 Rscript \
   PlotToxinLoci.R \
-  -i /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation/toxin_annotation.tsv \
-  -o /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation/plots/Gloydius_ussuriensis_toxin_annotation
+  -i /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/toxin_annotation.tsv \
+  -o /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/plots/Gloydius_ussuriensis_toxin_annotation
 ```
 ----------------------------------------------------------------------------------------------------
 ### (Post-Hi-C) Structural annotation
