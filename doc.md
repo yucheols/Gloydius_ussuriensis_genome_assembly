@@ -4196,7 +4196,7 @@ conda install -n ncbi_datasets -c conda-forge \
     curl jq -y
 ```
 
-Next, submit the following shell script to Mendel for assembly downloads.
+Next, submit the following shell script to Mendel. This script will take the .csv file and download the assemblies that will be used in synteny analyses. 
 ```sh
 #!/bin/bash
 #SBATCH --job-name=download_assemblies
