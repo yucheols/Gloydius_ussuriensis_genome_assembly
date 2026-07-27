@@ -4169,6 +4169,18 @@ Rscript \
 ### (Post-Hi-C) Functional annotation
 
 ## 8) Chromosomal synteny
+### Setup
+First, set up a directory for synteny analyses.
+```sh
+# under the "G_ussuriensis_Chromo" directory
+mkdir -p synteny/{raw_ncbi,assemblies,gff3,proteins,metadata,logs,scripts}
+```
+
+Activate the conda env to access NCBI Datasets CLI
+```sh
+conda activate ncbi_datasets
+```
+
 There are several chromosom-level snake reference genome assemblies, especially viperid assemblies, available. We can use these to investigate the synteny across species. We already downloaded *C. adamanteus*, *C. viridis*, and *V. berus* assemblies. We will download nine additional assemblies. These additional species are: *Cerastes gasperettii*, *Sistrurus catenatus*, *Bothrops insularis*, *GLoydius shedaoensis*, *Naja naja*, *Thamnophis elegans*, *Elaphe schrenckii*, *Liasis olivaceus*, *Candoia aspera*.
 
 First, create a .csv file containing species name, family/subfamily names, assembly name, assembly accession, data source, and url. Note that all assemblies other than *G. shedaoensis* are deposited GenBank. The *G. shedaoensis* assembly is available from National Genomics Data Center (NGDC) Genome Warehouse (GWH).
@@ -4382,18 +4394,6 @@ for dir in "${OUTDIR}"/*; do
         echo "${sp}: genome MISSING"
     fi
 done
-```
-
-### Setup
-First, set up a directory for synteny analyses.
-```sh
-# under the "G_ussuriensis_Chromo" directory
-mkdir -p synteny/{raw_ncbi,assemblies,gff3,proteins,metadata,logs,scripts}
-```
-
-Activate the conda env to access NCBI Datasets CLI
-```sh
-conda activate ncbi_datasets
 ```
 
 ## 9) Mitogenome assembly
