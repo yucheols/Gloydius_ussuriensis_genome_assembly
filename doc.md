@@ -3269,7 +3269,18 @@ Then run a final check. This should print "All 37 external dependencies are inst
 ```
 funannotate check --show-versions
 ```
+Also, copy the "distilled_model_signalp6.pt" file into the signalp installation "model_weights" dir.
+```sh
+cp -av \
+/home/yshin/mendel-nas1/signalp/signalp6_fast/signalp-6-package/models/distilled_model_signalp6.pt \
+/home/yshin/mendel-nas1/miniconda3/envs/funannotate/lib/python3.8/site-packages/signalp/model_weights/
+```
 
+Check whether the file is correctly copied.
+```sh
+ls -lh \
+/home/yshin/mendel-nas1/miniconda3/envs/funannotate/lib/python3.8/site-packages/signalp/model_weights/
+```
 
 ####  Run funannotate
 Run funannotate with the script below.
