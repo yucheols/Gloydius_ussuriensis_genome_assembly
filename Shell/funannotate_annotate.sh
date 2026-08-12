@@ -11,11 +11,9 @@
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
-# this script resumes a failed funannotate annotate run for Gloydius ussuriensis (AMNH_21010) genome assembly
-# the previous run failed due to a missing SignalP model file, which has been fixed
 
 # ============================================================
-# 1. activate Funannotate environment
+# 1. activate funannotate environment
 # ============================================================
 
 source ~/.bash_profile
@@ -23,7 +21,7 @@ conda activate funannotate
 
 set -euo pipefail
 
-# avoid system libstdc++ conflict with SignalP/PIL
+# avoid system libstdc++ conflict with SignalP / PIL
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 
 # funannotate databases
@@ -45,7 +43,7 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 
 # ============================================================
-# 3. existing Funannotate predict output
+# 3. existing funannotate predict output
 # ============================================================
 
 outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate/G_ussuriensis_funannotate"
@@ -69,11 +67,28 @@ echo
 
 
 # ============================================================
-# 4. verify SignalP installation and model
+# 4. verify InterProScan output
+# ============================================================
+
+iprxml="${outdir}/annotate_misc/iprscan.xml"
+
+if [ ! -s "$iprxml" ]; then
+    echo "ERROR: InterProScan XML is missing or empty:"
+    echo "$iprxml"
+    exit 1
+fi
+
+echo
+echo "InterProScan XML found:"
+ls -lh "$iprxml"
+echo
+
+
+# ============================================================
+# 5. verify SignalP installation/model
 # ============================================================
 
 echo "Checking SignalP..."
-
 command -v signalp6
 
 SIGNALP_DIR="${CONDA_PREFIX}/lib/python3.8/site-packages/signalp"
@@ -93,7 +108,7 @@ echo
 
 
 # ============================================================
-# 5. test SignalP imports
+# 6. test SignalP imports
 # ============================================================
 
 python -c 'from PIL import Image; print("PIL OK")'
@@ -104,23 +119,7 @@ echo
 
 
 # ============================================================
-# 6. remove only incomplete SignalP output from failed run
-# ============================================================
-
-signalp_old="${outdir}/annotate_misc/signalp"
-
-if [ -d "$signalp_old" ]; then
-    echo "Removing incomplete SignalP output from previous failed run:"
-    echo "$signalp_old"
-
-    rm -rf "$signalp_old"
-fi
-
-echo
-
-
-# ============================================================
-# 7. resume Funannotate annotate
+# 7. run funannotate annotate with InterProScan
 # ============================================================
 
 echo "Running funannotate annotate..."
@@ -133,6 +132,7 @@ funannotate annotate \
     --cpus 32 \
     --busco_db tetrapoda \
     --database "$FUNANNOTATE_DB" \
+    --iprscan "$iprxml" \
     --tmpdir "$TMPDIR"
 
 echo
@@ -151,6 +151,7 @@ if [ ! -d "$results" ]; then
     exit 1
 fi
 
+echo
 echo "Final annotation results:"
 echo "$results"
 echo
