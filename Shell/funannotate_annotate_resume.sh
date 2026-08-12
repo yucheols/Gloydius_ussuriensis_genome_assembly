@@ -11,6 +11,8 @@
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
+# this script resumes a failed funannotate annotate run for Gloydius ussuriensis (AMNH_21010) genome assembly
+# the previous run failed due to a missing SignalP model file, which has been fixed
 
 # ============================================================
 # 1. activate Funannotate environment
