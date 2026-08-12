@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=funannotate
+#SBATCH --job-name=funannotate_predict
 #SBATCH --nodes=1
 #SBATCH --partition=compute
 #SBATCH --ntasks=1
