@@ -37,8 +37,6 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __(Post-Hi-C) Repeat masking (soft masking) using Earl Grey__
    - __(Post-Hi-C) Annotation using funannotate__
    - __(Post-Hi-C) Toxin gene annotation using ToxCodAn-Genome__
-   - __(Post-Hi-C) Structural annotation__
-   - __(Post-Hi-C) Functional annotation__
 8. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-chromosomal-synteny)__
    - __Setup__
 9. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#9-mitogenome-assembly)__
@@ -4488,10 +4486,6 @@ Rscript \
   -i /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/toxin_annotation.tsv \
   -o /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/plots/Gloydius_ussuriensis_toxin_annotation
 ```
-----------------------------------------------------------------------------------------------------
-### (Post-Hi-C) Structural annotation
-----------------------------------------------------------------------------------------------------
-### (Post-Hi-C) Functional annotation
 
 ## 8) Chromosomal synteny
 ### Setup
