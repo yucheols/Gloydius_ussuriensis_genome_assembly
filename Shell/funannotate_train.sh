@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=funannotate_predict
+#SBATCH --job-name=funannotate_train
 #SBATCH --nodes=1
 #SBATCH --partition=compute
 #SBATCH --ntasks=1
@@ -37,18 +37,22 @@ trap 'rm -rf "$TMPDIR"' EXIT
 # softmakesked genome assembly
 genome="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
 
-# output directory for funannotate results
-outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate/"
+# path to paired-end RNA-seq reads from organ tissues and venom gland
+tissue_reads="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/paired_RNAseq_reads"
+venom_reads="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland/trimmed_fastq"
 
-# run funannotate predict
-funannotate predict \
-    -i ${genome} \
-    -o ${outdir} \
+# make output dir for all funannotate results
+outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate/"
+mkdir -p "$outdir"
+
+# Train to align RNA-seq data, run Trinity, and then run PASA
+funannotate train -i ${genome} -o ${outdir} \
+    --left ${tissue_reads}/AMNH_21010_Ht_R1_paired.fastq.gz ${tissue_reads}/AMNH_21010_Lr_R1_paired.fastq.gz ${tissue_reads}/AMNH_21010_Ky_R1_paired.fastq.gz ${tissue_reads}/AMNH_21010_Me_R1_paired.fastq.gz ${tissue_reads}/AMNH_21010_Lg_R1_paired.fastq.gz ${tissue_reads}/AMNH_21010_Skin_R1_paired.fastq.gz ${venom_reads}/SRR35908235_1.trimmed.fastq.gz \
+    --right ${tissue_reads}/AMNH_21010_Ht_R2_paired.fastq.gz ${tissue_reads}/AMNH_21010_Lr_R2_paired.fastq.gz ${tissue_reads}/AMNH_21010_Ky_R2_paired.fastq.gz ${tissue_reads}/AMNH_21010_Me_R2_paired.fastq.gz ${tissue_reads}/AMNH_21010_Lg_R2_paired.fastq.gz ${tissue_reads}/AMNH_21010_Skin_R2_paired.fastq.gz ${venom_reads}/SRR35908235_2.trimmed.fastq.gz \
     --species "Gloydius ussuriensis" \
     --isolate AMNH_21010 \
-    --busco_db tetrapoda \
-    --organism other \
-    --busco_seed_species Taeniopygia_guttata \
+    --stranded RF \
     --max_intronlen 100000 \
-    --repeats2evm \
-    --cpus "$SLURM_CPUS_PER_TASK"
+    --cpus "$SLURM_CPUS_PER_TASK" \
+    --memory 250G \
+    --no_trimmomatic
