@@ -3451,8 +3451,91 @@ funannotate predict \
 ```
 
 ####  funannotate step 3: Update
+```sh
+#!/bin/bash
+#SBATCH --job-name funannotate_update
+#SBATCH --nodes=1
+#SBATCH --partition=compute
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=300G
+#SBATCH --time=300:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
+# activate environment and set up analyses
+source ~/.bash_profile
+conda activate funannotate
+set -euo pipefail
+
+# avoid system library conflicts
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
+
+# funannotate databases and external tools
+export FUNANNOTATE_DB="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate_db"
+export GENEMARK_PATH="/home/yshin/mendel-nas1/gmes_linux_64/gmes_linux_64_4"
+export PATH="$GENEMARK_PATH:$PATH"
+export EGGNOG_DATA_DIR="/home/yshin/mendel-nas1/eggnog_db"
+
+# use a short temporary directory and clean it up on exit
+export TMPDIR="/tmp/yshin_fun_${SLURM_JOB_ID}"
+export TEMP="$TMPDIR"
+export TMP="$TMPDIR"
+mkdir -p "$TMPDIR"
+
+trap 'rm -rf "$TMPDIR"' EXIT
+
+# output directory for funannotate results
+outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate/"
+
+# run funannotate update
+funannotate update -i ${outdir} --cpus $SLURM_CPUS_PER_TASK
+```
 ####  funannotate step 4: Fix
+```sh
+#!/bin/bash
+#SBATCH --job-name funannotate_fix
+#SBATCH --nodes=1
+#SBATCH --partition=compute
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=300G
+#SBATCH --time=300:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# activate environment and set up analyses
+source ~/.bash_profile
+conda activate funannotate
+set -euo pipefail
+
+# avoid system library conflicts
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
+
+# funannotate databases and external tools
+export FUNANNOTATE_DB="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate_db"
+export GENEMARK_PATH="/home/yshin/mendel-nas1/gmes_linux_64/gmes_linux_64_4"
+export PATH="$GENEMARK_PATH:$PATH"
+export EGGNOG_DATA_DIR="/home/yshin/mendel-nas1/eggnog_db"
+
+# use a short temporary directory and clean it up on exit
+export TMPDIR="/tmp/yshin_fun_${SLURM_JOB_ID}"
+export TEMP="$TMPDIR"
+export TMP="$TMPDIR"
+mkdir -p "$TMPDIR"
+
+trap 'rm -rf "$TMPDIR"' EXIT
+
+# output directory for funannotate results
+outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate/"
+
+# run funannotate fix
+funannotate fix -i ${outdir}/update_results/Gloydius_ussuriensis.gbk -t ${outdir}/update_results/Gloydius_ussuriensis.tbl
+```
 
 ####  funannotate step 5: InterProScan
 Run interproscan through "funannotate iprscan" using the script below:
@@ -3470,101 +3553,21 @@ Run interproscan through "funannotate iprscan" using the script below:
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
-
-# ============================================================
-# 1. environment
-# ============================================================
-
+# activate conda env
 source ~/.bash_profile
 conda activate funannotate
 
 set -euo pipefail
 
 
-# ============================================================
-# 2. paths
-# ============================================================
-
+# set paths
 workdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate"
 outdir="${workdir}/G_ussuriensis_funannotate"
 iprdir="/home/yshin/mendel-nas1/interproscan/interproscan-5.78-109.0"
 iprscan="${iprdir}/interproscan.sh"
 
-# ============================================================
-# 3. validate InterProScan
-# ============================================================
-
-if [ ! -x "$iprscan" ]; then
-    echo "ERROR: InterProScan executable not found:"
-    echo "$iprscan"
-    exit 1
-fi
-
-echo
-echo "InterProScan:"
-"$iprscan" -version
-
-echo
-echo "Java:"
-java -version
-
-echo
-echo "Python:"
-python3 --version
-
-
-# ============================================================
-# 4. validate funannotate predict output
-# ============================================================
-
-if [ ! -d "$outdir/predict_results" ]; then
-    echo "ERROR: Funannotate predict_results directory not found:"
-    echo "$outdir/predict_results"
-    exit 1
-fi
-
-proteins=$(find "$outdir/predict_results" \
-    -maxdepth 1 \
-    -type f \
-    -name "*.proteins.fa" \
-    | head -n 1)
-
-if [ -z "$proteins" ] || [ ! -s "$proteins" ]; then
-    echo "ERROR: Funannotate protein FASTA not found."
-    exit 1
-fi
-
-echo
-echo "Protein FASTA:"
-echo "$proteins"
-
-echo
-echo "Number of proteins:"
-grep -c '^>' "$proteins"
-
-
-# ============================================================
-# 5. remove stale empty InterProScan result if present
-# ============================================================
-
-iprxml="${outdir}/annotate_misc/iprscan.xml"
-
-if [ -e "$iprxml" ] && [ ! -s "$iprxml" ]; then
-    echo
-    echo "Removing empty previous InterProScan XML:"
-    rm -f "$iprxml"
-fi
-
-
-# ============================================================
-# 6. run InterProScan through funannotate
-# ============================================================
-
+# run interproscan
 cd "$workdir"
-
-echo
-echo "Running funannotate iprscan..."
-echo
 
 funannotate iprscan \
     -i "$outdir" \
@@ -3572,31 +3575,6 @@ funannotate iprscan \
     --iprscan_path "$iprscan" \
     -c 4 \
     --debug
-
-
-# ============================================================
-# 7. validate output
-# ============================================================
-
-if [ ! -s "$iprxml" ]; then
-    echo
-    echo "ERROR: InterProScan XML is missing or empty:"
-    echo "$iprxml"
-    exit 1
-fi
-
-echo
-echo "InterProScan completed successfully."
-echo
-
-ls -lh "$iprxml"
-
-echo
-echo "XML beginning:"
-head -n 3 "$iprxml"
-
-echo
-echo "Done."
 ```
 
 ####  funannotate step 6: Annotate 
@@ -3616,10 +3594,7 @@ Using the outputs from "funannotate predict" and interproscan runs, now run funa
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
 
-# ============================================================
-# 1. activate funannotate environment
-# ============================================================
-
+# activate conda anv
 source ~/.bash_profile
 conda activate funannotate
 
@@ -3632,11 +3607,7 @@ export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 export FUNANNOTATE_DB="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate_db"
 export EGGNOG_DATA_DIR="/home/yshin/mendel-nas1/eggnog_db"
 
-
-# ============================================================
-# 2. temporary directory
-# ============================================================
-
+# create temporary directory 
 export TMPDIR="/tmp/yshin_funannotate_${SLURM_JOB_ID}"
 export TEMP="$TMPDIR"
 export TMP="$TMPDIR"
@@ -3646,34 +3617,10 @@ mkdir -p "$TMPDIR"
 trap 'rm -rf "$TMPDIR"' EXIT
 
 
-# ============================================================
-# 3. existing funannotate predict output
-# ============================================================
+# existing funannotate output
+outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate"
 
-outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate/G_ussuriensis_funannotate"
-
-if [ ! -d "$outdir" ]; then
-    echo "ERROR: Funannotate output directory does not exist:"
-    echo "$outdir"
-    exit 1
-fi
-
-if [ ! -d "$outdir/predict_results" ]; then
-    echo "ERROR: predict_results directory not found:"
-    echo "$outdir/predict_results"
-    exit 1
-fi
-
-echo
-echo "Using completed Funannotate predict output:"
-echo "$outdir"
-echo
-
-
-# ============================================================
-# 4. verify InterProScan output
-# ============================================================
-
+# verify InterProScan output
 iprxml="${outdir}/annotate_misc/iprscan.xml"
 
 if [ ! -s "$iprxml" ]; then
@@ -3687,11 +3634,7 @@ echo "InterProScan XML found:"
 ls -lh "$iprxml"
 echo
 
-
-# ============================================================
-# 5. verify SignalP installation/model
-# ============================================================
-
+# verify SignalP installation/model
 echo "Checking SignalP..."
 command -v signalp6
 
@@ -3710,25 +3653,7 @@ echo "SignalP model found:"
 ls -lh "$SIGNALP_MODEL"
 echo
 
-
-# ============================================================
-# 6. test SignalP imports
-# ============================================================
-
-python -c 'from PIL import Image; print("PIL OK")'
-python -c 'import matplotlib; print("matplotlib OK")'
-python -c 'import signalp; print("SignalP import OK")'
-
-echo
-
-
-# ============================================================
-# 7. run funannotate annotate with InterProScan
-# ============================================================
-
-echo "Running funannotate annotate..."
-echo
-
+# run funannotate annotate
 funannotate annotate \
     -i "$outdir" \
     -s "Gloydius ussuriensis" \
@@ -3738,32 +3663,6 @@ funannotate annotate \
     --database "$FUNANNOTATE_DB" \
     --iprscan "$iprxml" \
     --tmpdir "$TMPDIR"
-
-echo
-echo "Funannotate annotate finished."
-echo
-
-
-# ============================================================
-# 8. check final results
-# ============================================================
-
-results="${outdir}/annotate_results"
-
-if [ ! -d "$results" ]; then
-    echo "ERROR: annotate_results directory was not created."
-    exit 1
-fi
-
-echo
-echo "Final annotation results:"
-echo "$results"
-echo
-
-ls -lh "$results"
-
-echo
-echo "Done."
 ```
 
 #### Post-annotation checks
