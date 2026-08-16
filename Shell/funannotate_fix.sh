@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name funannotate_update
+#SBATCH --job-name funannotate_fix
 #SBATCH --nodes=1
 #SBATCH --partition=compute
 #SBATCH --ntasks=1
@@ -36,5 +36,5 @@ trap 'rm -rf "$TMPDIR"' EXIT
 # output directory for funannotate results
 outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate/"
 
-# run funannotate update
-funannotate update -i ${outdir} --cpus $SLURM_CPUS_PER_TASK
+# run funannotate fix
+funannotate fix -i ${outdir}/update_results/Gloydius_ussuriensis.gbk -t ${outdir}/update_results/Gloydius_ussuriensis.tbl
