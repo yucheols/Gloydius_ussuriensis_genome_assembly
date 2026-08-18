@@ -16,6 +16,9 @@ source ~/.bash_profile
 conda activate funannotate
 set -euo pipefail
 
+# make TransDecoder utilities available to PASA
+export PATH="$CONDA_PREFIX/opt/transdecoder:$CONDA_PREFIX/opt/transdecoder/util:$PATH"
+
 # avoid system library conflicts
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 

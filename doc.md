@@ -3339,7 +3339,7 @@ Run with the script below.
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=300G
-#SBATCH --time=300:00:00
+#SBATCH --time=120:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
@@ -3349,6 +3349,9 @@ Run with the script below.
 source ~/.bash_profile
 conda activate funannotate
 set -euo pipefail
+
+# make TransDecoder utilities available to PASA
+export PATH="$CONDA_PREFIX/opt/transdecoder:$CONDA_PREFIX/opt/transdecoder/util:$PATH"
 
 # avoid system library conflicts
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
