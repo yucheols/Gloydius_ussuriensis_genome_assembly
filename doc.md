@@ -5219,12 +5219,27 @@ NR==1 || $(NF-1)=="NO" || $NF=="NO"
 ' feature_boundaries_wide.tsv \
 | column -t
 ```
-This suggests several areas that require further verification:
+This suggests several areas that require further verification. The annotated features below contain indels that are likely to be incorrect.
   - 1) ND2 3' end: AMNH 21010 mitogenome extends 2 bp further  
   - 2) tRNA-Ser_1 3' end: AMNH 21010 mitogenome extends 10 bp further
   - 3) COX2 3' end: AMNH 21010 mitogenome extends 8 bp further
   - 4) tRNA-Lys both ends: AMNH 21010 mitogenome is 1 bp shorter at each end
+  - 5) tRNA-His 5' end: 21010 mitogenome extends 2 bp farther upstream
 
+#### ND2 3' end
+When you align the AMNH_21010_Ref with other conspecific mitogenomes (using .gb files), you will notice that the ND2 CDS in all conspecific comparisons ends at a position that is 2 bp shorter than the annotated ND2 CDS of AMNH 21010. In the original AMNH 21010 .gb file, the ND2 CDS annotation spans 4842 - 5867 bp. Edit this annotation to 4842 - 5865 bp.
+
+#### tRNA-Ser_1 3' end
+There are two tRNA-Ser in the *G. ussuriensis* mitogenome. The first tRNA-Ser is, of course, located closer to the replication origin. This particular tRNA gene is on the minus strand, meaning that its orientation on the mitogenome is 3' <- 5' instead of 5' -> 3'. Compared to all other conspecific mitogenomes, the AMNH 21010 mitogenome assembled from MitoHiFi has the 3' end extended by 10 bp, such that it overlaps with the COX1 CDS. Edit the 3' end so that the span is corrected from 7890 - 7823 to 7890 - 7833. 
+
+#### COX2 3' end
+The COX2 CDS 3' end in AMNH 21010 mitogenome showed 8 bp overextension relative to all other conspecific mitogenomes, suggesting the same sorts of mis-annotation as in two previous cases.
+
+#### tRNA-Lys both ends
+Same with above; the AMNH 21010 mitogenome is missing exactly 1 bp at both ends of this gene relative to all other conspecific mitogenomes. 
+
+#### tRNA-His 5' end
+The tRNA-His gene 5' end in AMNH 21010 mitogenome is overextended by 2 bp relative to all other conspecific mitogenomes. Especially, KP262412 and NC_026553 have the same ND4 endpoint as AMNH 21010, yet tRNA-His in both mitogenomes starts two alignment columns later.
 
 ----------------------------------------------------------------------------------------------------
 ### Submitting mitogenome to GenBank
