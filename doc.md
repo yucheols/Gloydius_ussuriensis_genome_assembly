@@ -4453,7 +4453,7 @@ CONSREF = Path(
     "G_ussuriensis_Chromo/mitogenome_curation/conspecific_ref"
 )
 
-ALIGNMENT = CONSREF / "G_ussuriensis_reference_comparison.mafft.fasta"
+ALIGNMENT = CONSREF / "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitogenome_curation/mitogenomes_merged.mafft.fasta"
 
 GB_FILES = {
     "AMNH_21010_Ref": Path(
@@ -4465,9 +4465,13 @@ GB_FILES = {
     "NC_026553": CONSREF / "NC_026553.gb",
 }
 
-OUT_LONG = CONSREF / "feature_boundaries_long.tsv"
-OUT_WIDE = CONSREF / "feature_boundaries_wide.tsv"
-OUT_OVERLAPS = CONSREF / "adjacent_feature_gaps_overlaps.tsv"
+# output directory for boundary-audit results
+OUTDIR = CONSREF / "boundary_mismatch"
+OUTDIR.mkdir(parents=True, exist_ok=True)
+
+OUT_LONG = OUTDIR / "feature_boundaries_long.tsv"
+OUT_WIDE = OUTDIR / "feature_boundaries_wide.tsv"
+OUT_OVERLAPS = OUTDIR / "adjacent_feature_gaps_overlaps.tsv"
 
 
 # ============================================================
@@ -5187,6 +5191,39 @@ print(f"  {OUT_LONG}")
 print(f"  {OUT_WIDE}")
 print(f"  {OUT_OVERLAPS}")
 ```
+Run the script like this:
+```sh
+conda activate genome_assembly
+python3 \
+    /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/Python/mito_annotation_comparisons.py
+```
+Fix line endings in the output files and then check the outputs:
+```sh
+# cd into output dir
+cd boundary_mismatch/
+
+# fix line endings 
+sed -i 's/\r$//' \
+    feature_boundaries_long.tsv \
+    feature_boundaries_wide.tsv \
+    adjacent_feature_gaps_overlaps.tsv
+
+# check main result         
+column -t feature_boundaries_wide.tsv
+```
+
+Then specifically pull out the features where the aligned boundaries disagree:
+```sh
+awk -F'\t' '
+NR==1 || $(NF-1)=="NO" || $NF=="NO"
+' feature_boundaries_wide.tsv \
+| column -t
+```
+This suggests several areas that require further verification:
+  - 1) ND2 3' end: AMNH 21010 mitogenome extends 2 bp further  
+  - 2) tRNA-Ser_1 3' end: AMNH 21010 mitogenome extends 10 bp further
+  - 3) COX2 3' end: AMNH 21010 mitogenome extends 8 bp further
+  - 4) tRNA-Lys both ends: AMNH 21010 mitogenome is 1 bp shorter at each end
 
 
 ----------------------------------------------------------------------------------------------------

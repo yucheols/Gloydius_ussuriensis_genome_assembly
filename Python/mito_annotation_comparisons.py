@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from itertools import product
+
 from Bio import SeqIO
 from collections import defaultdict
 from pathlib import Path
@@ -17,7 +19,7 @@ CONSREF = Path(
     "G_ussuriensis_Chromo/mitogenome_curation/conspecific_ref"
 )
 
-ALIGNMENT = CONSREF / "G_ussuriensis_reference_comparison.mafft.fasta"
+ALIGNMENT = Path("/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitogenome_curation/mitogenomes_merged.mafft.fasta")
 
 GB_FILES = {
     "AMNH_21010_Ref": Path(
@@ -29,9 +31,13 @@ GB_FILES = {
     "NC_026553": CONSREF / "NC_026553.gb",
 }
 
-OUT_LONG = CONSREF / "feature_boundaries_long.tsv"
-OUT_WIDE = CONSREF / "feature_boundaries_wide.tsv"
-OUT_OVERLAPS = CONSREF / "adjacent_feature_gaps_overlaps.tsv"
+# output directory for boundary-audit results
+OUTDIR = Path("/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/mitogenome_curation/boundary_mismatch")
+OUTDIR.mkdir(parents=True, exist_ok=True)
+
+OUT_LONG = OUTDIR / "feature_boundaries_long.tsv"
+OUT_WIDE = OUTDIR / "feature_boundaries_wide.tsv"
+OUT_OVERLAPS = OUTDIR / "adjacent_feature_gaps_overlaps.tsv"
 
 
 # ============================================================
@@ -151,14 +157,16 @@ def feature_base_label(feature):
     # ------------------------
     if ftype == "tRNA":
 
-        # Product is generally more standardized across annotations
-        if product:
-            return product.replace(" ", "_")
-
         if gene:
-            return gene
+            label = gene.replace(" ", "_")
+        elif product:
+            label = product.replace(" ", "_")
+        else:
+            return "tRNA"
 
-        return "tRNA"
+        label = re.sub(r"([_-]?)[12]$", "", label)
+
+        return label
 
     # ------------------------
     # control regions
