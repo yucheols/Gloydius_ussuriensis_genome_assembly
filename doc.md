@@ -45,9 +45,9 @@ __Note:__ I created this documentation in the hopes that my friends and future R
     - __Submitting mitogenome to GenBank__
 10. __[Telomere identification](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#10-telomere-identification)__
 
-11. __[Demographic history]()__
+11. __[Demographic history](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#11-demographic-history)__
 
-12. __[Venom gene evolution]()__
+12. __[Venom gene evolution](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#12-venom-gene-evolution)__
 
 ## 1) A quick sanity check on the dataset
 Even before doing anything, let's do a very quick sanity check on the HiFi data to check the reads we have are actually from our target species. Let's take a chunk from the HiFi FASTQ file, after cd'ing into the directory containing the fastq.gz file:
