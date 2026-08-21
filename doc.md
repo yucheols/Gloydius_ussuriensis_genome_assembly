@@ -5479,5 +5479,6 @@ python summarize_tidk_tsv.py /home/yshin/mendel-nas1/snake_genome_ass/G_ussurien
 ```
 
 ## 11) Demographic history
+### Step 1: environment setup and software installation
 
 ## 12) Venom gene evolution
