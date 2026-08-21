@@ -5527,7 +5527,7 @@ conda create -n smc_tools \
     -y
 
 # activate the conda env
-conda activate smcpp_tools
+conda activate smc_tools
 
 # verify installation
 command -v bwa
