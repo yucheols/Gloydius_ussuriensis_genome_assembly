@@ -45,6 +45,10 @@ __Note:__ I created this documentation in the hopes that my friends and future R
     - __Submitting mitogenome to GenBank__
 10. __[Telomere identification](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#10-telomere-identification)__
 
+11. __[Demographic history]()__
+
+12. __[Venom gene evolution]()__
+
 ## 1) A quick sanity check on the dataset
 Even before doing anything, let's do a very quick sanity check on the HiFi data to check the reads we have are actually from our target species. Let's take a chunk from the HiFi FASTQ file, after cd'ing into the directory containing the fastq.gz file:
 ```txt
@@ -5473,3 +5477,7 @@ Go to the Python scripts dir and run it like:
 # in the tidk conda env
 python summarize_tidk_tsv.py /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/find_telomere/Gloydius_ussuriensis_tidk_telomeric_repeat_windows.tsv > /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/find_telomere/Gloydius_curated_terminal_telomere_summary.tsv
 ```
+
+## 11) Demographic history
+
+## 12) Venom gene evolution
