@@ -5479,7 +5479,7 @@ python summarize_tidk_tsv.py /home/yshin/mendel-nas1/snake_genome_ass/G_ussurien
 ```
 
 ## 11) Demographic history
-### Step 1: environment setup and software installation
+### Step 1: Environment setup and software installation
 Set up the analysis directory:
 ```sh
 BASE="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/"
@@ -5505,6 +5505,9 @@ apptainer pull \
 # check installation
 apptainer exec smcpp_latest.sif smc++ --help    
 apptainer exec smcpp_latest.sif smc++ version
+
+# save smc version
+apptainer exec smcpp_latest.sif smc++ version > smc_version.txt
 ```
 
 Now, lets create a conda environment called "smc_tools" to contain software that will be used for BAM/VCF/QC work.
@@ -5544,5 +5547,97 @@ bedtools --version
 mosdepth --version
 ```
 
+Record the environment:
+```sh
+conda env export --no-builds > smc_tools.yml
+conda list > smc_tools_conda_list.txt
+```
+
+### Step 2: Reference genome preparation
+Create a symlink for the softmasked, chromosome-assigned reference genome.
+```sh
+# cd into relevant dir
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/
+
+# reference genome path
+REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
+
+# make symlink
+ln -s "$REF" 01_reference/G_ussuriensis.softmasked.fa
+
+# record a checksum
+md5sum "$REF" > 01_reference/G_ussuriensis.softmasked.fa.md5
+```
+
+Now, index the genome fasta file:
+```sh
+# make fasta index file
+conda activate smc_tools
+samtools faidx "$REF"
+
+# check fasta index file
+head -n 30 "${REF}.fai"
+```
+
+Also make a contig file:
+```sh
+# make contig file
+cut -f1,2 "${REF}.fai" \
+    > 01_reference/reference_contigs.tsv
+
+# view
+column -t 01_reference/reference_contigs.tsv
+```
+
+In our softmasked reference genome, all chromosomes other than ZW should be regarded as autosomes, because the mitogenome and unplaced scaffolds have been removed.
+
+Create a list of autosomes:
+```sh
+# from the "demography" dir
+cut -f1 01_reference/G_ussuriensis.softmasked.fa.fai \
+    | grep -v -E '^G_ussuri_chr[ZW]$' \
+    > 01_reference/autosomes.txt
+
+# check
+cat 01_reference/autosomes.txt
+wc -l 01_reference/autosomes.txt
+``` 
+Next, create an autosome size file; this will be useful for BED operations.
+```sh
+awk '
+NR==FNR {
+    keep[$1]=1
+    next
+}
+($1 in keep) {
+    print $1 "\t" $2
+}
+' \
+01_reference/autosomes.txt \
+01_reference/reference_contigs.tsv \
+> 01_reference/autosomes.genome
+
+# check
+column -t 01_reference/autosome.genome
+``` 
+
+Create a BED spanning every autosome:
+```sh
+awk '{print $1 "\t0\t" $2}' \
+    01_reference/autosomes.genome \
+    > 01_reference/autosomes.bed
+
+# check; BED coordinates start at 0
+head 01_reference/autosomes.bed
+```
+
+Verify total sequence length for the autosomes:
+```sh
+awk '{sum += $3-$2} END {
+    printf "Autosomal bases: %d\n", sum
+    printf "Autosomal Gb: %.6f\n", sum/1000000000
+}' 01_reference/autosomes.bed
+```
+The output is 1.38 Gb.
 
 ## 12) Venom gene evolution
