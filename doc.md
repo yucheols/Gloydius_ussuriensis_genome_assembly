@@ -5242,6 +5242,8 @@ Same with above; the AMNH 21010 mitogenome is missing exactly 1 bp at both ends 
 #### tRNA-His 5' end
 The tRNA-His gene 5' end in AMNH 21010 mitogenome is overextended by 2 bp relative to all other conspecific mitogenomes. Especially, KP262412 and NC_026553 have the same ND4 endpoint as AMNH 21010, yet tRNA-His in both mitogenomes starts two alignment columns later.
 
+After resolving all these overlaps, align the mitogenomes again in Geneious using MAFFT. You should now see that all the overlaps are now gone.
+
 ----------------------------------------------------------------------------------------------------
 ### Submitting mitogenome to GenBank
 Let's submit the completed mitogenome assembly to GenBank. Prior to this step. I loaded the final mitogenome output from mitohifi on to Geneious Prime and manually annotated the two D-loops and replication origin. I did this by extracting these sequences from the conspecific reference mitogenome and mapping them to the assembled mitogenome using the "Map to reference" tool. I then downloaded this as a fasta file. This file is stored in a new directory at "/home/yshin/Gloydius_ussuriensis_genome_assembly/outfiles/mitogenome_GenBank_submission"
