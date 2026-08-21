@@ -5480,5 +5480,69 @@ python summarize_tidk_tsv.py /home/yshin/mendel-nas1/snake_genome_ass/G_ussurien
 
 ## 11) Demographic history
 ### Step 1: environment setup and software installation
+Set up the analysis directory:
+```sh
+BASE="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/"
+
+mkdir -p "$BASE"/{00_env,01_reference,02_bams,03_qc,04_vcf,05_masks,06_smc,07_models,08_plots}
+
+cd "$BASE"
+```
+
+Now install SMC++ for demographic inference. Mendel has apptainer, so that we can just pull SMC. The "apptainer pull" command will create a SIF file and installation check will show that the software is correctly installed and launches properly.
+```sh
+# load appatainer as a module
+module load Apptainer/apptainer-1.2.5
+apptainer --version
+
+# download smc
+cd 00_env
+
+apptainer pull \
+    smcpp_latest.sif \
+    docker://terhorst/smcpp:latest
+
+# check installation
+apptainer exec smcpp_latest.sif smc++ --help    
+apptainer exec smcpp_latest.sif smc++ version
+```
+
+Now, lets create a conda environment called "smc_tools" to contain software that will be used for BAM/VCF/QC work.
+```sh
+# from the "00_env" dir
+source ~/.bash_profile
+
+conda create -n smc_tools \
+    -c conda-forge \
+    -c bioconda \
+    --strict-channel-priority \
+    bwa \
+    samtools \
+    bcftools \
+    htslib \
+    bedtools \
+    mosdepth \
+    vcftools \
+    seqkit \
+    -y
+
+# activate the conda env
+conda activate smcpp_tools
+
+# verify installation
+command -v bwa
+command -v samtools
+command -v bcftools
+command -v bgzip
+command -v tabix
+command -v bedtools
+command -v mosdepth
+
+samtools --version | head -n 2
+bcftools --version | head -n 2
+bedtools --version
+mosdepth --version
+```
+
 
 ## 12) Venom gene evolution
