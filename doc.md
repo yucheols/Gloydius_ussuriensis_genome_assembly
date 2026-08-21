@@ -4370,6 +4370,7 @@ seqkit stats mito_part*
 ![alt text](etc/mito_chunk_size.PNG)
 
 scp this folder to our local device and run blast on each of them. The results will show that they all match our *G. ussuriensis* reference mitogenome with > 99% percent identity with 100% query cover. This confirms that mitogenomes were stitched four times on to the contig ptg000073c. This likely happened because the assembler failed to recognize the circular nature of the mitogenome.
+
 ----------------------------------------------------------------------------------------------------
 ### Manual curation of the mitogenome assembled from MitoHiFi
 I inspected the mitogenome assembled from MitoHiFi in Geneious after first downloading it to a local directory. The mitogenome was missing annotations for the two D-loops and origin of replication. In addition, the cytb annotation was truncated to 741 bp rather than the expected complete cytb length of 1114 bp. 
