@@ -5489,7 +5489,7 @@ mkdir -p "$BASE"/{00_env,01_reference,02_bams,03_qc,04_vcf,05_masks,06_smc,07_mo
 cd "$BASE"
 ```
 
-Now install SMC++ for demographic inference. Mendel has apptainer, so that we can just pull SMC. The "apptainer pull" command will create a SIF file and installation check will show that the software is correctly installed and launches properly.
+Now install SMC++ for demographic inference. Mendel already has apptainer as a module, so that we can just pull SMC. The "apptainer pull" command will create a SIF file and installation check will show that the software is correctly installed and launches properly.
 ```sh
 # load appatainer as a module
 module load Apptainer/apptainer-1.2.5
@@ -5639,5 +5639,7 @@ awk '{sum += $3-$2} END {
 }' 01_reference/autosomes.bed
 ```
 The output is 1.38 Gb.
+
+### Step 3: Prepare mainland sample BAMs
 
 ## 12) Venom gene evolution
