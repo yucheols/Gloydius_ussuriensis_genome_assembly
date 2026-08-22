@@ -38,7 +38,8 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __(Post-Hi-C) Annotation using funannotate__
    - __(Post-Hi-C) Toxin gene annotation using ToxCodAn-Genome__
 8. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-chromosomal-synteny)__
-   - __Setup__
+   - __Step 1: Setup__
+   - __Step 2: Download assemblies__
 9. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#9-mitogenome-assembly)__
     - __"Manual" annotation with MITOS2__
     - __Manual curation of the mitogenome assembled from MitoHiFi__
@@ -46,6 +47,9 @@ __Note:__ I created this documentation in the hopes that my friends and future R
 10. __[Telomere identification](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#10-telomere-identification)__
 
 11. __[Demographic history](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#11-demographic-history)__
+    - __Step 1: Environment setup and software installation__
+    - __Step 2: Reference genome preparation__
+    - __Step 3: Prepare mainland sample BAMs__
 
 12. __[Venom gene evolution](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#12-venom-gene-evolution)__
 
@@ -3971,7 +3975,7 @@ Rscript \
 ```
 
 ## 8) Chromosomal synteny
-### Setup
+### Step 1: Setup
 First, set up a directory for synteny analyses.
 ```sh
 # under the "G_ussuriensis_Chromo" directory
@@ -3983,6 +3987,7 @@ Activate the conda env to access NCBI Datasets CLI
 conda activate ncbi_datasets
 ```
 
+### Step 2: Download assemblies
 There are several chromosom-level snake reference genome assemblies, especially viperid assemblies, available. We can use these to investigate the synteny across species. We already downloaded *C. adamanteus*, *C. viridis*, and *V. berus* assemblies. We will download nine additional assemblies. These additional species are: *Cerastes gasperettii*, *Sistrurus catenatus*, *Bothrops insularis*, *GLoydius shedaoensis*, *Naja naja*, *Thamnophis elegans*, *Elaphe schrenckii*, *Liasis olivaceus*, *Candoia aspera*.
 
 First, create a .csv file containing species name, family/subfamily names, assembly name, assembly accession, data source, and url. Note that all assemblies other than *G. shedaoensis* are deposited GenBank. The *G. shedaoensis* assembly is available from National Genomics Data Center (NGDC) Genome Warehouse (GWH).
