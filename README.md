@@ -42,5 +42,5 @@ __*Gloydius ussuriensis* (AMNH 21010) collected from Hwacheon, South Korea (coll
 - Geneious Prime v2019.2.3
 - ggplot v3.5.1
 - R v4.4.2
-- seqkit v2.3.0
+- seqkit v2.10.1
 
