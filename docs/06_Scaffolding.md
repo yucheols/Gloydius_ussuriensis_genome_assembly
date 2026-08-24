@@ -21,7 +21,7 @@ conda install bioconda::yahs
 
 ### Combine sequencing reads across lanes
 The sample was sequenced on three Illuminal lanes. So, there are six files total (two reads x three lanes). 
-![alt text](/etc/hic_reads.png)
+![alt text](etc/hic_reads.png)
 
 Let's combine reads across lanes.
 ```sh
