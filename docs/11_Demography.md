@@ -429,3 +429,113 @@ mosdepth \
 
 echo "Finished: $(date)"
 ```
+
+When this job finishes running, summarize the output into a single table using the script below:
+```sh
+# run from "demography" dir
+printf "sample\tautosomal_bp\tmean_autosomal_depth\n" \
+    > 03_qc/mosdepth/autosomal_mean_depth.tsv
+
+while read -r sample; do
+
+    zcat "03_qc/mosdepth/${sample}.regions.bed.gz" |
+    awk -v sample="$sample" '
+    BEGIN {OFS="\t"}
+    {
+        len=$3-$2
+        bp += len
+        covsum += len*$4
+    }
+    END {
+        print sample,bp,covsum/bp
+    }'
+
+done < mainland_samples.txt \
+    >> 03_qc/mosdepth/autosomal_mean_depth.tsv
+```
+
+Check:
+```sh
+column -t -s $'\t' \
+    03_qc/mosdepth/autosomal_mean_depth.tsv
+```
+The output should look like this:
+```sh
+sample      autosomal_bp  mean_autosomal_depth
+AMNH_21010  1380185643    11.8822
+AMNH_21128  1380185643    11.6865
+AMNH_21147  1380185643    11.2356
+AMNH_21161  1380185643    11.9259
+AMNH_21162  1380185643    12.5469
+AMNH_21164  1380185643    11.958
+AMNH_21172  1380185643    13.0561
+AMNH_21185  1380185643    11.4408
+```
+
+Also make a chromosome-by-chromosome summary table:
+```sh
+printf "sample\tchromosome\tstart\tend\tmean_depth\n" \
+    > 03_qc/mosdepth/autosomal_chromosome_depth.tsv
+
+while read -r sample; do
+
+    zcat "03_qc/mosdepth/${sample}.regions.bed.gz" |
+    awk -v sample="$sample" '
+    BEGIN {OFS="\t"}
+    {
+        print sample,$1,$2,$3,$4
+    }'
+
+done < mainland_samples.txt \
+    >> 03_qc/mosdepth/autosomal_chromosome_depth.tsv
+```
+Check:
+```sh
+column -t -s $'\t' \
+    03_qc/mosdepth/autosomal_chromosome_depth.tsv \
+    | head -n 40
+```
+
+The output should look like this:
+```sh
+sample      chromosome      start  end        mean_depth
+AMNH_21010  G_ussuri_chr1   0      340623792  11.62
+AMNH_21010  G_ussuri_chr2   0      272076671  11.87
+AMNH_21010  G_ussuri_chr3   0      203076995  11.43
+AMNH_21010  G_ussuri_chr4   0      122805809  11.28
+AMNH_21010  G_ussuri_chr5   0      99259852   11.51
+AMNH_21010  G_ussuri_chr6   0      93675145   11.51
+AMNH_21010  G_ussuri_chr7   0      79146131   11.41
+AMNH_21010  G_ussuri_chr9   0      24199037   13.34
+AMNH_21010  G_ussuri_chr10  0      27181165   13.79
+AMNH_21010  G_ussuri_chr11  0      17175000   14.51
+AMNH_21010  G_ussuri_chr12  0      21009094   13.60
+AMNH_21010  G_ussuri_chr13  0      17611041   14.37
+AMNH_21010  G_ussuri_chr14  0      19255245   13.71
+AMNH_21010  G_ussuri_chr15  0      11289862   14.34
+AMNH_21010  G_ussuri_chr16  0      8920326    14.31
+AMNH_21010  G_ussuri_chr17  0      13149378   14.65
+AMNH_21010  G_ussuri_chr18  0      9731100    15.42
+AMNH_21128  G_ussuri_chr1   0      340623792  11.65
+AMNH_21128  G_ussuri_chr2   0      272076671  11.69
+AMNH_21128  G_ussuri_chr3   0      203076995  11.60
+AMNH_21128  G_ussuri_chr4   0      122805809  11.23
+AMNH_21128  G_ussuri_chr5   0      99259852   11.44
+AMNH_21128  G_ussuri_chr6   0      93675145   11.29
+AMNH_21128  G_ussuri_chr7   0      79146131   11.22
+AMNH_21128  G_ussuri_chr9   0      24199037   12.42
+AMNH_21128  G_ussuri_chr10  0      27181165   12.53
+AMNH_21128  G_ussuri_chr11  0      17175000   13.32
+AMNH_21128  G_ussuri_chr12  0      21009094   12.65
+AMNH_21128  G_ussuri_chr13  0      17611041   12.99
+AMNH_21128  G_ussuri_chr14  0      19255245   12.94
+AMNH_21128  G_ussuri_chr15  0      11289862   12.45
+AMNH_21128  G_ussuri_chr16  0      8920326    12.50
+AMNH_21128  G_ussuri_chr17  0      13149378   12.92
+AMNH_21128  G_ussuri_chr18  0      9731100    13.28
+AMNH_21147  G_ussuri_chr1   0      340623792  11.22
+AMNH_21147  G_ussuri_chr2   0      272076671  11.25
+AMNH_21147  G_ussuri_chr3   0      203076995  11.14
+AMNH_21147  G_ussuri_chr4   0      122805809  10.69
+AMNH_21147  G_ussuri_chr5   0      99259852   11.01
+```

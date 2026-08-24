@@ -50,3 +50,4 @@ __Note:__ I created this documentation in the hopes that my friends and future R
     - __Step 1: Environment setup and software installation__
     - __Step 2: Reference genome preparation__
     - __Step 3: Prepare mainland sample BAMs__
+    - __Step 4: Step 4: BAM validation and autosomal coverage QC__
