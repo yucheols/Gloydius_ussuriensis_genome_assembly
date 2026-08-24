@@ -875,6 +875,8 @@ Rscript -e 'remotes::install_github("TickingClock1992/RIdeogram")'
 ```
 
 ### Step 5: Chromosomal macrosynteny using Synk
+Synk ()
+
 Make a directory for genome fasta files inside the Synk dir and symlink the downloaded genome fasta files.
 ```sh
 # make dir

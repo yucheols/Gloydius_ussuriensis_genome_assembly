@@ -225,7 +225,7 @@ NON_SNP=$(
 MULTI=$(
     bcftools view \
         -H \
-        -M2 \
+        -m3 \
         "$OUT" |
     wc -l
 )
