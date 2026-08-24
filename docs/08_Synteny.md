@@ -859,3 +859,156 @@ augustus --version
 diamond version
 samtools --version
 ```
+
+#####  Install Synk
+From the synteny dir:
+```sh
+git clone https://github.com/jomhoff/Synk.git
+cd Synk
+```
+
+Setup conda env from the included .yml file and install RIdeogram:
+```sh
+conda env create -f environment.yml
+conda activate synk
+Rscript -e 'remotes::install_github("TickingClock1992/RIdeogram")'
+```
+
+### Step 5: Chromosomal macrosynteny using Synk
+Make a directory for genome fasta files inside the Synk dir and symlink the downloaded genome fasta files.
+```sh
+# make dir
+mkdir genome_fa
+cd genome_fa
+
+# symlink
+# Argyrophis diardii
+ln -s \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny/Argyrophis_diardii/Argyrophis_diardii.genome.fa \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/genome_fa/Argyrophis_diardii.genome.fa
+
+# Bothrops insularis
+ln -s \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny/Bothrops_insularis/Bothrops_insularis.genome.fa \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/genome_fa/Bothrops_insularis.genome.fa
+
+# Candoia aspera
+ln -s \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny/Candoia_aspera/Candoia_aspera.genome.fa \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/genome_fa/Candoia_aspera.genome.fa
+
+# Cerastes gasperettii
+ln -s \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny/Cerastes_gasperettii/Cerastes_gasperettii.genome.fa \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/genome_fa/Cerastes_gasperettii.genome.fa
+
+# Crotalus adamanteus
+ln -s \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny/Crotalus_adamanteus/Crotalus_adamanteus.genome.fa \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/genome_fa/Crotalus_adamanteus.genome.fa
+
+# Crotalus viridis
+ln -s \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny/Crotalus_viridis/Crotalus_viridis.genome.fa \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/genome_fa/Crotalus_viridis.genome.fa
+
+# Elaphe schrenckii
+ln -s \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny/Elaphe_schrenckii/Elaphe_schrenckii.genome.fa \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/genome_fa/Elaphe_schrenckii.genome.fa
+
+# Gloydius shedaoensis
+ln -s \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny/Gloydius_shedaoensis/Gloydius_shedaoensis.genome.fa \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/genome_fa/Gloydius_shedaoensis.genome.fa
+
+# Naja naja
+ln -s \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny/Naja_naja/Naja_naja.genome.fa \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/genome_fa/Naja_naja.genome.fa
+
+# Vipera berus
+ln -s \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny/Vipera_berus/Vipera_berus.genome.fa \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/genome_fa/Vipera_berus.genome.fa
+
+# Xenopeltis unicolor
+ln -s \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny/Xenopeltis_unicolor/Xenopeltis_unicolor.genome.fa \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/genome_fa/Xenopeltis_unicolor.genome.fa
+```
+
+Quick look through the fasta files:
+```sh
+# from the "synteny/Synk/genome_fa" dir
+conda activate synteny_qc
+seqkit stats *
+```
+You will see that all of these assemblies contain tens to thousands of contigs.
+
+Take a closer look at each assembly, including chromosome labels:
+```sh
+# from the "synteny/Synk/genome_fa" dir
+for f in *.genome.fa; do
+    echo "===================="
+    echo "$f"
+    seqkit fx2tab -n -l "$f" |
+        sort -t$'\t' -k2,2nr |
+        head -25
+done
+```
+The script above will show that all the assemblies have a very clear chromosome labels. So, the number of sequences exceeding the expected karyotypes can be safely regarded as unplaced scaffolds.
+
+Run Synk on Mendel:
+```sh
+#!/bin/sh
+#SBATCH --job-name=synk
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=8
+#SBATCH --mem=200G
+#SBATCH --time=20:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# activate conda env
+source ~/.bashrc
+conda activate synk
+
+# G. ussuriensis assembly
+ussuri_asm="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
+
+# comaprison genomes base dir
+comp_dir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/genome_fa"
+
+# outdir
+outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/outputs"
+mkdir -p ${outdir}
+
+# run synk
+echo "Running synk: $(date)"
+
+python synk.py \
+  --main_name G_ussuri \
+  --main_assembly ${ussuri_asm} \
+  --compare A_dia=${comp_dir}/Argyrophis_diardii.genome.fa  \
+  --compare B_ins=${comp_dir}/Bothrops_insularis.genome.fa \
+  --compare C_asp=${comp_dir}/Candoia_aspera.genome.fa  \
+  --compare C_gas=${comp_dir}/Cerastes_gasperettii.genome.fa \
+  --compare C_ada=${comp_dir}/Crotalus_adamanteus.genome.fa \
+  --compare C_vir=${comp_dir}/Crotalus_viridis.genome.fa  \
+  --compare E_sch=${comp_dir}/Elaphe_schrenckii.genome.fa \
+  --compare G_she=${comp_dir}/Gloydius_shedaoensis.genome.fa \
+  --compare N_naj=${comp_dir}/Naja_naja.genome.fa \
+  --compare V_ber=${comp_dir}/Vipera_berus.genome.fa \
+  --compare X_uni=${comp_dir}/Xenopeltis_unicolor.genome.fa \
+  --lineage sauropsida \
+  --threads ${SLURM_TASKS_PER_NODE:-8} \
+  --reuse_compleasm \
+  --outdir ${outdir} \
+  --plot
+
+  echo "Synk run completed: $(date)"
+``` 
