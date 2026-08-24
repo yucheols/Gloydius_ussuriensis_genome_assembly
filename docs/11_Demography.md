@@ -819,3 +819,181 @@ echo "Completed sample: $sample"
 echo "Finish time:      $(date)"
 echo "============================================================"
 ```
+
+Confirm the output:
+```sh
+ls -lh 03_qc/mosdepth_callability/*.quantized.bed.gz
+```
+And make a mask directory:
+```sh
+mkdir -p 05_masks/per_sample
+```
+
+Now, convert those eight quantized BED files into autosomal callable BEDs. We will extract callable autosomal regions for each individual
+```sh
+conda activate smc_tools
+
+while read -r sample; do
+
+    echo "Processing $sample ..."
+
+    zcat "03_qc/mosdepth_callability/${sample}.callability.quantized.bed.gz" |
+    awk '
+        NR==FNR {
+            keep[$1]=1
+            next
+        }
+        ($1 in keep) && $4=="CALLABLE" {
+            print $1 "\t" $2 "\t" $3
+        }
+    ' 01_reference/autosomes.txt - |
+    bedtools sort \
+        -g 01_reference/autosomes.genome \
+        -i - \
+        > "05_masks/per_sample/${sample}.callable.autosomes.bed"
+
+done < mainland_samples.txt
+```
+
+Now make a summary table containing information on how much callable sequence each sample has:
+```sh
+printf "sample\tcallable_bp\tcallable_fraction\n" \
+    > 05_masks/per_sample_callable_summary.tsv
+
+while read -r sample; do
+
+    bp=$(
+        awk '{sum += $3-$2} END {print sum}' \
+        "05_masks/per_sample/${sample}.callable.autosomes.bed"
+    )
+
+    awk -v sample="$sample" \
+        -v bp="$bp" \
+        -v total=1380185643 \
+        'BEGIN {
+            printf "%s\t%d\t%.4f\n", sample,bp,bp/total
+        }'
+
+done < mainland_samples.txt \
+    >> 05_masks/per_sample_callable_summary.tsv
+```
+
+Check the output:
+```sh
+column -t -s $'\t' \
+    05_masks/per_sample_callable_summary.tsv
+```
+
+The output should look like:
+```sh
+sample      callable_bp  callable_fraction
+AMNH_21010  1231746411   0.8924
+AMNH_21128  1197101199   0.8673
+AMNH_21147  1185567014   0.8590
+AMNH_21161  1187123569   0.8601
+AMNH_21162  1202950360   0.8716
+AMNH_21164  1172894304   0.8498
+AMNH_21172  1170033533   0.8477
+AMNH_21185  1153023324   0.8354
+```
+
+Next, find regions callable in all 8 samples:
+```sh
+> 05_masks/callable_bed_files.txt
+
+while read -r sample; do
+    echo "05_masks/per_sample/${sample}.callable.autosomes.bed"
+done < mainland_samples.txt \
+    > 05_masks/callable_bed_files.txt
+```
+
+And load the file names into a bash array:
+```sh
+mapfile -t CALLABLE_FILES < 05_masks/callable_bed_files.txt
+```
+
+Now that this is done, find intervals callable in all 8 samples:
+```sh
+bedtools multiinter \
+    -i "${CALLABLE_FILES[@]}" |
+awk '$4==8 {
+    print $1 "\t" $2 "\t" $3
+}' \
+> 05_masks/shared_callable_depth.autosomes.bed
+```
+
+Also check how much of the genome has 5–25× high-MAPQ coverage in every one of the eight individuals:
+```sh
+CALLABLE_BP=$(
+    awk '{sum += $3-$2} END {print sum}' \
+    05_masks/shared_callable_depth.autosomes.bed
+)
+
+awk -v bp="$CALLABLE_BP" \
+    -v total=1380185643 \
+    'BEGIN {
+        printf "Shared callable bp: %d\n",bp
+        printf "Shared callable Gb: %.3f\n",bp/1e9
+        printf "Shared callable fraction: %.4f\n",bp/total
+        printf "Shared callable percent: %.2f%%\n",(bp/total)*100
+    }'
+```
+
+The output should be:
+```sh
+Shared callable bp: 953290613
+Shared callable Gb: 0.953
+Shared callable fraction: 0.6907
+Shared callable percent: 69.07%
+```
+This means that 69.07% of our autosomal genome is callable in all eight individuals simultaneously under the 5–25×, MAPQ ≥30 criterion.
+
+#### Step 7: Make the depth-based SMC++ exclusion mask
+First, merge and sort the callable intervals:
+```sh
+bedtools sort \
+    -g 01_reference/autosomes.genome \
+    -i 05_masks/shared_callable_depth.autosomes.bed |
+bedtools merge -i - \
+    > 05_masks/shared_callable_depth.autosomes.merged.bed
+```
+
+Then take the complement (mask), which contains what we do not want SMC++ to use:
+```sh
+bedtools complement \
+    -i 05_masks/shared_callable_depth.autosomes.merged.bed \
+    -g 01_reference/autosomes.genome \
+    > 05_masks/noncallable_depth.autosomes.bed
+```
+
+Check the size of this mask file. This should be 0.427 Gb (30.93% masked percentage).
+```sh
+awk '
+{
+    bp += $3-$2
+}
+END {
+    printf "Masked bp: %d\n", bp
+    printf "Masked Gb: %.3f\n", bp/1e9
+    printf "Masked percent: %.2f%%\n", (bp/1380185643)*100
+}' 05_masks/noncallable_depth.autosomes.bed
+```
+
+Also run this sanity check. The expected output is "Total: 1380185643"
+```sh
+CALLABLE=$(
+    awk '{x += $3-$2} END {print x}' \
+    05_masks/shared_callable_depth.autosomes.merged.bed
+)
+
+MASKED=$(
+    awk '{x += $3-$2} END {print x}' \
+    05_masks/noncallable_depth.autosomes.bed
+)
+
+echo "Callable: $CALLABLE"
+echo "Masked:   $MASKED"
+echo "Total:    $((CALLABLE + MASKED))"
+```
+
+#### Step 8:
