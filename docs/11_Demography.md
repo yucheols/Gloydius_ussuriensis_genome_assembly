@@ -542,7 +542,7 @@ AMNH_21147  G_ussuri_chr5   0      99259852   11.01
 
 These coverage results are very good for SMC++. Across the eight mainland samples, mean autosomal depth ranges only from 11.24× to 13.06×, with an overall mean of about 11.97×.
 
-#### Step 5: Set depth cutoff
+### Step 5: Set depth cutoff
 mosdepth generated files like:
 ```sh
 03_qc/mosdepth/AMNH_21010.mosdepth.global.dist.txt
@@ -641,7 +641,7 @@ AMNH_21185  0.93  0.89  0.84  0.78  0.64
 
 At 5× (ge5), each individual retains 84–90% of autosomal bases. Thus, it is sensible to set 5× as the minimum callable depth. Also, the highest 97.5th-percentile depth value was 25x. So, set this as the maximum callable depth.
 
-#### Step 6: Create actual callable-region BEDs
+### Step 6: Create actual callable-region BEDs
 The summary files we generated above tell us how much of the genome passes certain depth thresholds, but they don't tell us where those bases are. SMC++ needs that spatial information.
 
 For that, we will have to run a second mosdepth jon with a --quantize mode: this will collapse adjacent bases into coverage categories such as low, callable, and high coverage.
@@ -948,7 +948,7 @@ Shared callable percent: 69.07%
 ```
 This means that 69.07% of our autosomal genome is callable in all eight individuals simultaneously under the 5–25×, MAPQ ≥30 criterion.
 
-#### Step 7: Make the depth-based SMC++ exclusion mask
+### Step 7: Make the depth-based SMC++ exclusion mask
 First, merge and sort the callable intervals:
 ```sh
 bedtools sort \
@@ -1089,4 +1089,4 @@ END {
 }' 05_masks/reference_N_callable_overlap.bed
 ```
 
-#### Step 8:
+### Step 8:
