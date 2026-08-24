@@ -964,7 +964,8 @@ Run Synk on Mendel:
 #!/bin/sh
 #SBATCH --job-name=synk
 #SBATCH --nodes=1
-#SBATCH --tasks-per-node=8
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
 #SBATCH --mem=200G
 #SBATCH --time=20:00:00
 #SBATCH --partition=compute
@@ -974,8 +975,11 @@ Run Synk on Mendel:
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
 # activate conda env
-source ~/.bashrc
+source /home/yshin/mendel-nas1/miniconda3/etc/profile.d/conda.sh
 conda activate synk
+
+# synk.py path
+SYNK="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/synk.py"
 
 # G. ussuriensis assembly
 ussuri_asm="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
@@ -990,7 +994,7 @@ mkdir -p ${outdir}
 # run synk
 echo "Running synk: $(date)"
 
-python synk.py \
+python ${SYNK} \
   --main_name G_ussuri \
   --main_assembly ${ussuri_asm} \
   --compare A_dia=${comp_dir}/Argyrophis_diardii.genome.fa  \
@@ -1005,7 +1009,7 @@ python synk.py \
   --compare V_ber=${comp_dir}/Vipera_berus.genome.fa \
   --compare X_uni=${comp_dir}/Xenopeltis_unicolor.genome.fa \
   --lineage sauropsida \
-  --threads ${SLURM_TASKS_PER_NODE:-8} \
+  --threads ${SLURM_CPUS_PER_TASK:-8} \
   --reuse_compleasm \
   --outdir ${outdir} \
   --plot
