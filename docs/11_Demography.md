@@ -539,3 +539,283 @@ AMNH_21147  G_ussuri_chr3   0      203076995  11.14
 AMNH_21147  G_ussuri_chr4   0      122805809  10.69
 AMNH_21147  G_ussuri_chr5   0      99259852   11.01
 ```
+
+These coverage results are very good for SMC++. Across the eight mainland samples, mean autosomal depth ranges only from 11.24× to 13.06×, with an overall mean of about 11.97×.
+
+#### Step 5: Set depth cutoff
+mosdepth generated files like:
+```sh
+03_qc/mosdepth/AMNH_21010.mosdepth.global.dist.txt
+```
+
+First, extract converage quantile across all samples:
+```sh
+printf "sample\tq2.5\tq5\tmedian\tq95\tq97.5\n" \
+    > 03_qc/mosdepth/autosomal_depth_quantiles.tsv
+
+while read -r sample; do
+
+    awk -v sample="$sample" '
+    $1=="total" {
+
+        depth=$2
+        frac=$3
+
+        # mosdepth frac = proportion of bases with coverage >= depth.
+        # Rows run from high depth toward depth 0.
+
+        if (q025=="" && frac >= 0.975) q025=depth
+        if (q05==""  && frac >= 0.950) q05=depth
+        if (q50==""  && frac >= 0.500) q50=depth
+        if (q95==""  && frac >= 0.050) q95=depth
+        if (q975=="" && frac >= 0.025) q975=depth
+    }
+
+    END {
+        print sample "\t" q025 "\t" q05 "\t" q50 "\t" q95 "\t" q975
+    }' \
+    "03_qc/mosdepth/${sample}.mosdepth.global.dist.txt"
+
+done < mainland_samples.txt \
+    >> 03_qc/mosdepth/autosomal_depth_quantiles.tsv
+```
+
+Check:
+```sh
+column -t -s $'\t' \
+    03_qc/mosdepth/autosomal_depth_quantiles.tsv
+```
+
+The output should look like:
+```sh
+sample      q2.5  q5  median  q95  q97.5
+AMNH_21010  0     2   12      21   23
+AMNH_21128  0     0   12      21   22
+AMNH_21147  0     0   12      20   22
+AMNH_21161  0     0   12      21   23
+AMNH_21162  0     0   13      22   23
+AMNH_21164  0     0   13      22   23
+AMNH_21172  0     0   14      23   25
+AMNH_21185  0     0   12      21   23
+```
+Thus, the median depths are 12–14×, while the upper 97.5th-percentile depths are 22–25×. Next, let's also calculate what percentage of the autosomal genome has at least 1×, 3×, 5×, 7×, and 10× coverage in each sample.
+
+```sh
+printf "sample\tge1\tge3\tge5\tge7\tge10\n" \
+    > 03_qc/mosdepth/autosomal_callable_fractions.tsv
+
+while read -r sample; do
+
+    file="03_qc/mosdepth/${sample}.mosdepth.global.dist.txt"
+
+    ge1=$(awk '$1=="total" && $2==1  {print $3}' "$file")
+    ge3=$(awk '$1=="total" && $2==3  {print $3}' "$file")
+    ge5=$(awk '$1=="total" && $2==5  {print $3}' "$file")
+    ge7=$(awk '$1=="total" && $2==7  {print $3}' "$file")
+    ge10=$(awk '$1=="total" && $2==10 {print $3}' "$file")
+
+    printf "%s\t%s\t%s\t%s\t%s\t%s\n" \
+        "$sample" "$ge1" "$ge3" "$ge5" "$ge7" "$ge10"
+
+done < mainland_samples.txt \
+    >> 03_qc/mosdepth/autosomal_callable_fractions.tsv
+```
+Check:
+```sh
+column -t -s $'\t' \
+    03_qc/mosdepth/autosomal_callable_fractions.tsv
+```
+
+The output should look like this:
+```sh
+sample      ge1   ge3   ge5   ge7   ge10
+AMNH_21010  0.97  0.94  0.90  0.84  0.67
+AMNH_21128  0.93  0.90  0.87  0.83  0.69
+AMNH_21147  0.93  0.90  0.86  0.81  0.66
+AMNH_21161  0.93  0.90  0.87  0.82  0.70
+AMNH_21162  0.93  0.90  0.88  0.84  0.74
+AMNH_21164  0.93  0.89  0.86  0.81  0.69
+AMNH_21172  0.93  0.90  0.87  0.83  0.73
+AMNH_21185  0.93  0.89  0.84  0.78  0.64
+```
+
+At 5× (ge5), each individual retains 84–90% of autosomal bases. Thus, it is sensible to set 5× as the minimum callable depth. Also, the highest 97.5th-percentile depth value was 25x. So, set this as the maximum callable depth.
+
+#### Step 6: Create actual callable-region BEDs
+The summary files we generated above tell us how much of the genome passes certain depth thresholds, but they don't tell us where those bases are. SMC++ needs that spatial information.
+
+For that, we will have to run a second mosdepth jon with a --quantize mode: this will collapse adjacent bases into coverage categories such as low, callable, and high coverage.
+We will define 0–4× as low coverage, 5–25× as callable, and 26× as high coverage.
+
+Use this script:
+```sh
+#!/bin/bash
+#SBATCH --job-name=smc_callability
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=20G
+#SBATCH --time=24:00:00
+#SBATCH --partition=compute
+#SBATCH --array=1-8%4
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%A_%a.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%A_%a.err
+
+# ============================================================
+# generate depth-based callability masks for SMC++
+#
+# coverage classes:
+#   0x       = NO_COVERAGE
+#   1-4x     = LOW_COVERAGE
+#   5-25x    = CALLABLE
+#   >=26x    = HIGH_COVERAGE
+#
+# one sample is processed per SLURM array task.
+# ============================================================
+
+# ------------------------------------------------------------
+# activate conda environment
+# ------------------------------------------------------------
+source /home/yshin/mendel-nas1/miniconda3/etc/profile.d/conda.sh
+conda activate smc_tools
+
+set -euo pipefail
+
+
+# ------------------------------------------------------------
+# paths
+# ------------------------------------------------------------
+WORKDIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography"
+SAMPLEFILE="${WORKDIR}/mainland_samples.txt"
+BAMDIR="${WORKDIR}/02_bams"
+OUTDIR="${WORKDIR}/03_qc/mosdepth_callability"
+
+mkdir -p "$OUTDIR"
+
+
+# ------------------------------------------------------------
+# get sample corresponding to SLURM array task
+# ------------------------------------------------------------
+sample=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$SAMPLEFILE")
+
+if [[ -z "$sample" ]]; then
+    echo "ERROR: No sample found for array task ${SLURM_ARRAY_TASK_ID}"
+    exit 1
+fi
+
+
+# ------------------------------------------------------------
+# BAM
+# ------------------------------------------------------------
+BAM="${BAMDIR}/${sample}.markdup.bam"
+
+if [[ ! -e "$BAM" ]]; then
+    echo "ERROR: BAM not found:"
+    echo "$BAM"
+    exit 1
+fi
+
+if [[ ! -e "${BAM}.bai" ]]; then
+    echo "ERROR: BAM index not found:"
+    echo "${BAM}.bai"
+    exit 1
+fi
+
+
+# ------------------------------------------------------------
+# print job information
+# ------------------------------------------------------------
+
+echo "============================================================"
+echo "SMC++ callability mask"
+echo "============================================================"
+echo "Sample:           $sample"
+echo "BAM:              $BAM"
+echo "Output directory: $OUTDIR"
+echo "Array task:       ${SLURM_ARRAY_TASK_ID}"
+echo "CPUs:             ${SLURM_CPUS_PER_TASK}"
+echo "Host:             $(hostname)"
+echo "Start time:       $(date)"
+echo "============================================================"
+
+
+# ------------------------------------------------------------
+# define labels for mosdepth quantization
+#
+# --quantize 0:1:5:26:
+#
+# bins:
+#   Q0 = 0x
+#   Q1 = 1-4x
+#   Q2 = 5-25x
+#   Q3 = >=26x
+# ------------------------------------------------------------
+export MOSDEPTH_Q0="NO_COVERAGE"
+export MOSDEPTH_Q1="LOW_COVERAGE"
+export MOSDEPTH_Q2="CALLABLE"
+export MOSDEPTH_Q3="HIGH_COVERAGE"
+
+
+# ------------------------------------------------------------
+# run mosdepth
+#
+# --mapq 30:
+#   ignore reads with mapping quality <30
+#
+# --flag 1796:
+#   exclude unmapped, secondary, QC-failed, and duplicate reads
+#
+# --no-per-base:
+#   do not produce huge per-base BED files
+#
+# --quantize:
+#   merge adjacent bases belonging to the same coverage class
+# ------------------------------------------------------------
+mosdepth \
+    --threads "${SLURM_CPUS_PER_TASK}" \
+    --mapq 30 \
+    --flag 1796 \
+    --no-per-base \
+    --quantize 0:1:5:26: \
+    "${OUTDIR}/${sample}.callability" \
+    "$BAM"
+
+
+# ------------------------------------------------------------
+# check expected output
+# ------------------------------------------------------------
+QUANT="${OUTDIR}/${sample}.callability.quantized.bed.gz"
+
+if [[ ! -s "$QUANT" ]]; then
+    echo "ERROR: Expected quantized BED was not produced:"
+    echo "$QUANT"
+    exit 1
+fi
+
+
+# ------------------------------------------------------------
+# report class counts
+# ------------------------------------------------------------
+echo
+echo "Coverage-class intervals:"
+zcat "$QUANT" |
+awk '
+{
+    n[$4]++
+    bp[$4] += $3-$2
+}
+END {
+    for (x in n) {
+        printf "%-15s intervals=%d bp=%d\n", x, n[x], bp[x]
+    }
+}'
+
+
+echo
+echo "============================================================"
+echo "Completed sample: $sample"
+echo "Finish time:      $(date)"
+echo "============================================================"
+```
