@@ -3,13 +3,13 @@ Chromosome-level reference genome assembly of the Ussuri Pitviper (*Gloydius uss
 
 -----------------------------------------------------------------------------------------------------
 ### Specimen
-![snake](etc/large.jpg)
+![snake](docs/etc/large.jpg)
 
 __*Gloydius ussuriensis* (AMNH 21010) collected from Hwacheon, South Korea (collected and photographed by Yucheol Shin)__
 
 -----------------------------------------------------------------------------------------------------
 ### Assembly workflow
-![alt text](etc/workflow.png)
+![alt text](docs/etc/workflow.png)
 
 -----------------------------------------------------------------------------------------------------
 ### Computing resources and software package dependencies
