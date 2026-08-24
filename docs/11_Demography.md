@@ -166,4 +166,266 @@ We will use 8 low-coverage whole genome samples out of 12 we used for sex chromo
 In the "demography" dir, create a list of mainland samples to use:
 ```
 nano mainland_samples.txt
+cat mainland_samples.txt
+```
+
+Now set the BAM dir and symlink both BAM and index files for each mainland sample:
+```sh
+BAMDIR="/home/yshin/mendel-nas1/ussuri_popgen/WGS_mapping/bam"
+while read -r sample; do
+
+    ln -s \
+        "${BAMDIR}/${sample}.markdup.bam" \
+        "02_bams/${sample}.markdup.bam"
+
+    ln -s \
+        "${BAMDIR}/${sample}.markdup.bam.bai" \
+        "02_bams/${sample}.markdup.bam.bai"
+
+done < mainland_samples.txt
+
+# check
+ls -lh 02_bams/
+```
+
+### Step 4: BAM validation and autosomal coverage QC
+From the "demography" dir, run:
+```sh
+# make dir
+mkdir -p 03_qc/{bam_validation,flagstat,idxstats,mosdepth}
+
+# create a text file containing the full paths to your 8 mainland BAM files
+> 02_bams/mainland_bams.txt
+
+while read -r sample; do
+    readlink -f "02_bams/${sample}.markdup.bam"
+done < mainland_samples.txt \
+    > 02_bams/mainland_bams.txt
+
+# check
+cat 02_bams/mainland_bams.txt
+wc -l 02_bams/mainland_bams.txt
+```
+
+Then run below to automate BAM validation across all files:
+```sh
+REFDICT="01_reference/reference_contigs.tsv"
+OUT="03_qc/bam_validation"
+
+mkdir -p "$OUT"
+
+printf "sample\tquickcheck\tsort_order\treference_match\tread_group_SM\tindex\n" \
+    > "$OUT/bam_validation_summary.tsv"
+
+while read -r bam; do
+
+    sample=$(basename "$bam" .markdup.bam)
+
+    echo "Checking $sample ..."
+
+    # -------------------------
+    # BAM integrity
+    # -------------------------
+    if samtools quickcheck -v "$bam"; then
+        quickcheck="PASS"
+    else
+        quickcheck="FAIL"
+    fi
+
+    # -------------------------
+    # sorting
+    # -------------------------
+    sort_order=$(
+        samtools view -H "$bam" |
+        awk -F'\t' '
+        /^@HD/ {
+            for(i=1;i<=NF;i++) {
+                if($i ~ /^SO:/) {
+                    print substr($i,4)
+                }
+            }
+        }'
+    )
+
+    [[ -z "$sort_order" ]] && sort_order="UNKNOWN"
+
+    # -------------------------
+    # BAM reference dictionary
+    # -------------------------
+    samtools view -H "$bam" |
+    awk -F'\t' '
+    /^@SQ/ {
+        sn="";
+        ln="";
+        for(i=1;i<=NF;i++) {
+            if($i ~ /^SN:/) sn=substr($i,4);
+            if($i ~ /^LN:/) ln=substr($i,4);
+        }
+        print sn "\t" ln
+    }' > "$OUT/${sample}.reference_contigs.tsv"
+
+    if diff -q \
+        "$REFDICT" \
+        "$OUT/${sample}.reference_contigs.tsv" \
+        >/dev/null 2>&1
+    then
+        reference_match="PASS"
+    else
+        reference_match="FAIL"
+    fi
+
+    # -------------------------
+    # read-group sample name
+    # -------------------------
+    sm=$(
+        samtools view -H "$bam" |
+        awk -F'\t' '
+        /^@RG/ {
+            for(i=1;i<=NF;i++) {
+                if($i ~ /^SM:/) {
+                    print substr($i,4)
+                }
+            }
+        }' |
+        sort -u |
+        paste -sd ',' -
+    )
+
+    [[ -z "$sm" ]] && sm="NONE"
+
+    # -------------------------
+    # BAM index
+    # -------------------------
+    if [[ -f "${bam}.bai" || -f "${bam%.bam}.bai" ]]; then
+        index_status="PASS"
+    else
+        index_status="FAIL"
+    fi
+
+    printf "%s\t%s\t%s\t%s\t%s\t%s\n" \
+        "$sample" \
+        "$quickcheck" \
+        "$sort_order" \
+        "$reference_match" \
+        "$sm" \
+        "$index_status" \
+        >> "$OUT/bam_validation_summary.tsv"
+
+done < 02_bams/mainland_bams.txt
+```
+
+Then check - should see PASS for all samples.
+```sh
+column -t -s $'\t' \
+    03_qc/bam_validation/bam_validation_summary.tsv
+```
+
+Next, generate flagstat and idxstats for all eight
+```sh
+while read -r bam; do
+
+    sample=$(basename "$bam" .markdup.bam)
+
+    echo "Processing $sample ..."
+
+    samtools flagstat -@ 8 "$bam" \
+        > "03_qc/flagstat/${sample}.flagstat.txt"
+
+    samtools idxstats "$bam" \
+        > "03_qc/idxstats/${sample}.idxstats.tsv"
+
+done < 02_bams/mainland_bams.txt
+```
+
+Get a quick look at mapping, pairing, and duplicates:
+```sh
+for f in 03_qc/flagstat/*.flagstat.txt; do
+
+    echo "===== $(basename "$f" .flagstat.txt) ====="
+
+    grep -E \
+        'mapped \(|properly paired|duplicates' \
+        "$f"
+
+    echo
+
+done
+```
+We can see the mapping rates are extremely high across all 8 samples (> 99%). Properly paired reads are also high (96.3–98.1%)
+
+Now run autosomal coverage QC with mosdepth. Run this as an array job on Mendel:
+```sh
+#!/bin/bash
+#SBATCH --job-name=smc_mosdepth
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=24:00:00
+#SBATCH --partition=compute
+#SBATCH --array=1-8%4
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%A_%a.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%A_%a.err
+
+set -euo pipefail
+
+# --------------------------------------------------
+# activate conda
+# --------------------------------------------------
+source /home/yshin/mendel-nas1/miniconda3/etc/profile.d/conda.sh
+conda activate smc_tools
+
+# --------------------------------------------------
+# directories
+# --------------------------------------------------
+WORKDIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography"
+
+SAMPLEFILE="${WORKDIR}/mainland_samples.txt"
+BAMDIR="${WORKDIR}/02_bams"
+AUTOSOMES="${WORKDIR}/01_reference/autosomes.bed"
+OUTDIR="${WORKDIR}/03_qc/mosdepth"
+
+mkdir -p "$OUTDIR"
+
+# --------------------------------------------------
+# get sample from array index
+# --------------------------------------------------
+sample=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$SAMPLEFILE")
+
+if [[ -z "$sample" ]]; then
+    echo "ERROR: No sample found for array task ${SLURM_ARRAY_TASK_ID}"
+    exit 1
+fi
+
+BAM="${BAMDIR}/${sample}.markdup.bam"
+
+if [[ ! -f "$BAM" ]]; then
+    echo "ERROR: BAM not found: $BAM"
+    exit 1
+fi
+
+if [[ ! -f "${BAM}.bai" ]]; then
+    echo "ERROR: BAM index not found: ${BAM}.bai"
+    exit 1
+fi
+
+echo "Sample: $sample"
+echo "BAM: $BAM"
+echo "Autosome BED: $AUTOSOMES"
+echo "Starting: $(date)"
+
+# --------------------------------------------------
+# autosomal coverage
+# --------------------------------------------------
+mosdepth \
+    --threads "${SLURM_CPUS_PER_TASK}" \
+    --mapq 30 \
+    --by "$AUTOSOMES" \
+    --no-per-base \
+    "${OUTDIR}/${sample}" \
+    "$BAM"
+
+echo "Finished: $(date)"
 ```
