@@ -1437,7 +1437,7 @@ END {
 }' 04_vcf/raw_stats/raw_variant_summary.tsv
 ```
 
-### Step 9: VCF filtering
+### Step 9: VCF filtering - Stage 1
 Below is the overall workflow:
 ```sh
 1) raw joint VCF
@@ -1708,5 +1708,457 @@ echo "Non-SNP records:        $NON_SNP"
 echo "Multiallelic records:   $MULTI"
 echo "Output:                 $OUT"
 echo "Finish:                 $(date)"
+echo "============================================================"
+```
+
+Make a summary file of the output:
+```sh
+printf "chromosome\trecords\tsnps\tmultiallelic\n" \
+    > 04_vcf/filtered_stage1_stats/stage1_variant_summary.tsv
+
+for f in 04_vcf/filtered_stage1_stats/*.filtered_stage1.stats.txt; do
+
+    chr=$(basename "$f" .filtered_stage1.stats.txt)
+
+    records=$(awk -F'\t' \
+        '$1=="SN" && $3=="number of records:" {print $4}' "$f")
+
+    snps=$(awk -F'\t' \
+        '$1=="SN" && $3=="number of SNPs:" {print $4}' "$f")
+
+    multi=$(awk -F'\t' \
+        '$1=="SN" && $3=="number of multiallelic sites:" {print $4}' "$f")
+
+    printf "%s\t%s\t%s\t%s\n" \
+        "$chr" "$records" "$snps" "$multi"
+
+done >> 04_vcf/filtered_stage1_stats/stage1_variant_summary.tsv
+```
+
+View the summary file:
+```sh
+column -t -s $'\t' \
+    04_vcf/filtered_stage1_stats/stage1_variant_summary.tsv
+```
+
+Get totals:
+```sh
+awk '
+NR>1 {
+    records += $2
+    snps += $3
+    multi += $4
+}
+END {
+    printf "Stage-1 records:            %d\n",records
+    printf "Stage-1 SNPs:               %d\n",snps
+    printf "Multiallelic sites:         %d\n",multi
+}' 04_vcf/filtered_stage1_stats/stage1_variant_summary.tsv
+```
+
+Next, quantify missing genotypes:
+```sh
+printf "sample\tcalled_genotypes\tmissing_genotypes\ttotal_genotypes\tmissing_fraction\n" \
+    > 04_vcf/filtered_stage1_stats/per_sample_missingness.tsv
+
+for sample in $(cat mainland_samples.txt); do
+
+    called=0
+    missing=0
+
+    for vcf in 04_vcf/filtered_stage1/*.filtered_stage1.vcf.gz; do
+
+        vals=$(
+            bcftools query \
+                -s "$sample" \
+                -f '[%GT\n]' \
+                "$vcf" |
+            awk '
+            {
+                total++
+
+                if ($1=="./." || $1==".|." || $1==".")
+                    missing++
+                else
+                    called++
+            }
+            END {
+                print called+0,missing+0,total+0
+            }'
+        )
+
+        c=$(echo "$vals" | awk '{print $1}')
+        m=$(echo "$vals" | awk '{print $2}')
+
+        called=$((called + c))
+        missing=$((missing + m))
+
+    done
+
+    total=$((called + missing))
+
+    awk \
+        -v sample="$sample" \
+        -v called="$called" \
+        -v missing="$missing" \
+        -v total="$total" \
+        'BEGIN {
+            printf "%s\t%d\t%d\t%d\t%.6f\n",
+                   sample,called,missing,total,missing/total
+        }'
+
+done >> 04_vcf/filtered_stage1_stats/per_sample_missingness.tsv
+```
+
+View the file:
+```sh
+column -t -s $'\t' \
+    04_vcf/filtered_stage1_stats/per_sample_missingness.tsv
+```
+
+This will show that per-sample missingness is only about ~4.2% across 21,177,169 SNPs.
+
+Now look at site missingness distribution. This shows how many SNPs have 0, 1, 2, etc. missing samples.
+```sh
+printf "n_missing_samples\tn_sites\n" \
+    > 04_vcf/filtered_stage1_stats/site_missingness_distribution.tsv
+
+for vcf in 04_vcf/filtered_stage1/*.filtered_stage1.vcf.gz; do
+
+    bcftools query \
+        -f '[%GT\t]\n' \
+        "$vcf" |
+    awk '
+    {
+        missing=0
+
+        for (i=1; i<=NF; i++) {
+            if ($i=="./." || $i==".|." || $i==".")
+                missing++
+        }
+
+        count[missing]++
+    }
+
+    END {
+        for (m in count)
+            print m,count[m]
+    }'
+
+done |
+awk '
+{
+    total[$1]+=$2
+}
+END {
+    for (m=0; m<=8; m++)
+        print m "\t" total[m]+0
+}' \
+>> 04_vcf/filtered_stage1_stats/site_missingness_distribution.tsv
+```
+
+View the file:
+```sh
+column -t -s $'\t' \
+    04_vcf/filtered_stage1_stats/site_missingness_distribution.tsv
+```
+
+The output should look like this:
+```sh
+n_missing_samples  n_sites
+0                  17630051
+1                  2362631
+2                  659589
+3                  275319
+4                  129912
+5                  64057
+6                  32844
+7                  16485
+8                  6281
+```
+
+This is a very clean distribution. Keeping sites with 0 or 1 missing sample and removing sites with 2 or more missing samples could be a reasonable rule for stage 2 SNP filtering. This also means that the second filtering step will require at least 7 of 8 individuals called at each SNP. So stage 2 filtering would retain 94.41% of the stage 1 SNPs.
+
+### Step 9: VCF filtering - Stage 2
+Use the script below for filtering step 2:
+```sh
+#!/bin/bash
+#SBATCH --job-name=smc_vcf_filt_2
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=24G
+#SBATCH --time=48:00:00
+#SBATCH --partition=compute
+#SBATCH --array=1-17%4
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%A_%a.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%A_%a.err
+
+# ================================================================
+# SMC++ VCF filtering - Stage 2
+#
+# starting data:
+#   stage-1 filtered autosomal VCFs
+#
+# stage-1 already applied:
+#   shared callable genome
+#   SNPs only
+#   biallelic sites only
+#   QUAL >= 20
+#   genotype DP 5-25
+#   genotype GQ >= 20
+#   failed genotypes set to ./.
+#
+# stage-2 filter:
+#   retain sites with no more than 1 missing sample
+#
+# therefore:
+#   0 missing samples -> KEEP
+#   1 missing sample  -> KEEP
+#   >=2 missing       -> REMOVE
+#
+# this requires at least 7 of 8 samples called at each SNP.
+# ================================================================
+
+
+# ------------------------------------------------------------
+# activate environment
+# ------------------------------------------------------------
+source /home/yshin/mendel-nas1/miniconda3/etc/profile.d/conda.sh
+conda activate smc_tools
+
+set -euo pipefail
+
+
+# ------------------------------------------------------------
+# paths
+# ------------------------------------------------------------
+WORKDIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography"
+CHRFILE="${WORKDIR}/01_reference/autosomes.txt"
+INDIR="${WORKDIR}/04_vcf/filtered_stage1"
+STAGE1STATDIR="${WORKDIR}/04_vcf/filtered_stage1_stats"
+OUTDIR="${WORKDIR}/04_vcf/filtered_stage2"
+STATDIR="${WORKDIR}/04_vcf/filtered_stage2_stats"
+
+mkdir -p "$OUTDIR"
+mkdir -p "$STATDIR"
+
+
+# ------------------------------------------------------------
+# get chromosome
+# ------------------------------------------------------------
+CHR=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$CHRFILE")
+
+
+# ------------------------------------------------------------
+# files
+# ------------------------------------------------------------
+IN="${INDIR}/${CHR}.filtered_stage1.vcf.gz"
+OUT="${OUTDIR}/${CHR}.filtered_stage2.vcf.gz"
+STAGE1STATS="${STAGE1STATDIR}/${CHR}.filtered_stage1.stats.txt"
+STATS="${STATDIR}/${CHR}.filtered_stage2.stats.txt"
+
+# ------------------------------------------------------------
+# job information
+# ------------------------------------------------------------
+echo
+echo "============================================================"
+echo "SMC++ VCF filtering - Stage 2"
+echo "============================================================"
+echo "Chromosome:       $CHR"
+echo "Input:            $IN"
+echo "Output:           $OUT"
+echo "Missingness rule: N_MISSING <= 1"
+echo "Minimum called:   7 of 8 samples"
+echo "Array task:       ${SLURM_ARRAY_TASK_ID}"
+echo "CPUs:             ${SLURM_CPUS_PER_TASK}"
+echo "Host:             $(hostname)"
+echo "Start:            $(date)"
+echo "============================================================"
+echo
+
+
+# ------------------------------------------------------------
+# stage-2 filtering
+#
+# N_MISSING is calculated by bcftools from the GT fields.
+#
+# keep sites where:
+#
+#     N_MISSING <= 1
+#
+# this retains sites with:
+#     8/8 called
+#     7/8 called
+#
+# and removes sites with:
+#     <=6/8 called
+# ------------------------------------------------------------
+bcftools view \
+    --threads "${SLURM_CPUS_PER_TASK}" \
+    -i 'N_MISSING<=1' \
+    -Oz \
+    -o "$OUT" \
+    "$IN"
+
+
+# ------------------------------------------------------------
+# index output
+# ------------------------------------------------------------
+bcftools index \
+    --threads "${SLURM_CPUS_PER_TASK}" \
+    -f \
+    -t \
+    "$OUT"
+
+
+# ------------------------------------------------------------
+# generate statistics
+# ------------------------------------------------------------
+bcftools stats \
+    -s - \
+    "$OUT" \
+    > "$STATS"
+
+
+# ------------------------------------------------------------
+# validate number of samples
+# ------------------------------------------------------------
+NSAMPLES=$(bcftools query -l "$OUT" | wc -l)
+
+if [[ "$NSAMPLES" -ne 8 ]]; then
+    echo "ERROR: Stage-2 VCF contains $NSAMPLES samples"
+    exit 1
+fi
+
+
+# ------------------------------------------------------------
+# get Stage-1 record count
+# ------------------------------------------------------------
+if [[ -s "$STAGE1STATS" ]]; then
+
+    STAGE1_N=$(
+        awk -F'\t' \
+        '$1=="SN" && $3=="number of records:" {print $4}' \
+        "$STAGE1STATS"
+    )
+
+else
+
+    STAGE1_N="NA"
+
+fi
+
+
+# ------------------------------------------------------------
+# get Stage-2 record count
+# ------------------------------------------------------------
+STAGE2_N=$(
+    awk -F'\t' \
+    '$1=="SN" && $3=="number of records:" {print $4}' \
+    "$STATS"
+)
+
+
+# ------------------------------------------------------------
+# confirm no sites with >=2 missing samples remain
+# ------------------------------------------------------------
+BAD_MISSING=$(
+    bcftools view \
+        -H \
+        -i 'N_MISSING>1' \
+        "$OUT" |
+    wc -l
+)
+
+if [[ "$BAD_MISSING" -ne 0 ]]; then
+    echo "ERROR: $BAD_MISSING sites with >1 missing sample remain"
+    exit 1
+fi
+
+
+# ------------------------------------------------------------
+# confirm output still contains only SNPs
+# ------------------------------------------------------------
+NON_SNP=$(
+    bcftools view \
+        -H \
+        -V snps \
+        "$OUT" |
+    wc -l
+)
+
+if [[ "$NON_SNP" -ne 0 ]]; then
+    echo "ERROR: $NON_SNP non-SNP records remain"
+    exit 1
+fi
+
+
+# ------------------------------------------------------------
+# confirm output remains biallelic
+# ------------------------------------------------------------
+MULTI=$(
+    bcftools view \
+        -H \
+        -m3 \
+        "$OUT" |
+    wc -l
+)
+
+if [[ "$MULTI" -ne 0 ]]; then
+    echo "ERROR: $MULTI multiallelic records remain"
+    exit 1
+fi
+
+
+# ------------------------------------------------------------
+# calculate number and percent removed
+# ------------------------------------------------------------
+if [[ "$STAGE1_N" != "NA" && "$STAGE1_N" -gt 0 ]]; then
+
+    REMOVED=$((STAGE1_N - STAGE2_N))
+
+    PCT_RETAINED=$(
+        awk \
+            -v kept="$STAGE2_N" \
+            -v total="$STAGE1_N" \
+            'BEGIN {printf "%.2f",100*kept/total}'
+    )
+
+    PCT_REMOVED=$(
+        awk \
+            -v removed="$REMOVED" \
+            -v total="$STAGE1_N" \
+            'BEGIN {printf "%.2f",100*removed/total}'
+    )
+
+else
+
+    REMOVED="NA"
+    PCT_RETAINED="NA"
+    PCT_REMOVED="NA"
+
+fi
+
+
+# ------------------------------------------------------------
+# finish
+# ------------------------------------------------------------
+echo
+echo "============================================================"
+echo "Completed chromosome:     $CHR"
+echo "Stage-1 records:          $STAGE1_N"
+echo "Stage-2 records:          $STAGE2_N"
+echo "Removed:                  $REMOVED"
+echo "Percent retained:         ${PCT_RETAINED}%"
+echo "Percent removed:          ${PCT_REMOVED}%"
+echo "Samples:                  $NSAMPLES"
+echo "Sites with >1 missing:    $BAD_MISSING"
+echo "Non-SNP records:          $NON_SNP"
+echo "Multiallelic records:     $MULTI"
+echo "Output:                   $OUT"
+echo "Finish:                   $(date)"
 echo "============================================================"
 ```
