@@ -8,17 +8,17 @@ __Note:__ I created this documentation in the hopes that my friends and future R
 ### Workflow
 
 1. __[A quick sanity check on the dataset](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/01_DataCheck.md#1-a-quick-sanity-check-on-the-dataset)__
-2. __[*k*-mer analysis of raw reads using jellyfish](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#2-k-mer-analysis-of-raw-reads-using-jellyfish)__
-3. __[Draft genome assembly using hifiasm](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#3-draft-genome-assembly-using-hifiasm)__
-4. __[Contamination screening](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#4-contamination-screening)__
+2. __[*k*-mer analysis of raw reads using jellyfish](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/02_KmerJellyfish.md#2-k-mer-analysis-of-raw-reads-using-jellyfish)__
+3. __[Draft genome assembly using hifiasm](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/03_DraftAssembly.md#3-draft-genome-assembly-using-hifiasm)__
+4. __[Contamination screening](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/04_ContamCheck.md#4-contamination-screening)__
    - __Screening for potential non-vertebrate contaminants using blobtools__
    - __Identifying and removing mitochondrial contigs from the draft assembly__
    - __Genomewide mean sequencing coverage after contamination screening__
-5. __[Draft assembly evaluation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#5-draft-assembly-evaluation)__ 
+5. __[Draft assembly evaluation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/05_DraftEval.md#5-draft-assembly-evaluation)__ 
    - __Genome completeness using BUSCO__
    - __Genome assembly stats with QUAST__
    - __*k*-mer based assembly evaluation with Merqury__
-6. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#6-scaffolding-through-hi-c-data-incorporation)__
+6. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/06_Scaffolding.md#6-scaffolding-through-hi-c-data-incorporation)__
    - __Hi-C sequencing overview__
    - __Setup__
    - __Combine sequencing reads across lanes__
@@ -27,7 +27,7 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __Hi-C contact map visualization with Juicer/Juicer Tools__
    - __Assignment of scaffolds to chromosomes and manual assembly curation__
    - __Sex chromosome validation based on sex-specific read coverage patterns__
-7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#7-genome-annotation)__
+7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/07_Annotation.md#7-genome-annotation)__
    - __Setup__
    - __RNA read QC (pre-trimming)__
    - __Adapter trimming & post-trimming QC__ 
@@ -37,18 +37,16 @@ __Note:__ I created this documentation in the hopes that my friends and future R
    - __(Post-Hi-C) Repeat masking (soft masking) using Earl Grey__
    - __(Post-Hi-C) Annotation using funannotate__
    - __(Post-Hi-C) Toxin gene annotation using ToxCodAn-Genome__
-8. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#8-chromosomal-synteny)__
+8. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/08_Synteny.md#8-chromosomal-synteny)__
    - __Step 1: Setup directory and prepare data downloads__
    - __Step 2: Download assemblies__
-9. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#9-mitogenome-assembly)__
+9. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/09_MitoAssembly.md#9-mitogenome-assembly)__
     - __"Manual" annotation with MITOS2__
     - __Manual curation of the mitogenome assembled from MitoHiFi__
     - __Submitting mitogenome to GenBank__
-10. __[Telomere identification](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#10-telomere-identification)__
+10. __[Telomere identification](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/10_Telomere.md#10-telomere-identification)__
 
-11. __[Demographic history](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#11-demographic-history)__
+11. __[Demographic history](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/11_Demography.md#11-demographic-history)__
     - __Step 1: Environment setup and software installation__
     - __Step 2: Reference genome preparation__
     - __Step 3: Prepare mainland sample BAMs__
-
-12. __[Venom gene evolution](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/doc.md#12-venom-gene-evolution)__
