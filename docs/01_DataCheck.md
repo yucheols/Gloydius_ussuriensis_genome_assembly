@@ -5,7 +5,7 @@ zcat AMNH_21010_HiFi.fastq.gz | head -n 2
 ```
 
 When you run the line above you will get a string of sequence read printed out:
-![alt text](/Gloydius_ussuriensis_genome_assembly/etc/seqchunk.PNG)
+![alt text](/home/yshin/Gloydius_ussuriensis_genome_assembly/etc/seqchunk.PNG)
 
 Let's copy the whole chunk and paste it into NCBI BLAST. The result  will look something like this:
 ![alt text](/Gloydius_ussuriensis_genome_assembly/etc/blast.PNG)
