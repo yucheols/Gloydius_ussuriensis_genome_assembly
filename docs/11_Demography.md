@@ -996,4 +996,97 @@ echo "Masked:   $MASKED"
 echo "Total:    $((CALLABLE + MASKED))"
 ```
 
+Now, we need to make sure that every N region in the reference is also masked.
+```sh
+REF="01_reference/G_ussuriensis.softmasked.fa"
+awk '
+BEGIN {OFS="\t"}
+
+/^>/ {
+    if (inN) {
+        print seqname,start,pos
+        inN=0
+    }
+
+    seqname=substr($1,2)
+    pos=0
+    next
+}
+
+{
+    line=toupper($0)
+
+    for (i=1; i<=length(line); i++) {
+
+        base=substr(line,i,1)
+
+        if (base=="N" && !inN) {
+            start=pos+i-1
+            inN=1
+        }
+
+        if (base!="N" && inN) {
+            print seqname,start,pos+i-1
+            inN=0
+        }
+    }
+
+    pos += length(line)
+}
+
+END {
+    if (inN) {
+        print seqname,start,pos
+    }
+}
+' "$REF" \
+> 05_masks/reference_N.all.bed
+```
+
+Restrict this to 17 autosomes in the assembly:
+```sh
+awk '
+NR==FNR {
+    keep[$1]=1
+    next
+}
+($1 in keep)
+' \
+01_reference/autosomes.txt \
+05_masks/reference_N.all.bed \
+> 05_masks/reference_N.autosomes.bed
+```
+
+Check how much autosomal sequence is N:
+```sh
+awk '
+{
+    bp += $3-$2
+}
+END {
+    printf "Autosomal N bp: %d\n",bp
+    printf "Autosomal N Mb: %.3f\n",bp/1e6
+    printf "Autosomal N percent: %.4f%%\n",(bp/1380185643)*100
+}' 05_masks/reference_N.autosomes.bed
+```
+
+And check whether any of those N bases are currently considered callable:
+```sh
+bedtools intersect \
+    -a 05_masks/reference_N.autosomes.bed \
+    -b 05_masks/shared_callable_depth.autosomes.merged.bed \
+    > 05_masks/reference_N_callable_overlap.bed
+```           
+
+Check if the autosomal Ns and callable autosomal Ns overlap. The output should be 0 because reference N regions should have no valid read coverage and therefore should already have failed the 5–25× criterion.
+```sh
+awk '
+{
+    bp += $3-$2
+}
+END {
+    printf "N bases incorrectly callable: %d\n",bp+0
+}' 05_masks/reference_N_callable_overlap.bed
+```
+
 #### Step 8:
