@@ -50,7 +50,8 @@ __Note:__ I created this documentation in the hopes that my friends and future R
     - __Step 1: Environment setup and software installation__
     - __Step 2: Reference genome preparation__
     - __Step 3: Prepare mainland sample BAMs__
-    - __Step 4: Step 4: BAM validation and autosomal coverage QC__
+    - __Step 4: BAM validation and autosomal coverage QC__
     - __Step 5: Set depth cutoff__
     - __Step 6: Create actual callable-region BEDs__
     - __Step 7: Make the depth-based SMC++ exclusion mask__
+    - __Step 8: Step 8: Joint variant calling using BCFtools__
