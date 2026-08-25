@@ -962,6 +962,54 @@ done
 The script above will show that all the assemblies have a very clear chromosome labels. So, the number of sequences exceeding the expected karyotypes can be safely regarded as unplaced scaffolds.
 
 Let's make chromosome files since we do not need unplaced scaffolds in our assembly. Let's first check fasta headers
+```sh
+# from "Synk/genom_fa/" dir
+for f in *.genome.fa; do
+    echo "=============================================="
+    echo "$f"
+    echo "=============================================="
+    grep '^>' "$f" | head -30
+    echo
+done
+```
+This will show that chromosomes can be automatically filtered from each assembly because chromosome-scale contigs have either "chromosome" or "Chromosome" labels.
+
+Use this script for chromosome filtering:
+```sh
+# cd into Synk dir
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk
+
+# activate conda env
+conda activate synteny_qc
+
+# make chromosome dir
+mkdir -p chromosomes_fa
+
+for f in genome_fa/*.genome.fa; do
+    base=$(basename "$f" .genome.fa)
+
+    echo "Extracting chromosomes from $base"
+
+    seqkit grep \
+        -n \
+        -r \
+        -i \
+        -p 'chromosome' \
+        "$f" \
+        > "chromosomes_fa/${base}.chromosomes.fa"
+
+done
+```
+
+After this, qc the chromosome files and check sequence ID and chromosome designation:
+```sh
+seqkit stats chromosomes_fa/*
+for f in chromosomes_fa/*.chromosomes.fa; do
+    echo "===== $(basename "$f") ====="
+    grep '^>' "$f" | sed 's/^>//'
+    echo
+done
+```
 
 Run Synk on Mendel:
 ```sh
@@ -989,7 +1037,7 @@ SYNK="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk
 ussuri_asm="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
 
 # comaprison genomes base dir
-comp_dir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/genome_fa"
+comp_dir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/chromosomes_fa"
 
 # outdir
 outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/Synk/outputs"
@@ -1001,22 +1049,22 @@ echo "Running synk: $(date)"
 python ${SYNK} \
   --main_name G_ussuri \
   --main_assembly ${ussuri_asm} \
-  --compare A_dia=${comp_dir}/Argyrophis_diardii.genome.fa  \
-  --compare B_ins=${comp_dir}/Bothrops_insularis.genome.fa \
-  --compare C_asp=${comp_dir}/Candoia_aspera.genome.fa  \
-  --compare C_gas=${comp_dir}/Cerastes_gasperettii.genome.fa \
-  --compare C_ada=${comp_dir}/Crotalus_adamanteus.genome.fa \
-  --compare C_vir=${comp_dir}/Crotalus_viridis.genome.fa  \
-  --compare E_sch=${comp_dir}/Elaphe_schrenckii.genome.fa \
-  --compare G_she=${comp_dir}/Gloydius_shedaoensis.genome.fa \
-  --compare N_naj=${comp_dir}/Naja_naja.genome.fa \
-  --compare V_ber=${comp_dir}/Vipera_berus.genome.fa \
-  --compare X_uni=${comp_dir}/Xenopeltis_unicolor.genome.fa \
+  --compare A_dia=${comp_dir}/Argyrophis_diardii.chromosomes.fa  \
+  --compare B_ins=${comp_dir}/Bothrops_insularis.chromosomes.fa \
+  --compare C_asp=${comp_dir}/Candoia_aspera.chromosomes.fa  \
+  --compare C_gas=${comp_dir}/Cerastes_gasperettii.chromosomes.fa \
+  --compare C_ada=${comp_dir}/Crotalus_adamanteus.chromosomes.fa \
+  --compare C_vir=${comp_dir}/Crotalus_viridis.chromosomes.fa  \
+  --compare E_sch=${comp_dir}/Elaphe_schrenckii.chromosomes.fa \
+  --compare G_she=${comp_dir}/Gloydius_shedaoensis.chromosomes.fa \
+  --compare N_naj=${comp_dir}/Naja_naja.chromosomes.fa \
+  --compare V_ber=${comp_dir}/Vipera_berus.chromosomes.fa \
+  --compare X_uni=${comp_dir}/Xenopeltis_unicolor.chromosomes.fa \
   --lineage sauropsida \
   --threads ${SLURM_CPUS_PER_TASK:-8} \
   --reuse_compleasm \
   --outdir ${outdir} \
   --plot
 
-  echo "Synk run completed: $(date)"
+echo "Synk run completed: $(date)"
 ``` 
