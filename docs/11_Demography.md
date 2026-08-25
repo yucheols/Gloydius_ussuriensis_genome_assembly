@@ -2480,3 +2480,219 @@ Look at the file:
 column -t -s $'\t' \
     04_vcf/final_qc/snps_per_chromosome.tsv
 ```
+
+Our samples look very good as a SMC++ input:
+```sh
+| Sample     | Avg. DP | Heterozygous SNPs | Missing SNP genotypes |
+| ---------- | ------: | ----------------: | --------------------: |
+| AMNH_21010 |   13.5× |         4,239,268 |                 1.30% |
+| AMNH_21128 |   13.3× |         4,932,001 |                 1.46% |
+| AMNH_21147 |   12.9× |         4,800,337 |                 1.94% |
+| AMNH_21161 |   13.6× |         4,831,175 |                 1.44% |
+| AMNH_21162 |   14.1× |         4,818,188 |                 1.24% |
+| AMNH_21164 |   13.7× |         4,676,233 |                 1.53% |
+| AMNH_21172 |   14.9× |         4,719,096 |                 1.08% |
+| AMNH_21185 |   13.3× |         4,473,157 |                 1.82% |
+```
+
+Here's a summary of input samples:
+```sh
+1) 8 mainland individuals
+2) 17 autosomes
+3) 1.380 Gb total autosomal reference
+4) 953.3 Mb shared callable sequence
+5) 69.07% callable
+6) 19,992,682 high-quality biallelic SNPs
+7) QUAL >= 20
+8) MAPQ >= 30 during calling
+9) base quality >= 20
+10) genotype: DP 5–25; GQ >= 20
+11) site: at least 7/8 individuals called
+12) Ti/Tv = 2.42
+```
+
+### Step 12: VCF to SMC file conversion
+First, we need to convert the final VCF file into SMC++ input file, which can be done using smc++ vcf2smc command.
+
+```sh
+#!/bin/bash
+#SBATCH --job-name=smc_vcf2smc
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=24G
+#SBATCH --time=24:00:00
+#SBATCH --partition=compute
+#SBATCH --array=1-17%4
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%A_%a.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%A_%a.err
+
+# ================================================================
+# convert filtered autosomal VCF to SMC++ input
+#
+# one autosome per SLURM array task.
+#
+# population: Mainland G. ussuriensis
+#
+# samples: 8 mainland individuals
+# 
+# distinguished individual (-d): AMNH_21172
+#    this sample has excellent coverage and the lowest final missingness
+#
+# because the VCF is unphased, both distinguished lineages
+# are taken from the same individual:
+#
+#   -d AMNH_21172 AMNH_21172
+#
+# the depth/callability exclusion mask is supplied with --mask.
+# ================================================================
+
+set -euo pipefail
+
+
+# ------------------------------------------------------------
+# paths
+# ------------------------------------------------------------
+WORKDIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography"
+SIF="${WORKDIR}/00_env/smcpp_latest.sif"
+VCF="${WORKDIR}/04_vcf/final/G_ussuriensis_mainland.autosomes.filtered.vcf.gz"
+CHRFILE="${WORKDIR}/01_reference/autosomes.txt"
+MASK="${WORKDIR}/05_masks/smcpp_exclude.primary.autosomes.sorted.bed"
+MASKDIR="${WORKDIR}/05_masks/by_chrom"
+OUTDIR="${WORKDIR}/06_smc/primary"
+
+mkdir -p "$MASKDIR"
+mkdir -p "$OUTDIR"
+
+
+# ------------------------------------------------------------
+# samples
+# ------------------------------------------------------------
+POP="Mainland"
+SAMPLES="AMNH_21010,AMNH_21128,AMNH_21147,AMNH_21161,AMNH_21162,AMNH_21164,AMNH_21172,AMNH_21185"
+DIST="AMNH_21172"
+
+
+# ------------------------------------------------------------
+# load Apptainer
+# ------------------------------------------------------------
+module load Apptainer/apptainer-1.2.5
+
+
+# ------------------------------------------------------------
+# get chromosome
+# ------------------------------------------------------------
+CHR=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$CHRFILE")
+
+
+# ------------------------------------------------------------
+# chromosome-specific mask
+#
+# SMC++ processes one chromosome at a time, so extract only
+# the mask intervals belonging to the current chromosome.
+# ------------------------------------------------------------
+CHRMASK="${MASKDIR}/${CHR}.smcpp_exclude.bed"
+
+awk -v chr="$CHR" '
+BEGIN {OFS="\t"}
+$1==chr {
+    print $1,$2,$3
+}
+' "$MASK" > "$CHRMASK"
+
+
+# ------------------------------------------------------------
+# output
+# ------------------------------------------------------------
+OUT="${OUTDIR}/${CHR}.${DIST}.smc.gz"
+
+
+# ------------------------------------------------------------
+# job information
+# ------------------------------------------------------------
+echo
+echo "============================================================"
+echo "SMC++ vcf2smc"
+echo "============================================================"
+echo "Chromosome:             $CHR"
+echo "Population:             $POP"
+echo "Distinguished sample:   $DIST"
+echo "VCF:                    $VCF"
+echo "Mask:                   $CHRMASK"
+echo "Container:              $SIF"
+echo "Output:                 $OUT"
+echo "Host:                   $(hostname)"
+echo "Array task:             ${SLURM_ARRAY_TASK_ID}"
+echo "Start:                  $(date)"
+echo "============================================================"
+echo
+
+
+# ------------------------------------------------------------
+# report chromosome mask size
+# ------------------------------------------------------------
+MASKED_BP=$(
+    awk '
+    {
+        bp += $3-$2
+    }
+    END {
+        print bp+0
+    }' "$CHRMASK"
+)
+
+echo "Masked bp on ${CHR}: $MASKED_BP"
+echo
+
+
+# ------------------------------------------------------------
+# verify container
+# ------------------------------------------------------------
+echo "Checking SMC++ container..."
+
+apptainer exec \
+    --cleanenv \
+    --bind "${WORKDIR}:${WORKDIR}" \
+    "$SIF" \
+    smc++ --help \
+    >/dev/null
+
+
+# ------------------------------------------------------------
+# convert VCF to SMC++ format
+#
+# -d DIST DIST:
+#   for unphased data, both distinguished lineages are drawn
+#   from the same diploid individual.
+#
+# --mask:
+#   positions in this BED are marked missing rather than being
+#   interpreted as long homozygous sequence.
+# ------------------------------------------------------------
+apptainer exec \
+    --cleanenv \
+    --bind "${WORKDIR}:${WORKDIR}" \
+    "$SIF" \
+    smc++ vcf2smc \
+    -d "$DIST" "$DIST" \
+    --mask "$CHRMASK" \
+    "$VCF" \
+    "$OUT" \
+    "$CHR" \
+    "${POP}:${SAMPLES}"
+
+
+# ------------------------------------------------------------
+# finish
+# ------------------------------------------------------------
+echo
+echo "============================================================"
+echo "Completed chromosome:   $CHR"
+echo "Distinguished sample:   $DIST"
+echo "Output:                 $OUT"
+echo "Output size:            $(du -h "$OUT" | cut -f1)"
+echo "Finish:                 $(date)"
+echo "============================================================"
+```
