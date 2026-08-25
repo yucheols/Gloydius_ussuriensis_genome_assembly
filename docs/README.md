@@ -62,3 +62,4 @@ __Note:__ I created this documentation in the hopes that my friends and future R
     - __Step 10: VCF filtering - Stage 2 (site missingness filtering)__
     - __Step 11: Final VCF QC__
     - __Step 12: VCF to SMC file conversion__
+    - __Step 13: Demographic estimate using SMC++__
