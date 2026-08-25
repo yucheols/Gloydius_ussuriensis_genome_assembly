@@ -58,3 +58,6 @@ __Note:__ I created this documentation in the hopes that my friends and future R
     - __Step 6: Create actual callable-region BEDs__
     - __Step 7: Make the depth-based SMC++ exclusion mask__
     - __Step 8: Step 8: Joint variant calling using BCFtools__
+    - __Step 9: VCF filtering - Stage 1 (quality filtering)__
+    - __Step 10: VCF filtering - Stage 2 (site missingness filtering)__
+    - __Step 11: Final VCF QC__

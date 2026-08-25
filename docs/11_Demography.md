@@ -1881,7 +1881,7 @@ n_missing_samples  n_sites
 
 This is a very clean distribution. Keeping sites with 0 or 1 missing sample and removing sites with 2 or more missing samples could be a reasonable rule for stage 2 SNP filtering. This also means that the second filtering step will require at least 7 of 8 individuals called at each SNP. So stage 2 filtering would retain 94.41% of the stage 1 SNPs.
 
-### Step 9: VCF filtering - Stage 2 (site missingness filtering)
+### Step 10: VCF filtering - Stage 2 (site missingness filtering)
 This step asks whether the SNPs retained from the first filtering stage still have enough individuals with reliable data.
 
 Use the script below for filtering step 2:
@@ -2222,7 +2222,7 @@ END {
 The results will show that 19,992,682 biallelic SNPs were retained, or 94.41% of the SNPs identified in the first filtering stage.
 
 
-### Step 10: Final VCF QC
+### Step 11: Final VCF QC
 We will now concatenate the 17 stage-2 chromosome VCFs into one final autosomal VCF and conduct QC.
 ```sh
 #!/bin/bash
