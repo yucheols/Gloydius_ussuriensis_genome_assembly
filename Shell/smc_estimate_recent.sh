@@ -23,8 +23,8 @@
 #   3 years/generation
 #
 # time interval:
-#   100-100,000 years before present
-#   33.33-33,333.33 generations
+#   1,000-100,000 years before present
+#   333.33-33,333.33 generations
 #
 # input:
 #   17 autosomal .smc.gz files
@@ -56,7 +56,7 @@ WORKDIR=$(readlink -f "$WORKDIR_LINK")
 
 SIF="${WORKDIR}/00_env/smcpp_latest.sif"
 SMCDIR="${WORKDIR}/06_smc/primary"
-OUTDIR="${WORKDIR}/07_models/recent_100yr_100kyr"
+OUTDIR="${WORKDIR}/07_models/recent_1000yr_100kyr"
 
 mkdir -p "$OUTDIR"
 
@@ -65,7 +65,7 @@ mkdir -p "$OUTDIR"
 # parameters
 # ------------------------------------------------------------
 MU="1.25e-8"
-TIMEPOINT_START="33.33"
+TIMEPOINT_START="333.33"
 TIMEPOINT_END="33333.33"
 
 
@@ -94,7 +94,7 @@ for f in "${SMCFILES[@]}"; do
 
 done
 
-OUT_IN="/work/07_models/recent_100yr_100kyr"
+OUT_IN="/work/07_models/recent_1000yr_100kyr"
 
 
 # ------------------------------------------------------------

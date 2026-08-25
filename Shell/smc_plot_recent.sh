@@ -23,7 +23,7 @@
 #   3 years/generation
 #
 # time interval:
-#   100-100,000 years before present
+#   1,000-100,000 years before present
 # ================================================================
 
 
@@ -46,8 +46,8 @@ WORKDIR_LINK="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demo
 WORKDIR=$(readlink -f "$WORKDIR_LINK")
 
 SIF="${WORKDIR}/00_env/smcpp_latest.sif"
-MODEL="${WORKDIR}/07_models/recent_100yr_100kyr/model.final.json"
-OUTDIR="${WORKDIR}/08_plots/recent_100yr_100kyr"
+MODEL="${WORKDIR}/07_models/recent_1000yr_100kyr/model.final.json"
+OUTDIR="${WORKDIR}/08_plots/recent_1000yr_100kyr"
 
 mkdir -p "$OUTDIR"
 
@@ -61,8 +61,8 @@ GENERATION_TIME="3"
 # ------------------------------------------------------------
 # container paths
 # ------------------------------------------------------------
-MODEL_IN="/work/07_models/recent_100yr_100kyr/model.final.json"
-PLOT_IN="/work/08_plots/recent_100yr_100kyr/G_ussuriensis_mainland_SMCpp_recent_100yr_100kyr.pdf"
+MODEL_IN="/work/07_models/recent_1000yr_100kyr/model.final.json"
+PLOT_IN="/work/08_plots/recent_1000yr_100kyr/G_ussuriensis_mainland_SMCpp_recent_1000yr_100kyr.pdf"
 
 
 # ------------------------------------------------------------
@@ -104,8 +104,8 @@ apptainer exec \
 # ------------------------------------------------------------
 # check outputs
 # ------------------------------------------------------------
-PLOT="${OUTDIR}/G_ussuriensis_mainland_SMCpp_recent_100yr_100kyr.pdf"
-CSV="${OUTDIR}/G_ussuriensis_mainland_SMCpp_recent_100yr_100kyr.csv"
+PLOT="${OUTDIR}/G_ussuriensis_mainland_SMCpp_recent_1000yr_100kyr.pdf"
+CSV="${OUTDIR}/G_ussuriensis_mainland_SMCpp_recent_1000yr_100kyr.csv"
 
 
 # ------------------------------------------------------------
