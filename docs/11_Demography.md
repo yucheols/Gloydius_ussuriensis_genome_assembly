@@ -1437,7 +1437,9 @@ END {
 }' 04_vcf/raw_stats/raw_variant_summary.tsv
 ```
 
-### Step 9: VCF filtering - Stage 1
+### Step 9: VCF filtering - Stage 1 (quality filtering)
+This step takes the raw joint VCF ans keeps only shared-callable regions, SNPs, and biallelic sites. It also requires site QUAL >= 20, and consider DP < 5, DP > 25, and GQ < 20 as missing.
+
 Below is the overall workflow:
 ```sh
 1) raw joint VCF
@@ -1879,7 +1881,9 @@ n_missing_samples  n_sites
 
 This is a very clean distribution. Keeping sites with 0 or 1 missing sample and removing sites with 2 or more missing samples could be a reasonable rule for stage 2 SNP filtering. This also means that the second filtering step will require at least 7 of 8 individuals called at each SNP. So stage 2 filtering would retain 94.41% of the stage 1 SNPs.
 
-### Step 9: VCF filtering - Stage 2
+### Step 9: VCF filtering - Stage 2 (site missingness filtering)
+This step asks whether the SNPs retained from the first filtering stage still have enough individuals with reliable data.
+
 Use the script below for filtering step 2:
 ```sh
 #!/bin/bash
@@ -2405,4 +2409,74 @@ echo "Final VCF:                $FINALVCF"
 echo "Stats:                    $STATS"
 echo "Finish:                   $(date)"
 echo "============================================================"
+```
+
+Now, verify the concatenated VCF and run final QC before SMC++.
+```sh
+grep -A20 "FINAL VCF VALIDATION" \
+    outfiles/slurm-smc_vcf_concat_*.out
+```
+
+The output should print:
+```sh
+FINAL VCF VALIDATION
+============================================================
+Records:                  19992682
+Samples:                  8
+Non-SNP records:          0
+Multiallelic records:     0
+Sites with >1 missing:    0
+Final VCF:                /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/04_vcf/final/G_ussuriensis_mainland.autosomes.filtered.vcf.gz
+Stats:                    /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/04_vcf/final_qc/G_ussuriensis_mainland.autosomes.filtered.stats.txt
+Finish:                   Mon Aug 24 19:52:01 EDT 2026
+============================================================
+```
+
+Confirm the final VCF and index exists:
+```sh
+ls -lh \
+    04_vcf/final/G_ussuriensis_mainland.autosomes.filtered.vcf.gz*
+```
+
+Now use the bcftools stats file that the job already generated and get a series of summary values:
+```sh
+# define path to file
+STATS="04_vcf/final_qc/G_ussuriensis_mainland.autosomes.filtered.stats.txt"
+
+# overall summary
+grep '^SN' "$STATS"
+
+# transition/transversion summary
+grep '^TSTV' "$STATS"
+
+# per-sample QC
+grep '^# PSC' "$STATS"
+grep '^PSC' "$STATS"
+```
+
+Finally, get SNP counts per chromosome directly from the concatenated VCF:
+```sh
+printf "chromosome\tsnps\n" \
+    > 04_vcf/final_qc/snps_per_chromosome.tsv
+
+while read -r chr; do
+
+    n=$(
+        bcftools view \
+            -H \
+            -r "$chr" \
+            04_vcf/final/G_ussuriensis_mainland.autosomes.filtered.vcf.gz |
+        wc -l
+    )
+
+    printf "%s\t%d\n" "$chr" "$n"
+
+done < 01_reference/autosomes.txt \
+    >> 04_vcf/final_qc/snps_per_chromosome.tsv
+```
+
+Look at the file:
+```sh
+column -t -s $'\t' \
+    04_vcf/final_qc/snps_per_chromosome.tsv
 ```
