@@ -961,6 +961,8 @@ done
 ```
 The script above will show that all the assemblies have a very clear chromosome labels. So, the number of sequences exceeding the expected karyotypes can be safely regarded as unplaced scaffolds.
 
+Let's make chromosome files since we do not need unplaced scaffolds in our assembly. Let's first check fasta headers
+
 Run Synk on Mendel:
 ```sh
 #!/bin/sh
