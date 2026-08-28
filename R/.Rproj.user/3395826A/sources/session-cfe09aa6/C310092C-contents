@@ -1,0 +1,336 @@
+# ============================================================
+# Multi-species Synk chromosome-painting plot
+# Gloydius ussuriensis as reference
+# ============================================================
+
+rm(list = ls(all.names = T))
+gc()
+
+library(ggplot2)
+library(dplyr)
+
+
+# ------------------------------------------------------------
+# directories
+# ------------------------------------------------------------
+
+pairwise_dir <- '/home/yshin/Gloydius_ussuriensis_genome_assembly/outputs/synteny'
+pair_dirs <- list.dirs(pairwise_dir, recursive = F, full.names = T)
+pair_dirs <- pair_dirs[grepl('^G_ussuri_vs_', basename(pair_dirs))]
+print(basename(pair_dirs))
+
+
+# ------------------------------------------------------------
+# helper functions
+# ------------------------------------------------------------
+
+# add cumulative positions so chromosomes can be plotted
+# sequentially along one horizontal axis
+# gap = 10 Mb between chromosomes
+
+add_offsets <- function(k, gap = 1e7) {
+  k <- k %>%
+    mutate(Chr = as.character(Chr), chr_order = row_number(), 
+           chr_length = End - Start, offset = lag(cumsum(chr_length + gap), default = 0),
+           x_start = offset, x_end = offset + chr_length)
+  return(k)
+}
+
+
+# Synk / RIdeogram hex colors generally lack '#'
+
+fix_hex <- function(x) {
+  x <- as.character(x)
+  ifelse(grepl('^#', x), x, paste0('#', x))
+}
+
+
+# ------------------------------------------------------------
+# read all Synk pairwise results
+# ------------------------------------------------------------
+
+pair_data <- lapply(pair_dirs, function(d) {
+  target <- sub('^G_ussuri_vs_', '', basename(d))
+  karyo_file <- file.path(d, 'dual_karyotype.txt')
+  syn_file <- file.path(d, 'final_synteny.txt')
+  
+  k <- read.delim(karyo_file, header = T, stringsAsFactors = F, check.names = F)
+  syn <- read.delim(syn_file, header = T, stringsAsFactors = F, check.names = F)
+  
+  names(syn)[1:7] <- c('ref_chr', 'ref_start', 'ref_end', 'target_chr',
+                       'target_start', 'target_end', 'fill')
+  
+  syn$ref_chr <- as.character(syn$ref_chr)
+  syn$target_chr <- as.character(syn$target_chr)
+  
+  list(target = target, karyotype = k, synteny = syn)
+})
+
+
+# ------------------------------------------------------------
+# target species
+# ------------------------------------------------------------
+
+targets <- sapply(pair_data, function(x) x$target)
+print(targets)
+
+
+# ------------------------------------------------------------
+# species plotting order
+# ------------------------------------------------------------
+
+species_order <- c('G_ussuri', 'G_she', 'C_vir', 'C_ada', 'B_ins',
+                   'V_ber', 'C_gas', 'N_naj',
+  'E_sch',
+  'C_asp',
+  'X_uni',
+  'A_dia'
+)
+
+species_order <- species_order[
+  species_order %in% c('G_ussuri', targets)
+]
+
+
+# ------------------------------------------------------------
+# species labels
+# ------------------------------------------------------------
+
+species_labels <- c(
+  G_ussuri = 'G. ussuriensis',
+  G_she    = 'G. shedaoensis',
+  C_vir    = 'C. viridis',
+  C_ada    = 'C. adamanteus',
+  B_ins    = 'B. insularis',
+  V_ber    = 'V. berus',
+  C_gas    = 'C. gasperettii',
+  N_naj    = 'N. naja',
+  E_sch    = 'E. schrenckii',
+  C_asp    = 'C. aspera',
+  X_uni    = 'X. unicolor',
+  A_dia    = 'A. diardii'
+)
+
+
+# ------------------------------------------------------------
+# y positions
+# ------------------------------------------------------------
+
+ypos <- setNames(
+  rev(seq_along(species_order)),
+  species_order
+)
+
+
+# ------------------------------------------------------------
+# G. ussuriensis reference karyotype
+# ------------------------------------------------------------
+
+ref_k <- pair_data[[1]]$karyotype %>%
+  filter(species == 'G_ussuri') %>%
+  add_offsets()
+
+ref_k$y <- ypos['G_ussuri']
+
+ref_k$plot_fill <- fix_hex(ref_k$fill)
+
+
+# ------------------------------------------------------------
+# target karyotypes
+# ------------------------------------------------------------
+
+target_k_list <- lapply(pair_data, function(x) {
+  
+  k <- x$karyotype %>%
+    filter(species == x$target)
+  
+  k <- add_offsets(k)
+  
+  k$species <- x$target
+  
+  k
+})
+
+target_k <- bind_rows(target_k_list)
+
+target_k$y <- ypos[target_k$species]
+
+
+# ------------------------------------------------------------
+# convert target BUSCO positions to cumulative coordinates
+# ------------------------------------------------------------
+
+syn_list <- lapply(pair_data, function(x) {
+  
+  target <- x$target
+  
+  k <- x$karyotype %>%
+    filter(species == target) %>%
+    add_offsets() %>%
+    transmute(
+      target_chr = as.character(Chr),
+      chr_start = Start,
+      offset = offset
+    )
+  
+  syn <- x$synteny %>%
+    left_join(
+      k,
+      by = 'target_chr'
+    ) %>%
+    mutate(
+      species = target,
+      
+      target_mid = (
+        target_start +
+          target_end
+      ) / 2,
+      
+      x = offset +
+        (target_mid - chr_start),
+      
+      plot_colour = fix_hex(fill)
+    )
+  
+  syn
+})
+
+syn_all <- bind_rows(syn_list)
+
+syn_all$y <- ypos[syn_all$species]
+
+
+# ------------------------------------------------------------
+# QC
+# ------------------------------------------------------------
+
+cat(
+  'Number of plotted synteny anchors:',
+  nrow(syn_all),
+  '\n'
+)
+
+print(
+  syn_all %>%
+    count(species)
+)
+
+
+# ------------------------------------------------------------
+# plot
+# ------------------------------------------------------------
+
+bar_half_height <- 0.16
+
+p <- ggplot() +
+  
+  # comparison chromosome bars
+  geom_rect(
+    data = target_k,
+    aes(
+      xmin = x_start / 1e9,
+      xmax = x_end / 1e9,
+      ymin = y - bar_half_height,
+      ymax = y + bar_half_height
+    ),
+    fill = 'grey92',
+    colour = 'grey35',
+    linewidth = 0.20
+  ) +
+  
+  # G. ussuriensis reference chromosome bars
+  geom_rect(
+    data = ref_k,
+    aes(
+      xmin = x_start / 1e9,
+      xmax = x_end / 1e9,
+      ymin = y - bar_half_height,
+      ymax = y + bar_half_height,
+      fill = plot_fill
+    ),
+    colour = 'grey20',
+    linewidth = 0.25
+  ) +
+  
+  # syntenic BUSCO positions
+  geom_segment(
+    data = syn_all,
+    aes(
+      x = x / 1e9,
+      xend = x / 1e9,
+      y = y - bar_half_height,
+      yend = y + bar_half_height,
+      colour = plot_colour
+    ),
+    linewidth = 0.35,
+    alpha = 0.85
+  ) +
+  
+  # chromosome labels for G. ussuriensis
+  geom_text(
+    data = ref_k,
+    aes(
+      x = ((x_start + x_end) / 2) / 1e9,
+      y = y + 0.38,
+      label = Chr
+    ),
+    size = 2.7
+  ) +
+  
+  scale_fill_identity() +
+  scale_colour_identity() +
+  
+  scale_y_continuous(
+    breaks = ypos[species_order],
+    labels = species_labels[species_order],
+    expand = expansion(add = c(0.6, 0.7))
+  ) +
+  
+  scale_x_continuous(
+    expand = expansion(mult = c(0.01, 0.02))
+  ) +
+  
+  labs(
+    x = 'Cumulative chromosome position (Gb)',
+    y = NULL
+  ) +
+  
+  theme_classic(base_size = 12) +
+  
+  theme(
+    axis.line.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_text(
+      face = 'italic',
+      size = 10
+    ),
+    axis.title.x = element_text(
+      margin = margin(t = 10)
+    ),
+    plot.margin = margin(
+      15, 20, 15, 20
+    )
+  )
+
+
+print(p)
+
+
+# ------------------------------------------------------------
+# save
+# ------------------------------------------------------------
+
+ggsave(
+  'outputs/Synk_multispecies_chromosome_painting.pdf',
+  p,
+  width = 15,
+  height = 8.5
+)
+
+ggsave(
+  'outputs/Synk_multispecies_chromosome_painting.png',
+  p,
+  width = 15,
+  height = 8.5,
+  dpi = 500
+)

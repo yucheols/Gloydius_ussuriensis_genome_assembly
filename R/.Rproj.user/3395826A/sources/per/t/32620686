@@ -1,0 +1,27 @@
+{
+    "id": "32620686",
+    "path": "//wsl.localhost/Ubuntu/home/yshin/Gloydius_ussuriensis_genome_assembly/R/Rscripts/smc_curve_plot.R",
+    "project_path": "Rscripts/smc_curve_plot.R",
+    "type": "r_source",
+    "hash": "3726847628",
+    "contents": "",
+    "dirty": false,
+    "created": 1787635274339.0,
+    "source_on_save": false,
+    "relative_order": 3,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "58,37",
+        "scrollLine": "49"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1787649201,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1787649201352,
+    "read_only": false,
+    "read_only_alternatives": []
+}
