@@ -8,6 +8,8 @@
 /outputs/tables
 /outputs/plots
 /outputs/toxin_annotation
-/outputs/synk
+/outputs/synteny_out
+/outputs/demography_out
+/outputs/mitogenome_out
 /inputs/
 #/docs/etc/
