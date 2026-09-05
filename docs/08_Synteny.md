@@ -79,6 +79,63 @@ awk -F '\t' '$3=="CDS"{n++} END{print "CDS:",n}' \
     Crotalus_adamanteus.annotation.gff3
 ```
 
+Also, download gff and protein fasta separately for V. berus and C. aspera, because the assembly download script somehow omitted these files.
+
+For V. berus:
+```sh
+# from the assemblies_synteny/Vipera_berus dir
+# download gff and extract
+wget -qO- \
+    https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/964/194/415/GCF_964194415.1_rVipBer3.hap1.1/GCF_964194415.1_rVipBer3.hap1.1_genomic.gff.gz \
+    | gunzip -c \
+    > Vipera_berus.annotation.gff3  
+
+# download protein fasta
+wget -qO- \
+    https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/964/194/415/GCF_964194415.1_rVipBer3.hap1.1/GCF_964194415.1_rVipBer3.hap1.1_protein.faa.gz \
+    | gunzip -c \
+    > Vipera_berus.protein.faa
+```
+Then verify downloads:
+```sh
+ls -lh \
+    Vipera_berus.annotation.gff3 \
+    Vipera_berus.protein.faa
+
+awk -F '\t' '$3=="gene"{n++} END{print "genes:",n+0}' \
+    Vipera_berus.annotation.gff3
+
+grep -c '^>' \
+    Vipera_berus.protein.faa
+```
+
+Do the same for C. aspera:
+```sh
+# from the assemblies_synteny/Candoia_aspera dir
+# download gff and extract
+wget -qO- \
+    https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/035/149/785/GCF_035149785.1_rCanAsp1.hap2/GCF_035149785.1_rCanAsp1.hap2_genomic.gff.gz \
+    | gunzip -c \
+    > Candoia_aspera.annotation.gff3
+
+# download protein fasta
+wget -qO- \
+    https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/035/149/785/GCF_035149785.1_rCanAsp1.hap2/GCF_035149785.1_rCanAsp1.hap2_protein.faa.gz \
+    | gunzip -c \
+    > Candoia_aspera.protein.faa    
+```
+
+Again, verify downloads:
+```sh
+awk -F '\t' '$3=="gene"{n++} END{print "genes:",n+0}' \
+    Candoia_aspera.annotation.gff3
+
+awk -F '\t' '$3=="CDS"{n++} END{print "CDS:",n+0}' \
+    Candoia_aspera.annotation.gff3
+
+grep -c '^>' Candoia_aspera.protein.faa
+```
+
 ### Step 3: Install software
 We will create several conda env for handling various steps in the synteny analyses.
 
@@ -142,3 +199,48 @@ citation('GENESPACE')
 ```
 
 ### Step 5: Convert .gff into protein fasta
+First, check whether sequence names in the GFF exactly match the FASTA headers:
+```sh
+# from the synteny/assemblies_synteny dir
+for dir in */; do
+
+    sp=${dir%/}
+
+    gff="${dir}/${sp}.annotation.gff3"
+    fa="${dir}/${sp}.genome.fa"
+
+    echo
+    echo "============================================================"
+    echo "$sp"
+    echo "============================================================"
+
+    if [[ ! -s "$gff" ]]; then
+        echo "GFF: MISSING"
+        continue
+    fi
+
+    if [[ ! -s "$fa" ]]; then
+        echo "Genome: MISSING"
+        continue
+    fi
+
+    echo "--- GFF sequence IDs ---"
+
+    awk -F '\t' '
+        $0 !~ /^#/ && NF >= 9 {print $1}
+    ' "$gff" \
+        | sort -u \
+        | head -10
+
+    echo
+    echo "--- FASTA sequence IDs ---"
+
+    grep '^>' "$fa" \
+        | sed 's/^>//' \
+        | cut -d' ' -f1 \
+        | head -10
+
+done
+```
+
+Before changing
