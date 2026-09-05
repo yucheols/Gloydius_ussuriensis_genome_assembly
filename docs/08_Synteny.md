@@ -301,7 +301,7 @@ FASTA IDs: 478
 GFF IDs absent from FASTA:
 ```
 
-#### Fixing slight ID mismatches
+#### Crotalus viridis
 Crotalus viridis and Naja naja have slight mismatches between fasta and gff IDs (e.g., Cvir_CM012306.1 and CM012306.1 in C. viridis). For C. viridis, create a corrected GFF:
 ```sh
 awk -F '\t' 'BEGIN{OFS="\t"}
@@ -342,53 +342,6 @@ mv Crotalus_viridis.annotation.gff3 \
 
 mv Crotalus_viridis.annotation.seqids_fixed.gff3 \
    Crotalus_viridis.annotation.gff3
-
-mkdir fasta_gff_ids_check
-mv *.txt *.tsv *.idclean.gff3 *.original.gff3 fasta_gff_ids_check/
-```
-
-
-Repeat the same for N. naja:
-```sh
-awk -F '\t' 'BEGIN{OFS="\t"}
-    /^#/ {
-        print
-        next
-    }
-    {
-        sub(/^Nnaj_/, "", $1)
-        sub(/_np121212$/, "", $1)
-        print
-    }
-' Naja_naja/Naja_naja.annotation.gff3 \
-> Naja_naja/Naja_naja.annotation.seqids_fixed.gff3
-```
-...and again verify and check nothing prints to the console.
-```sh
-awk -F '\t' \
-    '$0 !~ /^#/ {print $1}' \
-    Naja_naja/Naja_naja.annotation.seqids_fixed.gff3 \
-    | sort -u \
-    > Naja_naja/gff_fixed_seqids.txt
-
-grep '^>' Naja_naja/Naja_naja.genome.fa \
-    | sed 's/^>//' \
-    | awk '{print $1}' \
-    | sort -u \
-    > Naja_naja/fasta_seqids.txt
-
-comm -23 \
-    Naja_naja/gff_fixed_seqids.txt \
-    Naja_naja/fasta_seqids.txt
-```
-
-Change the file name for downstream use:
-```sh
-mv Naja_naja.annotation.gff3 \
-   Naja_naja.annotation.original.gff3
-
-mv Naja_naja.annotation.seqids_fixed.gff3 \
-   Naja_naja.annotation.gff3
 
 mkdir fasta_gff_ids_check
 mv *.txt *.tsv *.idclean.gff3 *.original.gff3 fasta_gff_ids_check/

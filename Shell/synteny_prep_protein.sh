@@ -11,16 +11,22 @@
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
+
 # activate conda environment
 source /home/yshin/mendel-nas1/miniconda3/etc/profile.d/conda.sh
 conda activate synteny_qc
-set -uo pipefail
 
-# root directory
+set -euo pipefail
+
+
+# paths
 ROOT="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny"
 cd "$ROOT"
 
-# check programs
+SUMMARY="${ROOT}/annotation_protein_inventory.tsv"
+
+
+# check required programs
 for cmd in gffread gzip grep awk find readlink; do
 
     if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -30,11 +36,10 @@ for cmd in gffread gzip grep awk find readlink; do
 
 done
 
-# output summary
-SUMMARY="${ROOT}/annotation_protein_inventory.tsv"
 
+# initialize summary
 printf \
-"species\tgenome\tannotation\tprotein\tCDS_records\tprotein_sequences\taction\tstatus\n" \
+"species\tgenome\tannotation\tannotation_format\tprotein\tCDS_records\tprotein_sequences\taction\tstatus\n" \
 > "$SUMMARY"
 
 
@@ -55,7 +60,7 @@ find_genome() {
     fi
 
     # otherwise search
-    f=$(find "$dir" -type f \
+    f=$(find "$dir" -maxdepth 2 -type f \
         \( -iname '*genomic.fna' \
            -o -iname '*.genome.fa' \
            -o -iname '*.genome.fasta' \
@@ -77,15 +82,50 @@ find_annotation() {
     local sp="$2"
     local f=""
 
-    # preferred standardized filename
+    # --------------------------------------------------------
+    # preferred standardized filenames
+    # --------------------------------------------------------
+
     if [[ -s "${dir}/${sp}.annotation.gff3" ]]; then
         printf '%s\n' "${dir}/${sp}.annotation.gff3"
         return
     fi
 
-    # prefer GFF3
-    f=$(find "$dir" -type f \
+    if [[ -s "${dir}/${sp}.annotation.gtf" ]]; then
+        printf '%s\n' "${dir}/${sp}.annotation.gtf"
+        return
+    fi
+
+    if [[ -s "${dir}/${sp}.annotation.gff" ]]; then
+        printf '%s\n' "${dir}/${sp}.annotation.gff"
+        return
+    fi
+
+    if [[ -s "${dir}/${sp}.annotation.gff3.gz" ]]; then
+        printf '%s\n' "${dir}/${sp}.annotation.gff3.gz"
+        return
+    fi
+
+    if [[ -s "${dir}/${sp}.annotation.gtf.gz" ]]; then
+        printf '%s\n' "${dir}/${sp}.annotation.gtf.gz"
+        return
+    fi
+
+    if [[ -s "${dir}/${sp}.annotation.gff.gz" ]]; then
+        printf '%s\n' "${dir}/${sp}.annotation.gff.gz"
+        return
+    fi
+
+
+    # --------------------------------------------------------
+    # fallback search: GFF3
+    # --------------------------------------------------------
+
+    f=$(find "$dir" -maxdepth 2 -type f \
         \( -iname '*.gff3' -o -iname '*.gff3.gz' \) \
+        ! -iname '*original*' \
+        ! -iname '*old*' \
+        ! -iname '*repeat_annotation*' \
         -print -quit)
 
     if [[ -n "$f" ]]; then
@@ -93,22 +133,66 @@ find_annotation() {
         return
     fi
 
-    # then GFF
-    f=$(find "$dir" -type f \
-        \( -iname '*.gff' -o -iname '*.gff.gz' \) \
-        -print -quit)
 
-    if [[ -n "$f" ]]; then
-        printf '%s\n' "$f"
-        return
-    fi
+    # --------------------------------------------------------
+    # fallback search: GTF
+    # --------------------------------------------------------
 
-    # finally GTF
-    f=$(find "$dir" -type f \
+    f=$(find "$dir" -maxdepth 2 -type f \
         \( -iname '*.gtf' -o -iname '*.gtf.gz' \) \
+        ! -iname '*original*' \
+        ! -iname '*old*' \
+        ! -iname '*repeat_annotation*' \
+        -print -quit)
+
+    if [[ -n "$f" ]]; then
+        printf '%s\n' "$f"
+        return
+    fi
+
+
+    # --------------------------------------------------------
+    # fallback search: GFF
+    # --------------------------------------------------------
+
+    f=$(find "$dir" -maxdepth 2 -type f \
+        \( -iname '*.gff' -o -iname '*.gff.gz' \) \
+        ! -iname '*original*' \
+        ! -iname '*old*' \
+        ! -iname '*repeat_annotation*' \
         -print -quit)
 
     printf '%s\n' "$f"
+}
+
+
+# ============================================================
+# helper: determine annotation format
+# ============================================================
+
+annotation_format() {
+
+    local f="$1"
+
+    case "$f" in
+
+        *.gff3|*.gff3.gz)
+            printf 'GFF3\n'
+            ;;
+
+        *.gtf|*.gtf.gz)
+            printf 'GTF\n'
+            ;;
+
+        *.gff|*.gff.gz)
+            printf 'GFF\n'
+            ;;
+
+        *)
+            printf 'UNKNOWN\n'
+            ;;
+
+    esac
 }
 
 
@@ -129,7 +213,7 @@ find_protein() {
     fi
 
     # *.faa
-    f=$(find "$dir" -type f \
+    f=$(find "$dir" -maxdepth 2 -type f \
         \( -iname '*.faa' -o -iname '*.faa.gz' \) \
         -print -quit)
 
@@ -139,7 +223,7 @@ find_protein() {
     fi
 
     # protein-named FASTAs
-    f=$(find "$dir" -type f \
+    f=$(find "$dir" -maxdepth 2 -type f \
         \( -iname '*protein*.fa' \
            -o -iname '*protein*.fasta' \
            -o -iname '*protein*.fa.gz' \
@@ -151,6 +235,25 @@ find_protein() {
         -print -quit)
 
     printf '%s\n' "$f"
+}
+
+
+# ============================================================
+# helper: count FASTA sequences
+# ============================================================
+
+count_fasta_sequences() {
+
+    local f="$1"
+
+    awk '
+        /^>/ {
+            n++
+        }
+        END {
+            print n+0
+        }
+    ' "$f"
 }
 
 
@@ -170,9 +273,9 @@ for dir in "${ROOT}"/*/; do
     echo "============================================================"
 
 
-    # --------------------------------------------------------
-    # find genome
-    # --------------------------------------------------------
+    # ========================================================
+    # genome
+    # ========================================================
 
     genome=$(find_genome "$dir" "$sp")
 
@@ -181,8 +284,9 @@ for dir in "${ROOT}"/*/; do
         echo "Genome: MISSING"
 
         printf \
-        "%s\tMISSING\tMISSING\tMISSING\tNA\tNA\tnone\tFAILED_NO_GENOME\n" \
-            "$sp" >> "$SUMMARY"
+        "%s\tMISSING\tMISSING\tNA\tMISSING\tNA\tNA\tnone\tFAILED_NO_GENOME\n" \
+            "$sp" \
+            >> "$SUMMARY"
 
         continue
 
@@ -192,9 +296,9 @@ for dir in "${ROOT}"/*/; do
     echo "  ${genome}"
 
 
-    # --------------------------------------------------------
-    # find annotation
-    # --------------------------------------------------------
+    # ========================================================
+    # annotation
+    # ========================================================
 
     annotation=$(find_annotation "$dir" "$sp")
 
@@ -211,7 +315,10 @@ for dir in "${ROOT}"/*/; do
 
             if [[ "$protein" == *.gz ]]; then
 
-                gzip -dc "$protein" > "${dir}/${sp}.protein.faa"
+                echo "Decompressing protein FASTA..."
+
+                gzip -dc "$protein" \
+                    > "${dir}/${sp}.protein.faa"
 
             elif [[ "$protein" != "${dir}/${sp}.protein.faa" ]]; then
 
@@ -221,10 +328,10 @@ for dir in "${ROOT}"/*/; do
 
             fi
 
-            nprot=$(grep -c '^>' "${dir}/${sp}.protein.faa")
+            nprot=$(count_fasta_sequences "${dir}/${sp}.protein.faa")
 
             printf \
-            "%s\t%s\tMISSING\t%s\tNA\t%s\tprotein_exists\tWARNING_NO_ANNOTATION\n" \
+            "%s\t%s\tMISSING\tNA\t%s\tNA\t%s\tprotein_exists\tWARNING_NO_ANNOTATION\n" \
                 "$sp" \
                 "$genome" \
                 "${dir}/${sp}.protein.faa" \
@@ -234,7 +341,7 @@ for dir in "${ROOT}"/*/; do
         else
 
             printf \
-            "%s\t%s\tMISSING\tMISSING\tNA\tNA\tnone\tFAILED_NO_ANNOTATION\n" \
+            "%s\t%s\tMISSING\tNA\tMISSING\tNA\tNA\tnone\tFAILED_NO_ANNOTATION\n" \
                 "$sp" \
                 "$genome" \
                 >> "$SUMMARY"
@@ -245,20 +352,44 @@ for dir in "${ROOT}"/*/; do
 
     fi
 
+
+    format=$(annotation_format "$annotation")
+
     echo "Annotation:"
     echo "  ${annotation}"
 
+    echo "Annotation format:"
+    echo "  ${format}"
 
-    # --------------------------------------------------------
-    # prepare annotation for gffread if compressed
-    # --------------------------------------------------------
+
+    # ========================================================
+    # prepare compressed annotation
+    # ========================================================
 
     annotation_use="$annotation"
     annotation_tmp=""
 
     if [[ "$annotation" == *.gz ]]; then
 
-        annotation_tmp="${dir}/.${sp}.annotation.tmp.gff"
+        case "$annotation" in
+
+            *.gff3.gz)
+                annotation_tmp="${dir}/.${sp}.annotation.tmp.gff3"
+                ;;
+
+            *.gtf.gz)
+                annotation_tmp="${dir}/.${sp}.annotation.tmp.gtf"
+                ;;
+
+            *.gff.gz)
+                annotation_tmp="${dir}/.${sp}.annotation.tmp.gff"
+                ;;
+
+            *)
+                annotation_tmp="${dir}/.${sp}.annotation.tmp"
+                ;;
+
+        esac
 
         echo "Decompressing annotation temporarily..."
 
@@ -269,42 +400,9 @@ for dir in "${ROOT}"/*/; do
     fi
 
 
-    # --------------------------------------------------------
-    # standardized annotation symlink
-    #
-    # only create when annotation itself is uncompressed
-    # --------------------------------------------------------
-
-    if [[ "$annotation_use" != "${dir}/${sp}.annotation.gff3" ]]; then
-
-        if [[ -z "$annotation_tmp" ]]; then
-
-            ln -sfn \
-                "$(readlink -f "$annotation_use")" \
-                "${dir}/${sp}.annotation.gff3"
-
-        else
-
-            cp "$annotation_use" \
-                "${dir}/${sp}.annotation.gff3"
-
-            annotation_use="${dir}/${sp}.annotation.gff3"
-
-            rm -f "$annotation_tmp"
-            annotation_tmp=""
-
-        fi
-
-    else
-
-        annotation_use="${dir}/${sp}.annotation.gff3"
-
-    fi
-
-
-    # --------------------------------------------------------
+    # ========================================================
     # count CDS records
-    # --------------------------------------------------------
+    # ========================================================
 
     ncds=$(awk -F '\t' \
         '$0 !~ /^#/ && $3=="CDS"{n++} END{print n+0}' \
@@ -313,9 +411,9 @@ for dir in "${ROOT}"/*/; do
     echo "CDS records: ${ncds}"
 
 
-    # --------------------------------------------------------
-    # find existing protein FASTA
-    # --------------------------------------------------------
+    # ========================================================
+    # existing protein FASTA
+    # ========================================================
 
     protein=$(find_protein "$dir" "$sp")
 
@@ -324,7 +422,11 @@ for dir in "${ROOT}"/*/; do
         echo "Protein FASTA already exists:"
         echo "  ${protein}"
 
-        # standardize filename
+
+        # ----------------------------------------------------
+        # standardize protein filename
+        # ----------------------------------------------------
+
         if [[ "$protein" == *.gz ]]; then
 
             echo "Decompressing protein FASTA..."
@@ -340,15 +442,35 @@ for dir in "${ROOT}"/*/; do
 
         fi
 
-        nprot=$(grep -c '^>' "${dir}/${sp}.protein.faa")
+
+        # ----------------------------------------------------
+        # count proteins
+        # ----------------------------------------------------
+
+        nprot=$(count_fasta_sequences "${dir}/${sp}.protein.faa")
 
         echo "Protein sequences: ${nprot}"
 
+
+        # ----------------------------------------------------
+        # cleanup temporary annotation
+        # ----------------------------------------------------
+
+        if [[ -n "$annotation_tmp" ]]; then
+            rm -f "$annotation_tmp"
+        fi
+
+
+        # ----------------------------------------------------
+        # summary
+        # ----------------------------------------------------
+
         printf \
-        "%s\t%s\t%s\t%s\t%s\t%s\tprotein_exists\tOK\n" \
+        "%s\t%s\t%s\t%s\t%s\t%s\t%s\tprotein_exists\tOK\n" \
             "$sp" \
             "$genome" \
-            "${dir}/${sp}.annotation.gff3" \
+            "$annotation" \
+            "$format" \
             "${dir}/${sp}.protein.faa" \
             "$ncds" \
             "$nprot" \
@@ -359,23 +481,34 @@ for dir in "${ROOT}"/*/; do
     fi
 
 
-    # --------------------------------------------------------
-    # protein missing -> generate from GFF + genome
-    # --------------------------------------------------------
+    # ========================================================
+    # protein missing
+    # ========================================================
 
     echo "Protein FASTA: MISSING"
 
+
+    # --------------------------------------------------------
+    # annotation must contain CDS
+    # --------------------------------------------------------
 
     if [[ "$ncds" -eq 0 ]]; then
 
         echo "ERROR: Annotation contains no CDS features."
         echo "Cannot derive proteins."
 
+
+        if [[ -n "$annotation_tmp" ]]; then
+            rm -f "$annotation_tmp"
+        fi
+
+
         printf \
-        "%s\t%s\t%s\tMISSING\t0\tNA\tcannot_generate\tFAILED_NO_CDS\n" \
+        "%s\t%s\t%s\t%s\tMISSING\t0\tNA\tcannot_generate\tFAILED_NO_CDS\n" \
             "$sp" \
             "$genome" \
-            "${dir}/${sp}.annotation.gff3" \
+            "$annotation" \
+            "$format" \
             >> "$SUMMARY"
 
         continue
@@ -383,36 +516,56 @@ for dir in "${ROOT}"/*/; do
     fi
 
 
+    # ========================================================
+    # generate protein FASTA with gffread
+    # ========================================================
+
     outfile="${dir}/${sp}.protein.faa"
     tmp="${outfile}.tmp"
 
     rm -f "$tmp"
 
     echo "Generating protein FASTA with gffread..."
+    echo "Annotation used:"
+    echo "  ${annotation_use}"
+
 
     if gffread \
-        "${dir}/${sp}.annotation.gff3" \
+        "$annotation_use" \
         -g "$genome" \
         -y "$tmp"; then
+
+
+        # ----------------------------------------------------
+        # validate generated FASTA
+        # ----------------------------------------------------
 
         if [[ -s "$tmp" ]] && grep -m1 -q '^>' "$tmp"; then
 
             mv "$tmp" "$outfile"
 
-            nprot=$(grep -c '^>' "$outfile")
+            nprot=$(count_fasta_sequences "$outfile")
 
             echo "Protein generation: OK"
             echo "Protein sequences: ${nprot}"
 
+
+            if [[ -n "$annotation_tmp" ]]; then
+                rm -f "$annotation_tmp"
+            fi
+
+
             printf \
-            "%s\t%s\t%s\t%s\t%s\t%s\tgenerated_from_annotation\tOK\n" \
+            "%s\t%s\t%s\t%s\t%s\t%s\t%s\tgenerated_from_annotation\tOK\n" \
                 "$sp" \
                 "$genome" \
-                "${dir}/${sp}.annotation.gff3" \
+                "$annotation" \
+                "$format" \
                 "$outfile" \
                 "$ncds" \
                 "$nprot" \
                 >> "$SUMMARY"
+
 
         else
 
@@ -420,15 +573,23 @@ for dir in "${ROOT}"/*/; do
 
             rm -f "$tmp"
 
+
+            if [[ -n "$annotation_tmp" ]]; then
+                rm -f "$annotation_tmp"
+            fi
+
+
             printf \
-            "%s\t%s\t%s\tMISSING\t%s\t0\tgffread_failed\tFAILED\n" \
+            "%s\t%s\t%s\t%s\tMISSING\t%s\t0\tgffread_failed\tFAILED\n" \
                 "$sp" \
                 "$genome" \
-                "${dir}/${sp}.annotation.gff3" \
+                "$annotation" \
+                "$format" \
                 "$ncds" \
                 >> "$SUMMARY"
 
         fi
+
 
     else
 
@@ -436,11 +597,18 @@ for dir in "${ROOT}"/*/; do
 
         rm -f "$tmp"
 
+
+        if [[ -n "$annotation_tmp" ]]; then
+            rm -f "$annotation_tmp"
+        fi
+
+
         printf \
-        "%s\t%s\t%s\tMISSING\t%s\tNA\tgffread_failed\tFAILED\n" \
+        "%s\t%s\t%s\t%s\tMISSING\t%s\tNA\tgffread_failed\tFAILED\n" \
             "$sp" \
             "$genome" \
-            "${dir}/${sp}.annotation.gff3" \
+            "$annotation" \
+            "$format" \
             "$ncds" \
             >> "$SUMMARY"
 
@@ -469,6 +637,8 @@ else
 
 fi
 
+# print when done
 echo
 echo "Summary written to:"
 echo "  ${SUMMARY}"
+echo
