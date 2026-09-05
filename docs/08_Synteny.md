@@ -198,7 +198,7 @@ library(GENESPACE)
 citation('GENESPACE')
 ```
 
-### Step 5: Convert .gff into protein fasta
+### Step 4: GFF-FASTA sequence ID matching
 First, check whether sequence names in the GFF exactly match the FASTA headers:
 ```sh
 # from the synteny/assemblies_synteny dir
@@ -415,7 +415,7 @@ done
 
 The output will tell us that, for example, Gshe_Chr01 is GWHBWDW00000001.
 
-##### Gloydius shedaoensis
+#### Gloydius shedaoensis
 Run this script first to build a seq id mapping directly from fasta headers:
 ```sh
 cd Gloydius_shedaoensis
@@ -564,5 +564,302 @@ mkdir fasta_gff_ids_check
 mv *.txt *.tsv *.idclean.gff3 *.original.gff3 fasta_gff_ids_check/
 ```
 
-##### Xenopeltis unicolor
-The id fix for this species is straightforward 
+#### Xenopeltis unicolor
+The id fix for this species is straightforward because the original sequence names are preserved in OriSeqID=.
+
+First, build the original seq name - GWH accession mapping:
+```sh
+awk -F '\t' '
+    /^>/ {
+        acc=$1
+        sub(/^>/, "", acc)
+
+        for(i=1;i<=NF;i++) {
+            if($i ~ /^OriSeqID=/) {
+                orig=$i
+                sub(/^OriSeqID=/, "", orig)
+                print orig "\t" acc
+            }
+        }
+    }
+' Xenopeltis_unicolor.genome.fa \
+> seqid_map.tsv
+```
+
+Check the output. We can see that the mapping is clean, with chromosome scale contigs clearly labeled.
+```sh
+head -30 seqid_map.tsv
+```
+
+Now, run this:
+```sh
+awk -F '\t' '$0 !~ /^#/ {print $1}' \
+    Xenopeltis_unicolor.annotation.gff3 \
+    | sort -u \
+    > gff_ids.txt
+
+cut -f1 seqid_map.tsv \
+    | sort -u \
+    > mapped_ids.txt
+
+comm -23 gff_ids.txt mapped_ids.txt
+```
+
+The last chunk will print this:
+```sh
+Xuni_Chr01
+Xuni_Chr02
+Xuni_Chr03
+Xuni_Chr04
+Xuni_Chr05
+Xuni_Chr06
+Xuni_Chr07
+Xuni_Chr08
+Xuni_Chr09
+Xuni_Chr10
+Xuni_Chr11
+Xuni_Chr12
+Xuni_Chr13
+Xuni_Chr14
+Xuni_Chr15
+Xuni_Chr16
+Xuni_Chr17
+Xuni_Chr18
+```
+
+This is a simple, clean naming mismatch. The fasta ID is using Xhai, whereas gff ID is using Xuni. Let's check whether changing Xuni to Xhai resolves every remaining gff sequence ID.
+```sh
+awk -F '\t' '$0 !~ /^#/ {
+    x=$1
+    sub(/^Xuni_/, "Xhai_", x)
+    print x
+}' Xenopeltis_unicolor.annotation.gff3 \
+    | sort -u \
+    > gff_ids_transformed.txt
+
+comm -23 gff_ids_transformed.txt mapped_ids.txt
+```
+
+This will not print any outputs, which means that the prefix difference is the entire problem.
+
+Now, create an intermediate cleaned gff:
+```sh
+awk -F '\t' 'BEGIN{OFS="\t"}
+    /^#/ {
+        print
+        next
+    }
+    {
+        sub(/^Xuni_/, "Xhai_", $1)
+        print
+    }
+' Xenopeltis_unicolor.annotation.gff3 \
+> Xenopeltis_unicolor.annotation.idclean.gff3
+```
+
+Then convert all those original names to the actual GWH accessions:
+```sh
+awk -F '\t' 'BEGIN{OFS="\t"}
+
+    NR==FNR {
+        map[$1]=$2
+        next
+    }
+
+    /^#/ {
+        print
+        next
+    }
+
+    {
+        if(!($1 in map)) {
+            print "ERROR: unmapped sequence ID: " $1 > "/dev/stderr"
+            exit 1
+        }
+
+        $1=map[$1]
+        print
+    }
+
+' seqid_map.tsv \
+  Xenopeltis_unicolor.annotation.idclean.gff3 \
+> Xenopeltis_unicolor.annotation.seqids_fixed.gff3
+```
+
+Now, convert filenames for downstream use:
+```sh
+mv Xenopeltis_unicolor.annotation.gff3 \
+   Xenopeltis_unicolor.annotation.original.gff3
+
+mv Xenopeltis_unicolor.annotation.seqids_fixed.gff3 \
+   Xenopeltis_unicolor.annotation.gff3
+
+mkdir fasta_gff_ids_check
+mv *.txt *.tsv *.idclean.gff3 *.original.gff3 fasta_gff_ids_check/
+```
+
+#### Argyrophis diardii
+Resolve in the same way as above.
+
+#### Bothrops insularis
+For this species, before trying to map gff Binsu_* chromosome names to fasta CM1480*.1, let's check the NCBI sequence report:
+```sh
+# inspect one record
+head -1 $(find . -name 'sequence_report.jsonl' | head -1) | jq .
+
+# show full fasta header
+grep '^>' Bothrops_insularis.genome.fa \
+    | head -25 \
+    | cat -A
+```
+The FASTA headers already expose the chromosome identities, and the numbering strongly suggests the published Binsu_* aliases correspond directly to those chromosomes such that:
+```sh
+Binsu_ma-1  -> CM148030.1   chromosome 1
+Binsu_ma-2  -> CM148031.1   chromosome 2
+Binsu_ma-3  -> CM148032.1   chromosome 3
+Binsu_ma-4  -> CM148033.1   chromosome 4
+Binsu_ma-5  -> CM148034.1   chromosome 5
+Binsu_ma-6  -> CM148035.1   chromosome 6
+Binsu_ma-7  -> CM148036.1   chromosome 7
+
+Binsu_mi-1  -> CM148037.1   chromosome 9
+Binsu_mi-2  -> CM148038.1   chromosome 10
+...
+Binsu_mi-10 -> CM148046.1   chromosome 18
+
+Binsu_Z     -> CM148047.1   chromosome Z
+```
+
+Now, let's get every sequence ID in the gff and its maximum feature coordinate:
+```sh
+awk -F '\t' '
+    $0 !~ /^#/ && NF >= 5 {
+        if($5 > max[$1])
+            max[$1]=$5
+    }
+    END {
+        for(x in max)
+            print x, max[x]
+    }
+' Bothrops_insularis.annotation.gff3 \
+| sort -V
+```
+
+Also get the chromosome accessions and lengths from the fasta:
+```sh
+samtools faidx Bothrops_insularis.genome.fa
+
+awk '
+    NR <= 18 {
+        print $1, $2
+    }
+' Bothrops_insularis.genome.fa.fai
+```
+
+The outputs are enough to confidently resolve naming discrepencies.
+```sh
+GFF             max feature    FASTA accession    FASTA length
+Binsu_ma-1      352151586      CM148030.1         352152128
+Binsu_ma-2      279938784      CM148031.1         279938784
+Binsu_ma-3      206955912      CM148032.1         206955912
+Binsu_ma-4      122534957      CM148033.1         122534993
+Binsu_ma-5      100144331      CM148034.1         100144331
+Binsu_ma-6       88848289      CM148035.1          88848289
+Binsu_ma-7       82184342      CM148036.1          82184716
+
+Binsu_mi-1       24375632      CM148037.1          24375633
+Binsu_mi-2       22207381      CM148038.1          22207440
+Binsu_mi-3       19746646      CM148039.1          19746646
+Binsu_mi-4       18317824      CM148040.1          18318580
+Binsu_mi-5       17755719      CM148041.1          17755719
+Binsu_mi-6       17602135      CM148042.1          17602211
+Binsu_mi-7       14071518      CM148043.1          14071536
+Binsu_mi-8       13870028      CM148044.1          13870031
+Binsu_mi-9       13660605      CM148045.1          13662181
+Binsu_mi-10      11461905      CM148046.1          11461905
+
+Binsu_Z         138394576      CM148047.1         138394576
+```
+
+Directly create the mapping file:
+```sh
+printf "Binsu_ma-1\tCM148030.1\n\
+Binsu_ma-2\tCM148031.1\n\
+Binsu_ma-3\tCM148032.1\n\
+Binsu_ma-4\tCM148033.1\n\
+Binsu_ma-5\tCM148034.1\n\
+Binsu_ma-6\tCM148035.1\n\
+Binsu_ma-7\tCM148036.1\n\
+Binsu_mi-1\tCM148037.1\n\
+Binsu_mi-2\tCM148038.1\n\
+Binsu_mi-3\tCM148039.1\n\
+Binsu_mi-4\tCM148040.1\n\
+Binsu_mi-5\tCM148041.1\n\
+Binsu_mi-6\tCM148042.1\n\
+Binsu_mi-7\tCM148043.1\n\
+Binsu_mi-8\tCM148044.1\n\
+Binsu_mi-9\tCM148045.1\n\
+Binsu_mi-10\tCM148046.1\n\
+Binsu_Z\tCM148047.1\n" > seqid_map.tsv
+```
+
+... and verify the script below prints nothing.
+```sh
+awk -F '\t' '$0 !~ /^#/ {print $1}' \
+    Bothrops_insularis.annotation.gff3 \
+    | sort -u \
+    > gff_ids.txt
+
+cut -f1 seqid_map.tsv | sort -u > mapped_ids.txt
+
+comm -23 gff_ids.txt mapped_ids.txt
+```
+
+Now, create fixed gff:
+```sh
+awk -F '\t' 'BEGIN{OFS="\t"}
+
+    NR==FNR {
+        map[$1]=$2
+        next
+    }
+
+    /^#/ {
+        print
+        next
+    }
+
+    {
+        if(!($1 in map)) {
+            print "ERROR: unmapped sequence ID: " $1 > "/dev/stderr"
+            exit 1
+        }
+
+        $1=map[$1]
+        print
+    }
+
+' seqid_map.tsv \
+  Bothrops_insularis.annotation.gff3 \
+> Bothrops_insularis.annotation.seqids_fixed.gff3
+```
+
+Change file names:
+```sh
+mv Bothrops_insularis.annotation.gff3 \
+   Bothrops_insularis.annotation.original.gff3
+
+mv Bothrops_insularis.annotation.seqids_fixed.gff3 \
+   Bothrops_insularis.annotation.gff3
+
+mkdir fasta_gff_ids_check
+mv *.txt *.tsv *.original.gff3 fasta_gff_ids_check/
+```
+
+#### Cerastes gasperettii
+Use the same strategy as Bothrops.
+
+#### Elaphe schrenckii
+Same deal as above.
+
+### Step 5: Convert .gff into protein fasta
