@@ -141,4 +141,4 @@ library(GENESPACE)
 citation('GENESPACE')
 ```
 
-### Step 5:
+### Step 5: Convert .gff into protein fasta
