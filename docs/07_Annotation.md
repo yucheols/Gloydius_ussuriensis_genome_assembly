@@ -1013,91 +1013,106 @@ outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation
 # run funannotate update
 funannotate update -i ${outdir} --cpus $SLURM_CPUS_PER_TASK
 ```
-####  funannotate step 4: Fix
-```sh
-#!/bin/bash
-#SBATCH --job-name funannotate_fix
-#SBATCH --nodes=1
-#SBATCH --partition=compute
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=32
-#SBATCH --mem=300G
-#SBATCH --time=300:00:00
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
-# activate environment and set up analyses
-source ~/.bash_profile
-conda activate funannotate
-set -euo pipefail
-
-# avoid system library conflicts
-export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
-
-# funannotate databases and external tools
-export FUNANNOTATE_DB="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate_db"
-export GENEMARK_PATH="/home/yshin/mendel-nas1/gmes_linux_64/gmes_linux_64_4"
-export PATH="$GENEMARK_PATH:$PATH"
-export EGGNOG_DATA_DIR="/home/yshin/mendel-nas1/eggnog_db"
-
-# use a short temporary directory and clean it up on exit
-export TMPDIR="/tmp/yshin_fun_${SLURM_JOB_ID}"
-export TEMP="$TMPDIR"
-export TMP="$TMPDIR"
-mkdir -p "$TMPDIR"
-
-trap 'rm -rf "$TMPDIR"' EXIT
-
-# output directory for funannotate results
-outdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate/"
-
-# run funannotate fix
-funannotate fix -i ${outdir}/update_results/Gloydius_ussuriensis.gbk -t ${outdir}/update_results/Gloydius_ussuriensis.tbl
-```
-
-####  funannotate step 5: InterProScan
+####  funannotate step 4: InterProScan
 Run interproscan through "funannotate iprscan" using the script below:
 ```sh
 #!/bin/bash
-#SBATCH --job-name=iprscan
+#SBATCH --job-name=funannotate_iprscan
 #SBATCH --nodes=1
 #SBATCH --partition=compute
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=300G
-#SBATCH --time=168:00:00
+#SBATCH --time=720:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
-# activate conda env
+# activate conda environment
 source ~/.bash_profile
 conda activate funannotate
 
 set -euo pipefail
 
 
+# ------------------------------------------------------------
 # set paths
-workdir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate"
-outdir="${workdir}/G_ussuriensis_funannotate"
-iprdir="/home/yshin/mendel-nas1/interproscan/interproscan-5.78-109.0"
-iprscan="${iprdir}/interproscan.sh"
+# ------------------------------------------------------------
 
-# run interproscan
-cd "$workdir"
+# base Funannotate directory
+# this directory contains update_results/
+FUN_DIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate"
+
+# local InterProScan installation
+IPR_DIR="/home/yshin/mendel-nas1/interproscan/interproscan-5.78-109.0"
+IPRSCAN="${IPR_DIR}/interproscan.sh"
+
+# expected updated protein FASTA
+PROTEINS="${FUN_DIR}/update_results/Gloydius_ussuriensis_AMNH_21010.proteins.fa"
+
+
+# ------------------------------------------------------------
+# print helpful information
+# ------------------------------------------------------------
+
+echo
+echo "Protein count:"
+grep -c '^>' "${PROTEINS}"
+
+echo
+echo "funannotate version:"
+funannotate version
+
+echo
+echo "InterProScan version:"
+"${IPRSCAN}" -version
+
+echo
+
+
+# ------------------------------------------------------------
+# run InterProScan through funannotate
+# ------------------------------------------------------------
+
+cd "${FUN_DIR}"
 
 funannotate iprscan \
-    -i "$outdir" \
+    -i "${FUN_DIR}" \
     -m local \
-    --iprscan_path "$iprscan" \
-    -c 4 \
-    --debug
+    --iprscan_path "${IPRSCAN}" \
+    -c 4
+
+
+# ------------------------------------------------------------
+# verify output
+# ------------------------------------------------------------
+
+IPR_XML="${FUN_DIR}/annotate_misc/iprscan.xml"
+
+echo
+echo "============================================================"
+
+if [[ -s "${IPR_XML}" ]]; then
+    echo "InterProScan completed successfully."
+    echo "Output:"
+    ls -lh "${IPR_XML}"
+else
+    echo "ERROR: Expected InterProScan XML was not produced:"
+    echo "${IPR_XML}"
+    exit 1
+fi
+
+# ------------------------------------------------------------
+# print when finished
+# ------------------------------------------------------------
+
+echo "Finished: $(date)"
+echo "============================================================"
 ```
 
-####  funannotate step 6: Annotate 
+####  funannotate step 5: Annotate 
 Using the outputs from "funannotate predict" and interproscan runs, now run funannotate annotate step:
 ```sh
 #!/bin/bash
