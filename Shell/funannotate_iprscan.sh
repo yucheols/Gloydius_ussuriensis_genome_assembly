@@ -22,35 +22,9 @@ set -euo pipefail
 # set paths
 # ------------------------------------------------------------
 
-# base Funannotate directory
-# this directory contains update_results/
 FUN_DIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate"
-
-# local InterProScan installation
 IPR_DIR="/home/yshin/mendel-nas1/interproscan/interproscan-5.78-109.0"
 IPRSCAN="${IPR_DIR}/interproscan.sh"
-
-# expected updated protein FASTA
-PROTEINS="${FUN_DIR}/update_results/Gloydius_ussuriensis_AMNH_21010.proteins.fa"
-
-
-# ------------------------------------------------------------
-# print helpful information
-# ------------------------------------------------------------
-
-echo
-echo "Protein count:"
-grep -c '^>' "${PROTEINS}"
-
-echo
-echo "funannotate version:"
-funannotate version
-
-echo
-echo "InterProScan version:"
-"${IPRSCAN}" -version
-
-echo
 
 
 # ------------------------------------------------------------
@@ -58,6 +32,8 @@ echo
 # ------------------------------------------------------------
 
 cd "${FUN_DIR}"
+
+echo "Starting InterProScan: $(date)"
 
 funannotate iprscan \
     -i "${FUN_DIR}" \
@@ -84,6 +60,7 @@ else
     echo "${IPR_XML}"
     exit 1
 fi
+
 
 # ------------------------------------------------------------
 # print when finished
