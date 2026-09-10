@@ -1202,13 +1202,11 @@ echo "============================================================"
 ```
 
 #### Post-annotation checks
-The annotation outputs are stored in the following directory: annotation/funannotate/G_ussuriensis_funannotate/annotate_results
-
-First, inspect annotation stats by running the following:
+Run the following script to QC the annotation results:
 ```sh
-# in the "annotation/funannotate/G_ussuriensis_funannotate/annotate_results" directory
-cat Gloydius_ussuriensis_AMNH_21010.stats.json
+funannotate_final_qc.sh
 ```
+
 
 ----------------------------------------------------------------------------------------------------
 ### (Post-Hi-C) Toxin gene annotation using ToxCodAn-Genome
