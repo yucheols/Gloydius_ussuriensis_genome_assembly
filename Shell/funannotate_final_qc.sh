@@ -67,8 +67,8 @@ FUN_DIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotatio
 ANN_DIR="${FUN_DIR}/annotate_results"
 REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
 OUT="${FUN_DIR}/final_annotation_QC"
-BUSCO_LINEAGE="/home/yshin/mendel-nas1/busco_downloads/lineages/squamata_odb12.2"
-BUSCO_RUN_NAME="G_ussuriensis_final_proteins_squamata_odb12_2"
+BUSCO_LINEAGE="/home/yshin/mendel-nas1/busco_downloads/lineages/sauropsida_odb12"
+BUSCO_RUN_NAME="G_ussuriensis_final_proteins_sauropsida_odb12"
 
 
 # ============================================================
@@ -194,11 +194,11 @@ BUSCO_EXPECTED=$(awk -F '=' '
 
 
 if [[ -z "${BUSCO_EXPECTED}" ]]; then
-    BUSCO_EXPECTED="11389"
+    BUSCO_EXPECTED="NA"
 fi
 
 
-echo "Expected Squamata BUSCOs:"
+echo "Expected Sauropsida BUSCOs:"
 echo "${BUSCO_EXPECTED}"
 echo
 
@@ -1707,13 +1707,13 @@ fi
 
 cp \
     "${BUSCO_SUMMARY}" \
-    "${OUT}/BUSCO_final_proteins_squamata_odb12.2_summary.txt"
+    "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt"
 
 
 echo "BUSCO summary:"
 echo
 
-cat "${OUT}/BUSCO_final_proteins_squamata_odb12.2_summary.txt"
+cat "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt"
 
 echo
 
@@ -1727,7 +1727,7 @@ BUSCO_COMPLETE=$(awk '
         print $1
         exit
     }
-' "${OUT}/BUSCO_final_proteins_squamata_odb12.2_summary.txt" || true)
+' "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" || true)
 
 
 BUSCO_SINGLE=$(awk '
@@ -1735,7 +1735,7 @@ BUSCO_SINGLE=$(awk '
         print $1
         exit
     }
-' "${OUT}/BUSCO_final_proteins_squamata_odb12.2_summary.txt" || true)
+' "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" || true)
 
 
 BUSCO_DUPLICATED=$(awk '
@@ -1743,7 +1743,7 @@ BUSCO_DUPLICATED=$(awk '
         print $1
         exit
     }
-' "${OUT}/BUSCO_final_proteins_squamata_odb12.2_summary.txt" || true)
+' "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" || true)
 
 
 BUSCO_FRAGMENTED=$(awk '
@@ -1751,7 +1751,7 @@ BUSCO_FRAGMENTED=$(awk '
         print $1
         exit
     }
-' "${OUT}/BUSCO_final_proteins_squamata_odb12.2_summary.txt" || true)
+' "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" || true)
 
 
 BUSCO_MISSING=$(awk '
@@ -1759,12 +1759,12 @@ BUSCO_MISSING=$(awk '
         print $1
         exit
     }
-' "${OUT}/BUSCO_final_proteins_squamata_odb12.2_summary.txt" || true)
+' "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" || true)
 
 
 BUSCO_COMPACT=$(grep -m 1 -E \
     'C:[0-9]+(\.[0-9]+)?%' \
-    "${OUT}/BUSCO_final_proteins_squamata_odb12.2_summary.txt" \
+    "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" \
     | sed 's/^[[:space:]]*//' \
     || true)
 
@@ -1910,7 +1910,7 @@ echo
     echo "------------------------------------------------------------"
     echo
 
-    echo "Dataset: squamata_odb12.2"
+    echo "Dataset: sauropsida_odb12"
     echo "Dataset path: ${BUSCO_LINEAGE}"
     echo "Expected BUSCOs: ${BUSCO_EXPECTED}"
     echo "Mode: proteins"
@@ -1924,7 +1924,7 @@ echo
 
     grep -E \
         "Complete BUSCOs|Complete and single-copy BUSCOs|Complete and duplicated BUSCOs|Fragmented BUSCOs|Missing BUSCOs" \
-        "${OUT}/BUSCO_final_proteins_squamata_odb12.2_summary.txt" \
+        "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" \
         || true
 
     echo
@@ -1999,7 +1999,7 @@ echo "${OUT}/gffread_reconstruction_counts.tsv"
 echo
 
 echo "BUSCO summary:"
-echo "${OUT}/BUSCO_final_proteins_squamata_odb12.2_summary.txt"
+echo "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt"
 echo
 
 echo "BUSCO counts:"
