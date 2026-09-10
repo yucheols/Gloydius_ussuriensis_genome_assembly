@@ -1207,6 +1207,13 @@ Run the following script to QC the annotation results:
 funannotate_final_qc.sh
 ```
 
+__NOTE:__ This script uses a newer compleasm version, which is installed in a separate conda env created as:
+```sh
+conda create -n compleasm_v0.2.9 \
+    -c conda-forge \
+    -c bioconda \
+    compleasm=0.2.9
+```
 
 ----------------------------------------------------------------------------------------------------
 ### (Post-Hi-C) Toxin gene annotation using ToxCodAn-Genome

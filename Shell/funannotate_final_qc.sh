@@ -161,8 +161,7 @@ echo
 # check BUSCO environment without contacting network
 # ------------------------------------------------------------
 
-conda activate compleasm
-
+conda activate compleasm_v0.2.9
 
 if ! command -v compleasm >/dev/null 2>&1; then
     echo "ERROR: compleasm executable not found in compleasm environment."
@@ -1630,7 +1629,7 @@ echo "============================================================"
 echo
 
 
-conda activate compleasm
+conda activate compleasm_v0.2.9
 
 
 echo "Current conda environment:"
