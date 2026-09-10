@@ -67,8 +67,11 @@ FUN_DIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotatio
 ANN_DIR="${FUN_DIR}/annotate_results"
 REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
 OUT="${FUN_DIR}/final_annotation_QC"
-BUSCO_LINEAGE="/home/yshin/mendel-nas1/busco_downloads/lineages/sauropsida_odb12"
-BUSCO_RUN_NAME="G_ussuriensis_final_proteins_sauropsida_odb12"
+COMPLEASM_LIBRARY="/home/yshin/mendel-nas1/busco_downloads/lineages"
+COMPLEASM_LINEAGE="sauropsida"
+COMPLEASM_ODB="odb12"
+COMPLEASM_DATASET="${COMPLEASM_LIBRARY}/${COMPLEASM_LINEAGE}_${COMPLEASM_ODB}"
+COMPLEASM_OUT="${OUT}/compleasm"
 
 
 # ============================================================
@@ -101,8 +104,8 @@ echo "Reference genome:"
 echo "${REF}"
 echo
 
-echo "BUSCO lineage:"
-echo "${BUSCO_LINEAGE}"
+echo "compleasm lineage:"
+echo "${COMPLEASM_LINEAGE}_${COMPLEASM_ODB}"
 echo
 
 
@@ -128,29 +131,29 @@ fi
 # check local BUSCO lineage BEFORE deleting/running anything
 # ------------------------------------------------------------
 
-if [[ ! -d "${BUSCO_LINEAGE}" ]]; then
-    echo "ERROR: local BUSCO lineage directory does not exist:"
-    echo "${BUSCO_LINEAGE}"
+if [[ ! -d "${COMPLEASM_DATASET}" ]]; then
+    echo "ERROR: local compleasm lineage directory does not exist:"
+    echo "${COMPLEASM_DATASET}"
     exit 1
 fi
 
 
-if [[ ! -s "${BUSCO_LINEAGE}/dataset.cfg" ]]; then
-    echo "ERROR: BUSCO dataset.cfg does not exist:"
-    echo "${BUSCO_LINEAGE}/dataset.cfg"
+if [[ ! -s "${COMPLEASM_DATASET}/dataset.cfg" ]]; then
+    echo "ERROR: compleasm dataset.cfg does not exist:"
+    echo "${COMPLEASM_DATASET}/dataset.cfg"
     exit 1
 fi
 
 
-if [[ ! -d "${BUSCO_LINEAGE}/hmms" ]]; then
-    echo "ERROR: BUSCO HMM directory does not exist:"
-    echo "${BUSCO_LINEAGE}/hmms"
+if [[ ! -d "${COMPLEASM_DATASET}/hmms" ]]; then
+    echo "ERROR: compleasm HMM directory does not exist:"
+    echo "${COMPLEASM_DATASET}/hmms"
     exit 1
 fi
 
 
-echo "Local BUSCO lineage found:"
-ls -lh "${BUSCO_LINEAGE}/dataset.cfg"
+echo "Local compleasm lineage found:"
+ls -lh "${COMPLEASM_DATASET}/dataset.cfg"
 echo
 
 
@@ -158,25 +161,20 @@ echo
 # check BUSCO environment without contacting network
 # ------------------------------------------------------------
 
-conda activate busco
+conda activate compleasm
 
 
-if ! command -v busco >/dev/null 2>&1; then
-    echo "ERROR: BUSCO executable not found in busco environment."
+if ! command -v compleasm >/dev/null 2>&1; then
+    echo "ERROR: compleasm executable not found in compleasm environment."
     exit 1
 fi
 
 
-BUSCO_EXEC=$(command -v busco)
-BUSCO_VERSION=$(busco --version 2>&1 | head -n 1)
+COMPLEASM_EXEC=$(command -v compleasm)
 
 
-echo "BUSCO executable:"
-echo "${BUSCO_EXEC}"
-echo
-
-echo "BUSCO version:"
-echo "${BUSCO_VERSION}"
+echo "compleasm executable:"
+echo "${COMPLEASM_EXEC}"
 echo
 
 
@@ -184,22 +182,22 @@ echo
 # obtain BUSCO count from local dataset.cfg if available
 # ------------------------------------------------------------
 
-BUSCO_EXPECTED=$(awk -F '=' '
+COMPLEASM_EXPECTED=$(awk -F '=' '
     $1 ~ /^number_of_BUSCOs$/ {
         gsub(/[[:space:]]/, "", $2)
         print $2
         exit
     }
-' "${BUSCO_LINEAGE}/dataset.cfg" || true)
+' "${COMPLEASM_DATASET}/dataset.cfg" || true)
 
 
-if [[ -z "${BUSCO_EXPECTED}" ]]; then
-    BUSCO_EXPECTED="NA"
+if [[ -z "${COMPLEASM_EXPECTED}" ]]; then
+    COMPLEASM_EXPECTED="NA"
 fi
 
 
 echo "Expected Sauropsida BUSCOs:"
-echo "${BUSCO_EXPECTED}"
+echo "${COMPLEASM_EXPECTED}"
 echo
 
 
@@ -254,7 +252,7 @@ fi
 mkdir -p \
     "${OUT}" \
     "${OUT}/logs" \
-    "${OUT}/busco" \
+    "${OUT}/compleasm" \
     "${OUT}/gffread"
 
 
@@ -1627,40 +1625,40 @@ echo
 # ============================================================
 
 echo "============================================================"
-echo "13. BUSCO ON FINAL PROTEIN SET"
+echo "13. COMPLEASM ON FINAL PROTEIN SET"
 echo "============================================================"
 echo
 
 
-conda activate busco
+conda activate compleasm
 
 
 echo "Current conda environment:"
 echo "${CONDA_DEFAULT_ENV:-UNKNOWN}"
 echo
 
-echo "BUSCO executable:"
-command -v busco
+echo "compleasm executable:"
+command -v compleasm
 echo
 
-echo "BUSCO version:"
-busco --version
-echo
-
-echo "BUSCO input:"
+echo "compleasm input:"
 echo "${PROT}"
 echo
 
-echo "BUSCO lineage:"
-echo "${BUSCO_LINEAGE}"
+echo "compleasm lineage:"
+echo "${COMPLEASM_LINEAGE}"
 echo
 
-echo "BUSCO mode:"
+echo "OrthoDB:"
+echo "${COMPLEASM_ODB}"
+echo
+
+echo "compleasm mode:"
 echo "proteins"
 echo
 
 echo "Expected BUSCOs:"
-echo "${BUSCO_EXPECTED}"
+echo "${COMPLEASM_EXPECTED}"
 echo
 
 
@@ -1668,18 +1666,19 @@ echo
 # BUSCO run
 # ------------------------------------------------------------
 
-busco \
-    -i "${PROT}" \
-    -o "${BUSCO_RUN_NAME}" \
-    --out_path "${OUT}/busco" \
-    -l "${BUSCO_LINEAGE}" \
-    -m proteins \
-    -c "${SLURM_CPUS_PER_TASK}" \
-    --offline
+rm -rf "${COMPLEASM_OUT}"
+
+compleasm protein \
+    -p "${PROT}" \
+    -o "${COMPLEASM_OUT}" \
+    -t "${SLURM_CPUS_PER_TASK}" \
+    -l "${COMPLEASM_LINEAGE}" \
+    -L "${COMPLEASM_LIBRARY}" \
+    --odb "${COMPLEASM_ODB}"
 
 
 echo
-echo "BUSCO command completed."
+echo "compleasm command completed."
 echo
 
 
@@ -1687,33 +1686,27 @@ echo
 # 14. LOCATE BUSCO SUMMARY
 # ============================================================
 
-BUSCO_SUMMARY=$(find \
-    "${OUT}/busco/${BUSCO_RUN_NAME}" \
-    -type f \
-    -name "short_summary*.txt" \
-    | sort \
-    | head -n 1 || true)
+COMPLEASM_SUMMARY="${COMPLEASM_OUT}/summary.txt"
 
 
-if [[ -z "${BUSCO_SUMMARY}" ]] \
-    || [[ ! -s "${BUSCO_SUMMARY}" ]]; then
+if [[ ! -s "${COMPLEASM_SUMMARY}" ]]; then
 
     echo "ERROR:"
-    echo "BUSCO completed but short_summary file was not found."
+    echo "compleasm completed but summary.txt was not found."
     exit 1
 
 fi
 
 
 cp \
-    "${BUSCO_SUMMARY}" \
-    "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt"
+    "${COMPLEASM_SUMMARY}" \
+    "${OUT}/compleasm_final_proteins_sauropsida_odb12_summary.txt"
 
 
-echo "BUSCO summary:"
+echo "compleasm summary:"
 echo
 
-cat "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt"
+cat "${OUT}/compleasm_final_proteins_sauropsida_odb12_summary.txt"
 
 echo
 
@@ -1722,65 +1715,81 @@ echo
 # 15. EXTRACT BUSCO METRICS
 # ============================================================
 
-BUSCO_COMPLETE=$(awk '
-    /Complete BUSCOs \(C\)/ {
-        print $1
+COMPLEASM_SINGLE=$(awk -F ',' '
+    /^S:/ {
+        gsub(/[[:space:]]/, "", $2)
+        print $2
         exit
     }
-' "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" || true)
+' "${OUT}/compleasm_final_proteins_sauropsida_odb12_summary.txt" || true)
 
 
-BUSCO_SINGLE=$(awk '
-    /Complete and single-copy BUSCOs \(S\)/ {
-        print $1
+COMPLEASM_DUPLICATED=$(awk -F ',' '
+    /^D:/ {
+        gsub(/[[:space:]]/, "", $2)
+        print $2
         exit
     }
-' "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" || true)
+' "${OUT}/compleasm_final_proteins_sauropsida_odb12_summary.txt" || true)
 
 
-BUSCO_DUPLICATED=$(awk '
-    /Complete and duplicated BUSCOs \(D\)/ {
-        print $1
+COMPLEASM_FRAGMENTED=$(awk -F ',' '
+    /^F:/ {
+        gsub(/[[:space:]]/, "", $2)
+        print $2
         exit
     }
-' "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" || true)
+' "${OUT}/compleasm_final_proteins_sauropsida_odb12_summary.txt" || true)
 
 
-BUSCO_FRAGMENTED=$(awk '
-    /Fragmented BUSCOs \(F\)/ {
-        print $1
+COMPLEASM_INTERSPACED=$(awk -F ',' '
+    /^I:/ {
+        gsub(/[[:space:]]/, "", $2)
+        print $2
         exit
     }
-' "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" || true)
+' "${OUT}/compleasm_final_proteins_sauropsida_odb12_summary.txt" || true)
 
 
-BUSCO_MISSING=$(awk '
-    /Missing BUSCOs \(M\)/ {
-        print $1
+COMPLEASM_MISSING=$(awk -F ',' '
+    /^M:/ {
+        gsub(/[[:space:]]/, "", $2)
+        print $2
         exit
     }
-' "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" || true)
+' "${OUT}/compleasm_final_proteins_sauropsida_odb12_summary.txt" || true)
 
 
-BUSCO_COMPACT=$(grep -m 1 -E \
-    'C:[0-9]+(\.[0-9]+)?%' \
-    "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" \
-    | sed 's/^[[:space:]]*//' \
-    || true)
+COMPLEASM_TOTAL=$(awk -F ':' '
+    /^N:/ {
+        gsub(/[[:space:]]/, "", $2)
+        print $2
+        exit
+    }
+' "${OUT}/compleasm_final_proteins_sauropsida_odb12_summary.txt" || true)
+
+
+if [[ -n "${COMPLEASM_SINGLE}" ]] && [[ -n "${COMPLEASM_DUPLICATED}" ]]; then
+    COMPLEASM_COMPLETE=$((COMPLEASM_SINGLE + COMPLEASM_DUPLICATED))
+else
+    COMPLEASM_COMPLETE="NA"
+fi
 
 
 {
     echo -e "metric\tcount"
-    echo -e "expected_BUSCOs\t${BUSCO_EXPECTED}"
-    echo -e "complete_BUSCOs\t${BUSCO_COMPLETE:-NA}"
-    echo -e "single_copy_BUSCOs\t${BUSCO_SINGLE:-NA}"
-    echo -e "duplicated_BUSCOs\t${BUSCO_DUPLICATED:-NA}"
-    echo -e "fragmented_BUSCOs\t${BUSCO_FRAGMENTED:-NA}"
-    echo -e "missing_BUSCOs\t${BUSCO_MISSING:-NA}"
-} > "${OUT}/BUSCO_counts.tsv"
+    echo -e "expected_BUSCOs\t${COMPLEASM_EXPECTED}"
+    echo -e "complete_BUSCOs\t${COMPLEASM_COMPLETE}"
+    echo -e "single_copy_BUSCOs\t${COMPLEASM_SINGLE:-NA}"
+    echo -e "duplicated_BUSCOs\t${COMPLEASM_DUPLICATED:-NA}"
+    echo -e "fragmented_BUSCOs\t${COMPLEASM_FRAGMENTED:-NA}"
+    echo -e "interspaced_BUSCOs\t${COMPLEASM_INTERSPACED:-NA}"
+    echo -e "missing_BUSCOs\t${COMPLEASM_MISSING:-NA}"
+    echo -e "total_BUSCOs\t${COMPLEASM_TOTAL:-NA}"
+} > "${OUT}/compleasm_counts.tsv"
 
 
-cat "${OUT}/BUSCO_counts.tsv"
+cat "${OUT}/compleasm_counts.tsv"
 
 echo
 
@@ -1906,26 +1915,17 @@ echo
     echo
 
 
-    echo "BUSCO"
+    echo "COMPLEASM"
     echo "------------------------------------------------------------"
     echo
 
     echo "Dataset: sauropsida_odb12"
-    echo "Dataset path: ${BUSCO_LINEAGE}"
-    echo "Expected BUSCOs: ${BUSCO_EXPECTED}"
+    echo "Dataset path: ${COMPLEASM_DATASET}"
+    echo "Expected BUSCOs: ${COMPLEASM_EXPECTED}"
     echo "Mode: proteins"
-    echo "Offline: yes"
     echo
 
-    if [[ -n "${BUSCO_COMPACT}" ]]; then
-        echo "${BUSCO_COMPACT}"
-        echo
-    fi
-
-    grep -E \
-        "Complete BUSCOs|Complete and single-copy BUSCOs|Complete and duplicated BUSCOs|Fragmented BUSCOs|Missing BUSCOs" \
-        "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt" \
-        || true
+    cat "${OUT}/compleasm_final_proteins_sauropsida_odb12_summary.txt"
 
     echo
 
@@ -1998,12 +1998,12 @@ echo "gffread reconstruction:"
 echo "${OUT}/gffread_reconstruction_counts.tsv"
 echo
 
-echo "BUSCO summary:"
-echo "${OUT}/BUSCO_final_proteins_sauropsida_odb12_summary.txt"
+echo "compleasm summary:"
+echo "${OUT}/compleasm_final_proteins_sauropsida_odb12_summary.txt"
 echo
 
-echo "BUSCO counts:"
-echo "${OUT}/BUSCO_counts.tsv"
+echo "compleasm counts:"
+echo "${OUT}/compleasm_counts.tsv"
 echo
 
 echo "Finished:"
