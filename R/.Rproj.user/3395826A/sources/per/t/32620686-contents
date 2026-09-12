@@ -1,0 +1,69 @@
+# ============================================================
+# Plot SMC++ demographic history in ggplot2
+# Gloydius ussuriensis - mainland population
+# 100-100,000 years before present
+# ============================================================
+
+# clean workspace
+rm(list = ls(all.names = T))
+gc()
+
+# load packages
+library(ggplot2)
+library(dplyr)
+library(scales)
+
+
+# ------------------------------------------------------------
+# read SMC++ output
+# ------------------------------------------------------------
+smc <- read.csv('/home/yshin/Gloydius_ussuriensis_genome_assembly/outputs/demography/G_ussuriensis_mainland_SMCpp_recent_1000yr_100kyr.csv')
+head(smc)
+str(smc)
+
+
+# ------------------------------------------------------------
+# prepare data
+#
+# x = years before present
+# y = effective population size (Ne)
+#
+# retain only the targeted interval:
+# 100-100,000 years before present
+# ------------------------------------------------------------
+smc_plot <- smc %>%
+  filter(x >= 100, x <= 100000) %>%
+  mutate(time_kya = x / 1000)
+
+
+# ------------------------------------------------------------
+# plot
+# ------------------------------------------------------------
+p <- ggplot(smc_plot %>% filter(time_kya >= 1, time_kya <= 100), aes(x = time_kya, y = y)) +
+  geom_line(linewidth = 1.2, color = '#6495ED', lineend = 'round', linejoin = 'round') +
+  scale_x_continuous(breaks = c(1, 20, 40, 60, 80, 100), limits = c(1, 100), expand = expansion(mult = c(0, 0))) +
+  scale_y_continuous(breaks = seq(0, 2e6, by = 2e5), 
+                     labels = label_number(scale = 1e-3, accuracy = 1, big.mark = ''),
+                     limits = c(0, 2.1e6),
+                     expand = expansion(mult = c(0, 0.03))) +
+  labs(x = 'Years before present (Ka)',
+       y = expression('Effective population size (' * N[e] * ' × 10'^3 * ')')) +
+  theme_bw(base_size = 14) +
+  theme(axis.title = element_text(size = 16),
+        axis.title.x = element_text(margin = margin(t = 15)),
+        axis.title.y = element_text(margin = margin(r = 15)),
+        axis.text = element_text(size = 14, color = 'black'),
+        axis.line = element_line(linewidth = 0.6, color = 'black'),
+        axis.ticks = element_line(linewidth = 0.5, color = 'black'),
+        axis.ticks.length = unit(0.15, 'cm'),
+        panel.grid = element_blank(),
+        plot.margin = margin(t = 10, r = 15, b = 10, l = 10))
+
+print(p)
+
+
+# ------------------------------------------------------------
+# save plot
+# ------------------------------------------------------------
+ggsave(filename = 'Rplots/G_ussuriensis_mainland_SMCpp_recent_1000yr_100kyr_ggplot.png',
+       plot = p, width = 7, height = 5, units = 'in', dpi = 800)
