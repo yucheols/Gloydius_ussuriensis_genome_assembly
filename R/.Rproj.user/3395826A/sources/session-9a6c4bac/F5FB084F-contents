@@ -1,0 +1,937 @@
+# ============================================================
+# Gloydius ussuriensis genome Circos plot
+#
+# Tracks:
+#   chromosome ideogram
+#   GC %
+#   Repeat %
+#   gene density
+#
+# Input windows:
+#   100 kb non-overlapping windows
+#
+# ============================================================
+
+
+# clean working environment
+rm(list = ls(all.names = T))
+gc()
+
+
+# ------------------------------------------------------------
+# load package
+# ------------------------------------------------------------
+library(circlize)
+
+
+# ------------------------------------------------------------
+# set paths
+# ------------------------------------------------------------
+
+root <- paste0(
+  '/home/yshin/mendel-nas1/snake_genome_ass/',
+  'G_ussuriensis_Chromo/circos'
+)
+
+track_file <- file.path(
+  root,
+  '02_tracks',
+  'G_ussuriensis.100kb.circos_tracks.tsv'
+)
+
+length_file <- file.path(
+  root,
+  '02_tracks',
+  'G_ussuriensis.chromosome_lengths.tsv'
+)
+
+class_file <- file.path(
+  root,
+  '02_tracks',
+  'G_ussuriensis.chromosome_classes.tsv'
+)
+
+outdir <- file.path(
+  root,
+  '03_plots'
+)
+
+dir.create(
+  outdir,
+  recursive = T,
+  showWarnings = F
+)
+
+out_pdf <- file.path(
+  outdir,
+  'G_ussuriensis_circos_v1_100kb_custom.pdf'
+)
+
+out_png <- file.path(
+  outdir,
+  'G_ussuriensis_circos_v1_100kb_custom.png'
+)
+
+
+# ------------------------------------------------------------
+# check input files
+# ------------------------------------------------------------
+
+if (!file.exists(track_file)) {
+  
+  stop(
+    paste(
+      'Cannot find track file:',
+      track_file
+    )
+  )
+  
+}
+
+if (!file.exists(length_file)) {
+  
+  stop(
+    paste(
+      'Cannot find chromosome length file:',
+      length_file
+    )
+  )
+  
+}
+
+if (!file.exists(class_file)) {
+  
+  stop(
+    paste(
+      'Cannot find chromosome class file:',
+      class_file
+    )
+  )
+  
+}
+
+
+# ------------------------------------------------------------
+# read data
+# ------------------------------------------------------------
+
+dat <- read.delim(
+  track_file,
+  header = T,
+  stringsAsFactors = F,
+  check.names = F
+)
+
+chrom <- read.delim(
+  length_file,
+  header = T,
+  stringsAsFactors = F,
+  check.names = F
+)
+
+chr_class <- read.delim(
+  class_file,
+  header = T,
+  stringsAsFactors = F,
+  check.names = F
+)
+
+
+# ------------------------------------------------------------
+# define chromosome plotting order
+# ------------------------------------------------------------
+
+chr_order <- c(
+  'G_ussuri_chr1',
+  'G_ussuri_chr2',
+  'G_ussuri_chr3',
+  'G_ussuri_chr4',
+  'G_ussuri_chr5',
+  'G_ussuri_chr6',
+  'G_ussuri_chr7',
+  'G_ussuri_chrZ',
+  'G_ussuri_chrW',
+  'G_ussuri_chr9',
+  'G_ussuri_chr10',
+  'G_ussuri_chr11',
+  'G_ussuri_chr12',
+  'G_ussuri_chr13',
+  'G_ussuri_chr14',
+  'G_ussuri_chr15',
+  'G_ussuri_chr16',
+  'G_ussuri_chr17',
+  'G_ussuri_chr18'
+)
+
+
+# ------------------------------------------------------------
+# confirm chromosomes exist
+# ------------------------------------------------------------
+
+missing_chr <- setdiff(
+  chr_order,
+  chrom$chr
+)
+
+if (length(missing_chr) > 0) {
+  
+  stop(
+    paste(
+      'Missing chromosomes:',
+      paste(
+        missing_chr,
+        collapse = ', '
+      )
+    )
+  )
+  
+}
+
+
+# ------------------------------------------------------------
+# arrange chromosome metadata
+# ------------------------------------------------------------
+
+chrom <- chrom[
+  match(
+    chr_order,
+    chrom$chr
+  ),
+]
+
+chr_class <- chr_class[
+  match(
+    chr_order,
+    chr_class$chr
+  ),
+]
+
+if (!all(chrom$chr == chr_class$chr)) {
+  
+  stop(
+    'Chromosome length and chromosome class tables do not match.'
+  )
+  
+}
+
+chrom$display <- chr_class$display
+chrom$class <- chr_class$class
+
+
+# ------------------------------------------------------------
+# order track data
+# ------------------------------------------------------------
+
+dat <- dat[
+  dat$chr %in% chr_order,
+]
+
+dat$chr <- factor(
+  dat$chr,
+  levels = chr_order
+)
+
+dat <- dat[
+  order(
+    dat$chr,
+    dat$start
+  ),
+]
+
+dat$mid <- (
+  dat$start +
+    dat$end
+) / 2
+
+
+# ------------------------------------------------------------
+# basic sanity checks
+# ------------------------------------------------------------
+
+cat('\n')
+cat('============================================================\n')
+cat('Circos input summary\n')
+cat('============================================================\n\n')
+
+cat(
+  'Chromosomes:',
+  nrow(chrom),
+  '\n'
+)
+
+cat(
+  'Windows:',
+  nrow(dat),
+  '\n'
+)
+
+cat(
+  'Genes represented:',
+  sum(
+    dat$gene_count,
+    na.rm = T
+  ),
+  '\n'
+)
+
+cat(
+  'Mean GC %:',
+  mean(
+    dat$GC_pct,
+    na.rm = T
+  ),
+  '\n'
+)
+
+cat(
+  'Mean repeat %:',
+  mean(
+    dat$Repeat_pct,
+    na.rm = T
+  ),
+  '\n\n'
+)
+
+
+# ------------------------------------------------------------
+# chromosome colors
+#
+# macrochromosomes alternate dark/light gray
+# microchromosomes alternate dark/light green
+# chrZ = steelblue3
+# chrW = goldenrod2
+# ------------------------------------------------------------
+
+macro_dark <- '#8f8f8f'
+macro_light <- '#bdbdbd'
+
+micro_dark <- '#4c9a67'
+micro_light <- '#7fbc96'
+
+z_col <- 'steelblue3'
+w_col <- 'goldenrod2'
+
+chrom$color <- NA_character_
+
+macro_idx <- which(
+  chrom$class == 'Macrochromosome'
+)
+
+micro_idx <- which(
+  chrom$class == 'Microchromosome'
+)
+
+z_idx <- which(
+  chrom$chr == 'G_ussuri_chrZ'
+)
+
+w_idx <- which(
+  chrom$chr == 'G_ussuri_chrW'
+)
+
+chrom$color[macro_idx] <- rep(
+  c(
+    macro_dark,
+    macro_light
+  ),
+  length.out = length(macro_idx)
+)
+
+chrom$color[micro_idx] <- rep(
+  c(
+    micro_dark,
+    micro_light
+  ),
+  length.out = length(micro_idx)
+)
+
+chrom$color[z_idx] <- z_col
+chrom$color[w_idx] <- w_col
+
+
+# ------------------------------------------------------------
+# track colors
+# ------------------------------------------------------------
+
+figure_bg <- '#f5f5f5'
+track_bg <- '#ededed'
+
+line_col <- '#222222'
+highlight_col <- '#e64b35'
+
+gene_low <- '#fff5f0'
+gene_mid <- '#fcae91'
+gene_high <- '#e34a33'
+
+
+# ------------------------------------------------------------
+# thresholds for highlighted windows
+#
+# upper 5 % of windows are highlighted in red
+# ------------------------------------------------------------
+
+gc_high <- quantile(
+  dat$GC_pct,
+  probs = 0.95,
+  na.rm = T
+)
+
+repeat_high <- quantile(
+  dat$Repeat_pct,
+  probs = 0.95,
+  na.rm = T
+)
+
+
+# ------------------------------------------------------------
+# robust plotting ranges
+# ------------------------------------------------------------
+
+gc_ylim <- quantile(
+  dat$GC_pct,
+  probs = c(
+    0.01,
+    0.99
+  ),
+  na.rm = T
+)
+
+repeat_ylim <- quantile(
+  dat$Repeat_pct,
+  probs = c(
+    0.01,
+    0.99
+  ),
+  na.rm = T
+)
+
+dat$GC_plot <- pmin(
+  pmax(
+    dat$GC_pct,
+    gc_ylim[1]
+  ),
+  gc_ylim[2]
+)
+
+dat$Repeat_plot <- pmin(
+  pmax(
+    dat$Repeat_pct,
+    repeat_ylim[1]
+  ),
+  repeat_ylim[2]
+)
+
+
+# ------------------------------------------------------------
+# gene density color scale
+#
+# cap at genome-wide 99th percentile
+# ------------------------------------------------------------
+
+gene_cap <- quantile(
+  dat$gene_count,
+  probs = 0.99,
+  na.rm = T
+)
+
+if (
+  !is.finite(gene_cap) |
+  gene_cap <= 0
+) {
+  
+  gene_cap <- max(
+    dat$gene_count,
+    na.rm = T
+  )
+  
+}
+
+if (gene_cap <= 0) {
+  
+  gene_cap <- 1
+  
+}
+
+gene_col_fun <- colorRamp2(
+  c(
+    0,
+    gene_cap / 2,
+    gene_cap
+  ),
+  c(
+    gene_low,
+    gene_mid,
+    gene_high
+  )
+)
+
+
+# ------------------------------------------------------------
+# chromosome-specific tick spacing
+# ------------------------------------------------------------
+
+get_tick_step <- function(length_bp) {
+  
+  if (length_bp >= 250e6) {
+    return(50e6)
+  }
+  
+  if (length_bp >= 150e6) {
+    return(25e6)
+  }
+  
+  if (length_bp >= 70e6) {
+    return(20e6)
+  }
+  
+  if (length_bp >= 30e6) {
+    return(10e6)
+  }
+  
+  return(5e6)
+  
+}
+
+
+# ------------------------------------------------------------
+# define sector gaps
+# ------------------------------------------------------------
+
+gap_after <- rep(
+  1.2,
+  length(chr_order)
+)
+
+names(gap_after) <- chr_order
+
+gap_after['G_ussuri_chr7'] <- 3.5
+gap_after['G_ussuri_chrW'] <- 3.5
+gap_after['G_ussuri_chr18'] <- 6
+
+
+# ------------------------------------------------------------
+# main Circos drawing function
+# ------------------------------------------------------------
+
+draw_circos <- function() {
+  
+  circos.clear()
+  
+  circos.par(
+    start.degree = 90,
+    gap.after = gap_after,
+    track.margin = c(
+      0.004,
+      0.004
+    ),
+    cell.padding = c(
+      0,
+      0,
+      0,
+      0
+    ),
+    points.overflow.warning = F,
+    canvas.xlim = c(
+      -1.18,
+      1.18
+    ),
+    canvas.ylim = c(
+      -1.18,
+      1.18
+    )
+  )
+  
+  
+  # ----------------------------------------------------------
+  # initialize chromosomes
+  # ----------------------------------------------------------
+  
+  circos.initialize(
+    factors = chrom$chr,
+    xlim = cbind(
+      rep(
+        0,
+        nrow(chrom)
+      ),
+      chrom$length
+    )
+  )
+  
+  
+  # ==========================================================
+  # OUTER TRACK
+  #
+  # chromosome ideogram with rounded ends
+  # chromosome labels
+  # Mb ticks
+  # ==========================================================
+  
+  circos.trackPlotRegion(
+    ylim = c(
+      0,
+      1
+    ),
+    track.height = 0.075,
+    bg.border = NA,
+    panel.fun = function(x, y) {
+      
+      chr <- CELL_META$sector.index
+      
+      idx <- match(
+        chr,
+        chrom$chr
+      )
+      
+      chr_length <- chrom$length[idx]
+      chr_color <- chrom$color[idx]
+      chr_label <- chrom$display[idx]
+      
+      
+      # rounded chromosome ideogram
+      
+      chrom_lwd <- 22
+      
+      x_arc <- seq(
+        CELL_META$xlim[1],
+        CELL_META$xlim[2],
+        length.out = 300
+      )
+      
+      y_arc <- rep(
+        0.5,
+        length(x_arc)
+      )
+      
+      circos.lines(
+        x_arc,
+        y_arc,
+        col = chr_color,
+        lwd = chrom_lwd
+      )
+      
+      
+      # chromosome label
+      
+      circos.text(
+        CELL_META$xcenter,
+        1.55,
+        chr_label,
+        facing = 'bending.outside',
+        niceFacing = T,
+        adj = c(
+          0.5,
+          0
+        ),
+        cex = 0.68
+      )
+      
+      
+      # Mb ticks
+      
+      tick_step <- get_tick_step(
+        chr_length
+      )
+      
+      tick_at <- seq(
+        0,
+        chr_length,
+        by = tick_step
+      )
+      
+      circos.axis(
+        h = 'top',
+        major.at = tick_at,
+        labels = tick_at / 1e6,
+        labels.cex = 0.30,
+        labels.facing = 'clockwise',
+        labels.niceFacing = T,
+        major.tick.length = 0.035,
+        minor.ticks = 4,
+        lwd = 0.4
+      )
+      
+    }
+  )
+  
+  
+  # ==========================================================
+  # GC TRACK
+  # ==========================================================
+  
+  circos.trackPlotRegion(
+    ylim = gc_ylim,
+    track.height = 0.105,
+    bg.col = track_bg,
+    bg.border = NA,
+    panel.fun = function(x, y) {
+      
+      chr <- CELL_META$sector.index
+      
+      tmp <- dat[
+        dat$chr == chr,
+      ]
+      
+      tmp <- tmp[
+        order(tmp$start),
+      ]
+      
+      circos.lines(
+        tmp$mid,
+        tmp$GC_plot,
+        col = line_col,
+        lwd = 0.45
+      )
+      
+      gc_highlight <- ifelse(
+        tmp$GC_pct >= gc_high,
+        tmp$GC_plot,
+        NA
+      )
+      
+      circos.lines(
+        tmp$mid,
+        gc_highlight,
+        col = highlight_col,
+        lwd = 1.1
+      )
+      
+    }
+  )
+  
+  
+  # ==========================================================
+  # REPEAT TRACK
+  # ==========================================================
+  
+  circos.trackPlotRegion(
+    ylim = repeat_ylim,
+    track.height = 0.105,
+    bg.col = track_bg,
+    bg.border = NA,
+    panel.fun = function(x, y) {
+      
+      chr <- CELL_META$sector.index
+      
+      tmp <- dat[
+        dat$chr == chr,
+      ]
+      
+      tmp <- tmp[
+        order(tmp$start),
+      ]
+      
+      circos.lines(
+        tmp$mid,
+        tmp$Repeat_plot,
+        col = line_col,
+        lwd = 0.45
+      )
+      
+      repeat_highlight <- ifelse(
+        tmp$Repeat_pct >= repeat_high,
+        tmp$Repeat_plot,
+        NA
+      )
+      
+      circos.lines(
+        tmp$mid,
+        repeat_highlight,
+        col = highlight_col,
+        lwd = 1.1
+      )
+      
+    }
+  )
+  
+  
+  # ==========================================================
+  # GENE DENSITY TRACK
+  # ==========================================================
+  
+  circos.trackPlotRegion(
+    ylim = c(
+      0,
+      1
+    ),
+    track.height = 0.06,
+    bg.col = gene_low,
+    bg.border = NA,
+    panel.fun = function(x, y) {
+      
+      chr <- CELL_META$sector.index
+      
+      tmp <- dat[
+        dat$chr == chr,
+      ]
+      
+      tmp <- tmp[
+        order(tmp$start),
+      ]
+      
+      gene_values <- pmin(
+        tmp$gene_count,
+        gene_cap
+      )
+      
+      gene_colors <- gene_col_fun(
+        gene_values
+      )
+      
+      circos.rect(
+        tmp$start,
+        0,
+        tmp$end,
+        1,
+        col = gene_colors,
+        border = NA
+      )
+      
+    }
+  )
+  
+  
+  # ----------------------------------------------------------
+  # legend
+  # ----------------------------------------------------------
+  
+  legend(
+    x = 'bottom',
+    legend = c(
+      'Macrochromosome',
+      'Microchromosome',
+      'Chr Z',
+      'Chr W'
+    ),
+    col = c(
+      macro_dark,
+      micro_dark,
+      z_col,
+      w_col
+    ),
+    pch = 15,
+    pt.cex = 1.7,
+    cex = 0.70,
+    horiz = T,
+    bty = 'n',
+    inset = c(
+      0,
+      -0.075
+    ),
+    xpd = NA
+  )
+  
+  
+  circos.clear()
+  
+}
+
+
+# ============================================================
+# save PDF
+# ============================================================
+
+pdf(
+  file = out_pdf,
+  width = 10,
+  height = 10,
+  bg = figure_bg,
+  useDingbats = F
+)
+
+par(
+  mar = c(
+    5.5,
+    2,
+    2,
+    2
+  ),
+  bg = figure_bg,
+  lend = 'round',
+  ljoin = 'round'
+)
+
+draw_circos()
+
+dev.off()
+
+
+# ============================================================
+# save PNG
+# ============================================================
+
+png(
+  filename = out_png,
+  width = 3600,
+  height = 3600,
+  res = 360,
+  bg = figure_bg
+)
+
+par(
+  mar = c(
+    5.5,
+    2,
+    2,
+    2
+  ),
+  bg = figure_bg,
+  lend = 'round',
+  ljoin = 'round'
+)
+
+draw_circos()
+
+dev.off()
+
+
+# ============================================================
+# final report
+# ============================================================
+
+cat('\n')
+cat('============================================================\n')
+cat('Circos plot completed\n')
+cat('============================================================\n\n')
+
+cat(
+  'GC 95th percentile:',
+  round(
+    gc_high,
+    3
+  ),
+  '%\n'
+)
+
+cat(
+  'Repeat 95th percentile:',
+  round(
+    repeat_high,
+    3
+  ),
+  '%\n'
+)
+
+cat(
+  'Gene density 99th percentile:',
+  round(
+    gene_cap,
+    3
+  ),
+  'genes / 100 kb\n'
+)
+
+cat('\n')
+
+cat(
+  'PDF:\n',
+  out_pdf,
+  '\n\n',
+  sep = ''
+)
+
+cat(
+  'PNG:\n',
+  out_png,
+  '\n\n',
+  sep = ''
+)
