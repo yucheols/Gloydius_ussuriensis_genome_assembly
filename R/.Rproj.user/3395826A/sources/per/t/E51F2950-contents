@@ -1,5 +1,5 @@
 # ============================================================
-# Gloydius ussuriensis genome Circos plot
+# Gloydius ussuriensis genome circos plot
 #
 # Tracks:
 #   chromosome ideogram
