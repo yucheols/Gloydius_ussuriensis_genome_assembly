@@ -1052,4 +1052,98 @@ python3 "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/P
     | tee "${GS}/comparison_annotation_ID_audit.txt"
 ```
 
-This will show that all 11 comparison protein FASTAs can be mapped back to their annotations cleanly.
+This will show that all 11 comparison protein FASTAs can be mapped back to their annotations cleanly. The comparison dataset contains three mapping patterns, and we can use the batch converter script below to create a clean GENESPACE input for the comparison taxa.
+```sh
+# set path
+GS="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
+
+# run
+python3 "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/Python/make_comparison_genespace_inputs.py" \
+    | tee "${GS}/comparison_genespace_preprocessing.log"
+``` 
+
+The results look clean. All 11 comparison genomes passed the critical mapping test, with 0 unmapped proteins and 0 ambiguous mappings.
+
+Before moving on to the actual GENESPACE run, let's do one global QC across all 12 genomes (11 comparison taxa genome + 1 *G. ussuriensis*):
+```sh
+GS="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
+
+printf "species\tBED\tproteins\tdupBED\tdupFASTA\tBED_not_FASTA\tFASTA_not_BED\tbad_coords\tseqIDs\n"
+
+for bed in "${GS}"/bed/*.bed; do
+
+    sp=$(basename "${bed}" .bed)
+    pep="${GS}/peptide/${sp}.fa"
+
+    nbed=$(wc -l < "${bed}")
+    npep=$(grep -c '^>' "${pep}")
+
+    dupbed=$(
+        cut -f4 "${bed}" |
+        sort |
+        uniq -d |
+        wc -l
+    )
+
+    dupfa=$(
+        grep '^>' "${pep}" |
+        sed 's/^>//; s/[[:space:]].*$//' |
+        sort |
+        uniq -d |
+        wc -l
+    )
+
+    bed_not_fasta=$(
+        comm -23 \
+            <(cut -f4 "${bed}" | sort) \
+            <(grep '^>' "${pep}" |
+              sed 's/^>//; s/[[:space:]].*$//' |
+              sort) |
+        wc -l
+    )
+
+    fasta_not_bed=$(
+        comm -13 \
+            <(cut -f4 "${bed}" | sort) \
+            <(grep '^>' "${pep}" |
+              sed 's/^>//; s/[[:space:]].*$//' |
+              sort) |
+        wc -l
+    )
+
+    badcoords=$(
+        awk '
+            $2 < 0 || $3 <= $2 {n++}
+            END {print n+0}
+        ' "${bed}"
+    )
+
+    nseq=$(
+        cut -f1 "${bed}" |
+        sort -u |
+        wc -l
+    )
+
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+        "${sp}" \
+        "${nbed}" \
+        "${npep}" \
+        "${dupbed}" \
+        "${dupfa}" \
+        "${bed_not_fasta}" \
+        "${fasta_not_bed}" \
+        "${badcoords}" \
+        "${nseq}"
+
+done | column -t
+```  
+The results will show:
+```sh
+BED count = protein count
+duplicate BED IDs = 0
+duplicate FASTA IDs = 0
+BED IDs missing from FASTA = 0
+FASTA IDs missing from BED = 0
+bad coordinates = 0
+```
+This means that the GENESPACE input prep has been successful.
