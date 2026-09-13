@@ -3,7 +3,7 @@
 First, set up a directory for synteny analyses.
 ```sh
 # under the "G_ussuriensis_Chromo" directory
-mkdir -p synteny/{raw_ncbi,assemblies,gff3,proteins,metadata,logs,scripts}
+mkdir -p synteny/
 ```
 
 Activate the conda env to access NCBI Datasets CLI
@@ -815,4 +815,138 @@ Use the same strategy as Bothrops.
 #### Elaphe schrenckii
 Same deal as above.
 
-### Step 5: Convert .gff into protein fasta
+### Step 5: Convert annotations into protein fasta
+Some comparison taxa had protein fasta already downloaded alongside the genome fasta and annotation. However, some species only had genome fasta and annotation files. Run the slurm script below. This script will look for annotation files in the order GFF3 - GFF - GTF, and either generate the protein fasta or reuse it if it already existed.
+```sh
+synteny_prep_protein.sh
+```
+
+### Step 6: Setup for GENESPACE analyses
+```sh
+DIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
+
+mkdir -p \
+    "${DIR}/bed" \
+    "${DIR}/peptide" \
+    "${DIR}/mapping" \
+```
+
+Next, we will prepare a representative protein set that will be used as an input for GENESPACE analyses. Our annotation has multiple transcript/protein isoforms for some genes, while for macrosynteny we generally want one locus per protein. GENESPACE compares genes across genomes, and feeding every isoform would make one biological gene look like several nearby genes. Therefore, we will run the Python script below to select one representative (i.e. the longest) protein isoform per gene.
+```sh
+make_genespace_representative.py
+```
+
+The script will read the final GFF3:
+```sh
+Gloydius_ussuriensis_AMNH_21010.gff3
+```
+
+Which has lines like:
+```sh
+gene  ID=FUN_000001
+mRNA  ID=FUN_000001-T1;Parent=FUN_000001
+mRNA  ID=FUN_000001-T2;Parent=FUN_000001
+```
+
+From this, it will learn that:
+```sh
+FUN_000001-T1 = FUN_000001
+FUN_000001-T2 = FUN_000001
+```
+
+Then it will read the protein fasta and select the longest protein isoform.
+
+Run the script like this:
+```sh
+# activate conda env to access python
+conda activate synteny_qc
+
+# set paths
+GS="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
+FUN="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate"
+
+# run script
+python3 "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/Python/make_genespace_representative.py" \
+    "${FUN}/annotate_results/Gloydius_ussuriensis_AMNH_21010.gff3" \
+    "${FUN}/annotate_results/Gloydius_ussuriensis_AMNH_21010.proteins.fa" \
+    "${GS}/bed/Gloydius_ussuriensis.bed" \
+    "${GS}/peptide/Gloydius_ussuriensis.fa" \
+    "${GS}/mapping/Gloydius_ussuriensis.longest_isoform.tsv"
+```
+
+The output will print like this:
+```sh
+============================================================
+GENESPACE representative-protein preparation
+============================================================
+GFF genes:                         23,157
+GFF transcripts:                   28,000
+Input proteins:                    28,000
+Genes represented by proteins:     22,534
+GENESPACE loci written:            22,534
+Genes without protein:              623
+Proteins without transcript map:    0
+Representative genes without coord: 0
+============================================================
+```
+
+Let's also run a BED-fasta identity check:
+```sh
+GS="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
+
+echo "===== counts ====="
+
+printf "BED loci: "
+wc -l < "${GS}/bed/Gloydius_ussuriensis.bed"
+
+printf "Protein sequences: "
+grep -c '^>' "${GS}/peptide/Gloydius_ussuriensis.fa"
+
+printf "Mapping rows: "
+awk 'NR>1' "${GS}/mapping/Gloydius_ussuriensis.longest_isoform.tsv" | wc -l
+
+
+echo
+echo "===== duplicate BED IDs ====="
+
+cut -f4 "${GS}/bed/Gloydius_ussuriensis.bed" \
+    | sort \
+    | uniq -d \
+    | head
+
+
+echo
+echo "===== duplicate FASTA IDs ====="
+
+grep '^>' "${GS}/peptide/Gloydius_ussuriensis.fa" \
+    | sed 's/^>//; s/[[:space:]].*$//' \
+    | sort \
+    | uniq -d \
+    | head
+
+
+echo
+echo "===== BED IDs absent from protein FASTA ====="
+
+comm -23 \
+    <(cut -f4 "${GS}/bed/Gloydius_ussuriensis.bed" | sort) \
+    <(grep '^>' "${GS}/peptide/Gloydius_ussuriensis.fa" | sed 's/^>//; s/[[:space:]].*$//' | sort) \
+    | head
+
+
+echo
+echo "===== protein IDs absent from BED ====="
+
+comm -13 \
+    <(cut -f4 "${GS}/bed/Gloydius_ussuriensis.bed" | sort) \
+    <(grep '^>' "${GS}/peptide/Gloydius_ussuriensis.fa" | sed 's/^>//; s/[[:space:]].*$//' | sort) \
+    | head
+```
+
+This will show:
+```sh
+BED loci:          22,534
+Protein sequences: 22,534
+Mapping rows:      22,534
+```
+This means one gene locus - one BED entry - one representative protein match.
