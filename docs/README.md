@@ -40,9 +40,11 @@ __Note:__ I created this documentation in the hopes that my friends and future R
 8. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/08_Synteny.md#8-chromosomal-synteny)__
    - __Step 1: Setup directory and prepare data downloads__
    - __Step 2: Download assemblies__
-   - __Step 3: Download RNA-seq data__
-   - __Step 4: Step 4: Install software__
-   - __Step 5: Chromosomal macrosynteny using Synk__
+   - __Step 3: Install software__
+   - __Step 4: GFF-FASTA sequence ID matching__
+   - __Step 5: Convert annotations into protein fasta__
+   - __Step 6: Setup for GENESPACE analyses__
+   - __Step 7: GENESPACE run__
 9. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/09_MitoAssembly.md#9-mitogenome-assembly)__
     - __"Manual" annotation with MITOS2__
     - __Manual curation of the mitogenome assembled from MitoHiFi__
