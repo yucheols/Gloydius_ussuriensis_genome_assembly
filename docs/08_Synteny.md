@@ -1147,3 +1147,334 @@ FASTA IDs missing from BED = 0
 bad coordinates = 0
 ```
 This means that the GENESPACE input prep has been successful.
+
+### Step 7: GENESPACE run
+__NOTE:__ Before running GENESPACE, I noticed that C. viridis had lots of duplicated transcript coordinates that needed further correction. Therefore, I excluded this species from the initial GENESPACE run.
+
+First, let's check whether the required packages are installed:
+```sh
+conda activate genespace
+
+command -v Rscript
+command -v orthofinder
+command -v diamond
+command -v MCScanX_h
+
+Rscript -e 'cat("GENESPACE ", as.character(packageVersion("GENESPACE")), "\n")'
+```
+
+This will show that MCScanX_h is not installed. Let's install it in the genespace conda env:
+```sh
+conda install -c conda-forge -c bioconda mcscanx
+command -v MCScanX_h
+MCScanX_h 2>&1 | head
+```
+
+After this, create an R script to run GENESPACE:
+```r
+# ============================================================
+# GENESPACE macrosynteny analysis
+#
+# This run uses 11 snake genomes
+# NOTE: Crotalus viridis excluded pending annotation cleanup
+#
+# This script is run on AMNH Mendel HPC
+# ============================================================
+
+library(GENESPACE)
+
+
+# ------------------------------------------------------------
+# working directory
+# ------------------------------------------------------------
+
+wd <- '/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE'
+
+
+# ------------------------------------------------------------
+# genomes
+#
+# Order is approximately phylogenetic for convenient plotting
+# Crotalus_viridis is deliberately excluded
+# ------------------------------------------------------------
+
+genomeIDs <- c('Argyrophis_diardii',
+               'Xenopeltis_unicolor',
+               'Candoia_aspera',
+               'Elaphe_schrenckii',
+               'Naja_naja',
+               'Cerastes_gasperettii',
+               'Vipera_berus',
+               'Bothrops_insularis',
+               'Crotalus_adamanteus',
+               'Gloydius_shedaoensis',
+               'Gloydius_ussuriensis')
+
+
+# ------------------------------------------------------------
+# computational resources
+# ------------------------------------------------------------
+
+nCores <- as.integer(Sys.getenv('SLURM_CPUS_PER_TASK', unset = '48'))
+
+
+# ------------------------------------------------------------
+# path to external software
+# ------------------------------------------------------------
+
+path2orthofinder <- '/home/yshin/mendel-nas1/miniconda3/envs/genespace/bin/orthofinder'
+path2diamond <- '/home/yshin/mendel-nas1/miniconda3/envs/genespace/bin/diamond'
+
+# GENESPACE expects the directory containing MCScanX_h
+path2mcscanx <- '/home/yshin/mendel-nas1/miniconda3/envs/genespace/bin'
+
+
+# ------------------------------------------------------------
+# print run information
+# ------------------------------------------------------------
+
+cat('\n')
+cat('============================================================\n')
+cat('GENESPACE genome macrosynteny analysis\n')
+cat('============================================================\n')
+
+cat('GENESPACE version: ', as.character(packageVersion('GENESPACE')), '\n', sep = '')
+
+cat('Working directory: ', wd, '\n', sep = '')
+cat('Cores: ', nCores, '\n', sep = '')
+
+cat('\nGenome IDs:\n')
+print(genomeIDs)
+
+cat('\nExternal software:\n')
+cat('OrthoFinder: ', path2orthofinder, '\n', sep = '')
+cat('DIAMOND:     ', path2diamond, '\n', sep = '')
+cat('MCScanX dir: ', path2mcscanx, '\n', sep = '')
+
+
+# ------------------------------------------------------------
+# check required input files
+# ------------------------------------------------------------
+
+bedFiles <- file.path(wd, 'bed', paste0(genomeIDs, '.bed'))
+pepFiles <- file.path(wd, 'peptide', paste0(genomeIDs, '.fa'))
+
+
+if (!all(file.exists(bedFiles))) {
+  
+  stop(paste('Missing BED files:',
+             paste(bedFiles[!file.exists(bedFiles)],
+                   collapse = '\n')))
+}
+
+
+if (!all(file.exists(pepFiles))) {
+  
+  stop(paste('Missing peptide files:',
+             paste(pepFiles[!file.exists(pepFiles)],
+                   collapse = '\n')))
+}
+
+
+# explicit safeguard
+
+if ('Crotalus_viridis' %in% genomeIDs) {
+  stop('Crotalus_viridis should not be included in this run.')
+}
+
+
+cat('\nPASS: all 11 BED and peptide files found.\n')
+
+
+# ------------------------------------------------------------
+# initialize GENESPACE
+#
+# ploidy = 1:
+# each assembly represents one haploid chromosome complement
+#
+# useHOGs = T:
+# use hierarchical orthogroups from OrthoFinder
+#
+# other synteny parameters remain at GENESPACE defaults
+# ------------------------------------------------------------
+
+gpar <- init_genespace(wd = wd, genomeIDs = genomeIDs, ploidy = 1,
+                       path2orthofinder = path2orthofinder,
+                       path2diamond = path2diamond,
+                       path2mcscanx = path2mcscanx,
+                       useHOGs = T,
+                       nCores = nCores,
+                       dotplots = 'check')
+
+
+# ------------------------------------------------------------
+# save initialization parameters
+# ------------------------------------------------------------
+
+saveRDS(gpar, file.path(wd, 'GENESPACE_parameters_11snake.rds'))
+
+
+cat('\n')
+cat('============================================================\n')
+cat('GENESPACE initialization passed\n')
+cat('============================================================\n\n')
+
+
+# ------------------------------------------------------------
+# run complete GENESPACE pipeline
+# ------------------------------------------------------------
+
+out <- run_genespace(gsParam = gpar)
+
+
+# ------------------------------------------------------------
+# save final object
+# ------------------------------------------------------------
+
+saveRDS(out, file.path(wd, 'GENESPACE_results_11snake.rds'))
+
+
+# ------------------------------------------------------------
+# session information
+# ------------------------------------------------------------
+
+writeLines(capture.output(sessionInfo()),
+           file.path(wd, 'GENESPACE_sessionInfo_11snake.txt'))
+
+
+cat('\n')
+cat('============================================================\n')
+cat('GENESPACE RUN COMPLETED\n')
+cat('============================================================\n')
+```
+
+Run this script as a SLURM job:
+```sh
+#!/bin/bash
+#SBATCH --job-name=genespace
+#SBATCH --nodes=1
+#SBATCH --partition=compute
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=48
+#SBATCH --mem=300G
+#SBATCH --time=168:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+
+# ============================================================
+# GENESPACE macrosynteny
+# 11 snake genomes
+# ============================================================
+
+# activate conda environment
+source ~/.bash_profile
+conda activate genespace
+
+set -euo pipefail
+
+# set path
+GS="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
+
+# print helpful information
+echo "============================================================"
+echo "GENESPACE genome macrosynteny"
+echo "============================================================"
+echo "Date:   $(date)"
+echo "Node:   $(hostname)"
+echo "Job ID: ${SLURM_JOB_ID}"
+echo "CPUs:   ${SLURM_CPUS_PER_TASK}"
+echo
+
+
+# ------------------------------------------------------------
+# software
+# ------------------------------------------------------------
+
+echo "===== SOFTWARE ====="
+
+echo "Rscript:"
+command -v Rscript
+
+echo "OrthoFinder:"
+command -v orthofinder
+
+echo "DIAMOND:"
+command -v diamond
+
+echo "MCScanX_h:"
+command -v MCScanX_h
+
+echo
+
+Rscript -e '
+cat(
+    "GENESPACE ",
+    as.character(packageVersion("GENESPACE")),
+    "\n"
+)
+'
+
+
+# ------------------------------------------------------------
+# input summary
+# ------------------------------------------------------------
+
+echo
+echo "===== INPUT FILES ====="
+
+for sp in \
+    Argyrophis_diardii \
+    Xenopeltis_unicolor \
+    Candoia_aspera \
+    Elaphe_schrenckii \
+    Naja_naja \
+    Cerastes_gasperettii \
+    Vipera_berus \
+    Bothrops_insularis \
+    Crotalus_adamanteus \
+    Gloydius_shedaoensis \
+    Gloydius_ussuriensis
+do
+
+    bed="${GS}/bed/${sp}.bed"
+    pep="${GS}/peptide/${sp}.fa"
+
+    if [[ ! -s "${bed}" ]]; then
+        echo "ERROR: missing BED: ${bed}"
+        exit 1
+    fi
+
+    if [[ ! -s "${pep}" ]]; then
+        echo "ERROR: missing peptide FASTA: ${pep}"
+        exit 1
+    fi
+
+    nbed=$(wc -l < "${bed}")
+    npep=$(grep -c '^>' "${pep}")
+
+    echo -e "${sp}\tBED=${nbed}\tproteins=${npep}"
+
+done
+
+
+# ------------------------------------------------------------
+# run
+# ------------------------------------------------------------
+
+echo "============================================================"
+echo "STARTING GENESPACE"
+echo "============================================================"
+
+Rscript \
+    "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/R/genespace.R"
+
+
+echo
+echo "============================================================"
+echo "GENESPACE FINISHED"
+echo "Date: $(date)"
+echo "============================================================"
+```
