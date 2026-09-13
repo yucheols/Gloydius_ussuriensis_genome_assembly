@@ -950,3 +950,106 @@ Protein sequences: 22,534
 Mapping rows:      22,534
 ```
 This means one gene locus - one BED entry - one representative protein match.
+
+Now, we need to do the same for all comparison taxa. Let's inspect the exact annotation/protein filenames and formats in the comparison folders.
+```sh
+BASE="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny"
+
+for d in "${BASE}"/*; do
+
+    [ -d "${d}" ] || continue
+
+    echo
+    echo "============================================================"
+    echo "$(basename "${d}")"
+    echo "============================================================"
+
+    find "${d}" \
+        -maxdepth 1 \
+        -type f \
+        \( -iname "*.gff" \
+        -o -iname "*.gff3" \
+        -o -iname "*.gtf" \
+        -o -iname "*.faa" \
+        -o -iname "*.fa" \
+        -o -iname "*.fasta" \
+        -o -iname "*.pep" \) \
+        -printf '%f\n' \
+        | sort
+
+done
+```
+
+Let's also check how the protein IDs correspond to the annotation IDs. Check the protein headers first:
+```sh
+BASE="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny"
+
+for d in "${BASE}"/*; do
+
+    [ -d "${d}" ] || continue
+
+    echo
+    echo "============================================================"
+    echo "$(basename "${d}")"
+    echo "============================================================"
+
+    for f in "${d}"/*.faa; do
+
+        [ -f "${f}" ] || continue
+
+        echo "FILE: $(basename "${f}")"
+        grep '^>' "${f}" | head -3
+
+    done
+
+done
+```
+
+Do the same for the annotations:
+```sh
+BASE="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny"
+
+for d in "${BASE}"/*; do
+
+    [ -d "${d}" ] || continue
+
+    echo
+    echo "============================================================"
+    echo "$(basename "${d}")"
+    echo "============================================================"
+
+    for f in "${d}"/*.gff3 "${d}"/*.gtf; do
+
+        [ -f "${f}" ] || continue
+
+        echo "FILE: $(basename "${f}")"
+
+        awk -F'\t' '
+            $0 !~ /^#/ {
+                print
+                n++
+                if (n == 8) exit
+            }
+        ' "${f}"
+
+    done
+
+done
+```
+
+Running these two scripts will reveal that the annotation/protein relationships differ substantially among species. Therefore, let's run audit the ID mapping first:
+```sh
+audit_comparison_annotations.py
+``` 
+
+Run the script:
+```sh
+# set path
+GS="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
+
+# run
+python3 "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/Python/audit_comparison_annotations.py" \
+    | tee "${GS}/comparison_annotation_ID_audit.txt"
+```
+
+This will show that all 11 comparison protein FASTAs can be mapped back to their annotations cleanly.
