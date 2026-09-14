@@ -8,13 +8,18 @@
 #SBATCH --partition=compute
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%j.err
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
 # ================================================================
 # SMC++ demographic inference
 #
-# population: Mainland G. ussuriensis
+# population:
+#   Mainland G. ussuriensis
+#
+# sensitivity analysis:
+#   spline = PCHIP
+#   knots  = 12
 #
 # mutation rate:
 #   1.25e-8 mutations/site/generation
@@ -26,11 +31,16 @@
 # generation time is NOT used during smc++ estimate.
 # It will be supplied later during smc++ plot.
 #
+# IMPORTANT:
+# no --timepoints restriction is used.
+# SMC++ determines the temporal fitting interval automatically.
+#
 # input:
-#   17 autosomal .smc.gz files
+#   same 17 autosomal .smc.gz files used for the primary model
 #
 # output:
 #   fitted SMC++ demographic model
+#   07_models/pchip_k12/
 # ================================================================
 
 
@@ -55,9 +65,12 @@ WORKDIR_LINK="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demo
 WORKDIR=$(readlink -f "$WORKDIR_LINK")
 
 SIF="${WORKDIR}/00_env/smcpp_latest.sif"
-SMCDIR="${WORKDIR}/06_smc/primary"
-OUTDIR="${WORKDIR}/07_models/primary"
 
+# use exactly the same SMC files as the primary model
+SMCDIR="${WORKDIR}/06_smc/primary"
+
+# write this sensitivity analysis to a separate directory
+OUTDIR="${WORKDIR}/07_models/pchip_k12"
 mkdir -p "$OUTDIR"
 
 
@@ -65,6 +78,8 @@ mkdir -p "$OUTDIR"
 # parameters
 # ------------------------------------------------------------
 MU="1.25e-8"
+SPLINE="pchip"
+KNOTS="12"
 
 
 # ------------------------------------------------------------
@@ -85,14 +100,11 @@ fi
 SMC_IN=()
 
 for f in "${SMCFILES[@]}"; do
-
     basename_f=$(basename "$f")
-
     SMC_IN+=("/work/06_smc/primary/${basename_f}")
-
 done
 
-OUT_IN="/work/07_models/primary"
+OUT_IN="/work/07_models/pchip_k12"
 
 
 # ------------------------------------------------------------
@@ -105,8 +117,12 @@ echo "============================================================"
 echo "Population:             Mainland G. ussuriensis"
 echo "Mutation rate:          $MU / site / generation"
 echo "Generation time:        3 years"
+echo "Spline:                 $SPLINE"
+echo "Knots:                  $KNOTS"
+echo "Timepoints:             automatic"
 echo "SMC files:              $NSMC"
 echo "Resolved workdir:       $WORKDIR"
+echo "SMC input directory:    $SMCDIR"
 echo "Output directory:       $OUTDIR"
 echo "Container:              $SIF"
 echo "Host:                   $(hostname)"
@@ -138,6 +154,13 @@ apptainer exec \
 
 # ------------------------------------------------------------
 # estimate demographic history
+#
+# relative to the original primary model:
+#
+#   --spline pchip
+#   --knots 12
+#
+# no --timepoints restriction is applied.
 # ------------------------------------------------------------
 echo
 echo "Starting SMC++ estimate..."
@@ -147,6 +170,8 @@ apptainer exec \
     --bind "${WORKDIR}:/work" \
     "$SIF" \
     smc++ estimate \
+    --spline "$SPLINE" \
+    --knots "$KNOTS" \
     -o "$OUT_IN" \
     "$MU" \
     "${SMC_IN[@]}"
@@ -169,7 +194,11 @@ fi
 echo
 echo "============================================================"
 echo "SMC++ estimate completed"
+echo "============================================================"
 echo "Mutation rate:          $MU / site / generation"
+echo "Spline:                 $SPLINE"
+echo "Knots:                  $KNOTS"
+echo "Timepoints:             automatic"
 echo "Model:                  $MODEL"
 echo "Model size:             $(du -h "$MODEL" | cut -f1)"
 echo "Finish:                 $(date)"
