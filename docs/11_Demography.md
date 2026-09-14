@@ -2765,7 +2765,7 @@ For our demographic inference, we will use a mutation rate of 1.25 × 10e−8 pe
 
 ```sh
 #!/bin/bash
-#SBATCH --job-name=smc_estimate_recent
+#SBATCH --job-name=smc_estimate
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
@@ -2774,13 +2774,18 @@ For our demographic inference, we will use a mutation rate of 1.25 × 10e−8 pe
 #SBATCH --partition=compute
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%j.err
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
 # ================================================================
 # SMC++ demographic inference
 #
-# population: Mainland G. ussuriensis
+# population:
+#   Mainland G. ussuriensis
+#
+# sensitivity analysis:
+#   spline = PCHIP
+#   knots  = 12
 #
 # mutation rate:
 #   1.25e-8 mutations/site/generation
@@ -2788,15 +2793,20 @@ For our demographic inference, we will use a mutation rate of 1.25 × 10e−8 pe
 # generation time:
 #   3 years/generation
 #
-# time interval:
-#   1,000-100,000 years before present
-#   333.33-33,333.33 generations
+# NOTE:
+# generation time is NOT used during smc++ estimate.
+# It will be supplied later during smc++ plot.
+#
+# IMPORTANT:
+# no --timepoints restriction is used.
+# SMC++ determines the temporal fitting interval automatically.
 #
 # input:
-#   17 autosomal .smc.gz files
+#   same 17 autosomal .smc.gz files used for the primary model
 #
 # output:
 #   fitted SMC++ demographic model
+#   07_models/pchip_k12/
 # ================================================================
 
 
@@ -2821,9 +2831,12 @@ WORKDIR_LINK="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demo
 WORKDIR=$(readlink -f "$WORKDIR_LINK")
 
 SIF="${WORKDIR}/00_env/smcpp_latest.sif"
-SMCDIR="${WORKDIR}/06_smc/primary"
-OUTDIR="${WORKDIR}/07_models/recent_1000yr_100kyr"
 
+# use exactly the same SMC files as the primary model
+SMCDIR="${WORKDIR}/06_smc/primary"
+
+# write this sensitivity analysis to a separate directory
+OUTDIR="${WORKDIR}/07_models/pchip_k12"
 mkdir -p "$OUTDIR"
 
 
@@ -2831,8 +2844,8 @@ mkdir -p "$OUTDIR"
 # parameters
 # ------------------------------------------------------------
 MU="1.25e-8"
-TIMEPOINT_START="333.33"
-TIMEPOINT_END="33333.33"
+SPLINE="pchip"
+KNOTS="12"
 
 
 # ------------------------------------------------------------
@@ -2853,14 +2866,11 @@ fi
 SMC_IN=()
 
 for f in "${SMCFILES[@]}"; do
-
     basename_f=$(basename "$f")
-
     SMC_IN+=("/work/06_smc/primary/${basename_f}")
-
 done
 
-OUT_IN="/work/07_models/recent_1000yr_100kyr"
+OUT_IN="/work/07_models/pchip_k12"
 
 
 # ------------------------------------------------------------
@@ -2873,9 +2883,12 @@ echo "============================================================"
 echo "Population:             Mainland G. ussuriensis"
 echo "Mutation rate:          $MU / site / generation"
 echo "Generation time:        3 years"
-echo "Timepoints:             $TIMEPOINT_START-$TIMEPOINT_END generations"
+echo "Spline:                 $SPLINE"
+echo "Knots:                  $KNOTS"
+echo "Timepoints:             automatic"
 echo "SMC files:              $NSMC"
 echo "Resolved workdir:       $WORKDIR"
+echo "SMC input directory:    $SMCDIR"
 echo "Output directory:       $OUTDIR"
 echo "Container:              $SIF"
 echo "Host:                   $(hostname)"
@@ -2907,6 +2920,13 @@ apptainer exec \
 
 # ------------------------------------------------------------
 # estimate demographic history
+#
+# relative to the original primary model:
+#
+#   --spline pchip
+#   --knots 12
+#
+# no --timepoints restriction is applied.
 # ------------------------------------------------------------
 echo
 echo "Starting SMC++ estimate..."
@@ -2916,7 +2936,8 @@ apptainer exec \
     --bind "${WORKDIR}:/work" \
     "$SIF" \
     smc++ estimate \
-    --timepoints "$TIMEPOINT_START" "$TIMEPOINT_END" \
+    --spline "$SPLINE" \
+    --knots "$KNOTS" \
     -o "$OUT_IN" \
     "$MU" \
     "${SMC_IN[@]}"
@@ -2939,136 +2960,36 @@ fi
 echo
 echo "============================================================"
 echo "SMC++ estimate completed"
+echo "============================================================"
 echo "Mutation rate:          $MU / site / generation"
-echo "Timepoints:             $TIMEPOINT_START-$TIMEPOINT_END generations"
+echo "Spline:                 $SPLINE"
+echo "Knots:                  $KNOTS"
+echo "Timepoints:             automatic"
 echo "Model:                  $MODEL"
 echo "Model size:             $(du -h "$MODEL" | cut -f1)"
 echo "Finish:                 $(date)"
 echo "============================================================"
 ```
 
-After this, we can use smc++ plot command to generate a plot:
+After this, we can use smc++ plot command to generate a plot. This operation is lightweight and can be run on the head node.
 ```sh
-#!/bin/bash
-#SBATCH --job-name=smc_plot_recent
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
-#SBATCH --mem=8G
-#SBATCH --time=04:00:00
-#SBATCH --partition=compute
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography/outfiles/slurm-%x_%j.err
+# set directory
+WORKDIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography"
+SIF="${WORKDIR}/00_env/smcpp_latest.sif"
 
-# ================================================================
-# plot SMC++ demographic history
-#
-# population: Mainland G. ussuriensis
-#
-# mutation rate used during estimate:
-#   1.25e-8 mutations/site/generation
-#
-# generation time used for plotting:
-#   3 years/generation
-#
-# time interval:
-#   1,000-100,000 years before present
-# ================================================================
-
-
-# ------------------------------------------------------------
-# load Apptainer
-# ------------------------------------------------------------
+# load apptainer
 module load Apptainer/apptainer-1.2.5
 
-
-# ------------------------------------------------------------
-# strict bash
-# ------------------------------------------------------------
-set -euo pipefail
-
-
-# ------------------------------------------------------------
-# paths
-# ------------------------------------------------------------
-WORKDIR_LINK="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography"
-WORKDIR=$(readlink -f "$WORKDIR_LINK")
-
-SIF="${WORKDIR}/00_env/smcpp_latest.sif"
-MODEL="${WORKDIR}/07_models/recent_1000yr_100kyr/model.final.json"
-OUTDIR="${WORKDIR}/08_plots/recent_1000yr_100kyr"
-
-mkdir -p "$OUTDIR"
-
-
-# ------------------------------------------------------------
-# parameters
-# ------------------------------------------------------------
-GENERATION_TIME="3"
-
-
-# ------------------------------------------------------------
-# container paths
-# ------------------------------------------------------------
-MODEL_IN="/work/07_models/recent_1000yr_100kyr/model.final.json"
-PLOT_IN="/work/08_plots/recent_1000yr_100kyr/G_ussuriensis_mainland_SMCpp_recent_1000yr_100kyr.pdf"
-
-
-# ------------------------------------------------------------
-# job information
-# ------------------------------------------------------------
-echo
-echo "============================================================"
-echo "SMC++ plot"
-echo "============================================================"
-echo "Population:          Mainland G. ussuriensis"
-echo "Generation time:     ${GENERATION_TIME} years"
-echo "Model:               $MODEL"
-echo "Output directory:    $OUTDIR"
-echo "Start:               $(date)"
-echo "============================================================"
-echo
-
-
-# ------------------------------------------------------------
-# plot demographic history
-#
-# -g 3:
-#   convert generations to years using 3 years/generation
-#
-# -c:
-#   also produce CSV containing plotted x/y coordinates
-# ------------------------------------------------------------
+# run smc++ to generate a .csv file
 apptainer exec \
     --cleanenv \
     --bind "${WORKDIR}:/work" \
     "$SIF" \
     smc++ plot \
-    -g "$GENERATION_TIME" \
+    -g 3 \
     -c \
-    "$PLOT_IN" \
-    "$MODEL_IN"
-
-
-# ------------------------------------------------------------
-# check outputs
-# ------------------------------------------------------------
-PLOT="${OUTDIR}/G_ussuriensis_mainland_SMCpp_recent_1000yr_100kyr.pdf"
-CSV="${OUTDIR}/G_ussuriensis_mainland_SMCpp_recent_1000yr_100kyr.csv"
-
-
-# ------------------------------------------------------------
-# finish
-# ------------------------------------------------------------
-echo
-echo "============================================================"
-echo "SMC++ plotting completed"
-echo "Plot:     $PLOT"
-echo "CSV:      $CSV"
-echo "Finish:   $(date)"
-echo "============================================================"
+    "/work/07_models/pchip_k12/G_ussuriensis_mainland_pchip_k12.pdf" \
+    "/work/07_models/pchip_k12/model.final.json"
 ```
 
 This script will output a .csv file used to generate the plot. We can import this file into R and make a better looking plot for publication using ggplot2:

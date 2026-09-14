@@ -27,7 +27,7 @@ library(scales)
 # read unrestricted SMC++ primary model
 # ------------------------------------------------------------
 smc <- read.csv(
-  '/home/yshin/Gloydius_ussuriensis_genome_assembly/outputs/demography/G_ussuriensis_mainland_primary.csv'
+  '/home/yshin/Gloydius_ussuriensis_genome_assembly/outputs/demography/G_ussuriensis_mainland_pchip_k12.csv'
 )
 
 head(smc)

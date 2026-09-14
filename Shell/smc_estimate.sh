@@ -19,7 +19,7 @@
 #
 # sensitivity analysis:
 #   spline = PCHIP
-#   knots  = 12
+#   knots  = 8
 #
 # mutation rate:
 #   1.25e-8 mutations/site/generation
@@ -40,7 +40,7 @@
 #
 # output:
 #   fitted SMC++ demographic model
-#   07_models/pchip_k12/
+#   07_models/pchip_k8/
 # ================================================================
 
 
@@ -63,14 +63,13 @@ WORKDIR_LINK="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demo
 
 # resolve symlinked NAS path
 WORKDIR=$(readlink -f "$WORKDIR_LINK")
-
 SIF="${WORKDIR}/00_env/smcpp_latest.sif"
 
-# use exactly the same SMC files as the primary model
+# path to .smc.gz files
 SMCDIR="${WORKDIR}/06_smc/primary"
 
-# write this sensitivity analysis to a separate directory
-OUTDIR="${WORKDIR}/07_models/pchip_k12"
+# specify output directory
+OUTDIR="${WORKDIR}/07_models/pchip_k8"
 mkdir -p "$OUTDIR"
 
 
@@ -79,7 +78,7 @@ mkdir -p "$OUTDIR"
 # ------------------------------------------------------------
 MU="1.25e-8"
 SPLINE="pchip"
-KNOTS="12"
+KNOTS="8"
 
 
 # ------------------------------------------------------------
@@ -104,7 +103,7 @@ for f in "${SMCFILES[@]}"; do
     SMC_IN+=("/work/06_smc/primary/${basename_f}")
 done
 
-OUT_IN="/work/07_models/pchip_k12"
+OUT_IN="/work/07_models/pchip_k8"
 
 
 # ------------------------------------------------------------
@@ -158,7 +157,7 @@ apptainer exec \
 # relative to the original primary model:
 #
 #   --spline pchip
-#   --knots 12
+#   --knots 8
 #
 # no --timepoints restriction is applied.
 # ------------------------------------------------------------
