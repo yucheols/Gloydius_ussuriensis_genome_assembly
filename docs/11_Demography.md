@@ -2784,8 +2784,8 @@ For our demographic inference, we will use a mutation rate of 1.25 × 10e−8 pe
 #   Mainland G. ussuriensis
 #
 # sensitivity analysis:
-#   spline = PCHIP
-#   knots  = 12
+#   spline = piecewise
+#   knots  = 8
 #
 # mutation rate:
 #   1.25e-8 mutations/site/generation
@@ -2802,11 +2802,11 @@ For our demographic inference, we will use a mutation rate of 1.25 × 10e−8 pe
 # SMC++ determines the temporal fitting interval automatically.
 #
 # input:
-#   same 17 autosomal .smc.gz files used for the primary model
+#   17 autosomal .smc.gz files
 #
 # output:
 #   fitted SMC++ demographic model
-#   07_models/pchip_k12/
+#   07_models/piecewise_k8/
 # ================================================================
 
 
@@ -2829,14 +2829,19 @@ WORKDIR_LINK="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demo
 
 # resolve symlinked NAS path
 WORKDIR=$(readlink -f "$WORKDIR_LINK")
-
 SIF="${WORKDIR}/00_env/smcpp_latest.sif"
 
-# use exactly the same SMC files as the primary model
+
+# ------------------------------------------------------------
+# path to .smc.gz files
+# ------------------------------------------------------------
 SMCDIR="${WORKDIR}/06_smc/primary"
 
-# write this sensitivity analysis to a separate directory
-OUTDIR="${WORKDIR}/07_models/pchip_k12"
+
+# ------------------------------------------------------------
+# output directory
+# ------------------------------------------------------------
+OUTDIR="${WORKDIR}/07_models/piecewise_k8"
 mkdir -p "$OUTDIR"
 
 
@@ -2844,8 +2849,8 @@ mkdir -p "$OUTDIR"
 # parameters
 # ------------------------------------------------------------
 MU="1.25e-8"
-SPLINE="pchip"
-KNOTS="12"
+SPLINE="piecewise"
+KNOTS="8"
 
 
 # ------------------------------------------------------------
@@ -2855,8 +2860,10 @@ SMCFILES=("${SMCDIR}"/*.smc.gz)
 NSMC=${#SMCFILES[@]}
 
 if [[ "$NSMC" -ne 17 ]]; then
+
     echo "ERROR: Expected 17 SMC files but found $NSMC"
     exit 1
+
 fi
 
 
@@ -2866,11 +2873,18 @@ fi
 SMC_IN=()
 
 for f in "${SMCFILES[@]}"; do
+
     basename_f=$(basename "$f")
+
     SMC_IN+=("/work/06_smc/primary/${basename_f}")
+
 done
 
-OUT_IN="/work/07_models/pchip_k12"
+
+# ------------------------------------------------------------
+# output path inside container
+# ------------------------------------------------------------
+OUT_IN="/work/07_models/piecewise_k8"
 
 
 # ------------------------------------------------------------
@@ -2921,10 +2935,8 @@ apptainer exec \
 # ------------------------------------------------------------
 # estimate demographic history
 #
-# relative to the original primary model:
-#
-#   --spline pchip
-#   --knots 12
+# piecewise spline
+# 8 knots
 #
 # no --timepoints restriction is applied.
 # ------------------------------------------------------------
@@ -2949,8 +2961,10 @@ apptainer exec \
 MODEL="${OUTDIR}/model.final.json"
 
 if [[ ! -s "$MODEL" ]]; then
+
     echo "ERROR: model.final.json was not produced"
     exit 1
+
 fi
 
 
@@ -2988,8 +3002,8 @@ apptainer exec \
     smc++ plot \
     -g 3 \
     -c \
-    "/work/07_models/pchip_k12/G_ussuriensis_mainland_pchip_k12.pdf" \
-    "/work/07_models/pchip_k12/model.final.json"
+    "/work/07_models/piecewise_k8/G_ussuriensis_mainland_piecewise_k8.pdf" \
+    "/work/07_models/piecewise_k8/model.final.json"
 ```
 
 This script will output a .csv file used to generate the plot. We can import this file into R and make a better looking plot for publication using ggplot2:

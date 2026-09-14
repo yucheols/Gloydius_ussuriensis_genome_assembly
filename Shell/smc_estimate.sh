@@ -18,7 +18,7 @@
 #   Mainland G. ussuriensis
 #
 # sensitivity analysis:
-#   spline = PCHIP
+#   spline = piecewise
 #   knots  = 8
 #
 # mutation rate:
@@ -36,11 +36,11 @@
 # SMC++ determines the temporal fitting interval automatically.
 #
 # input:
-#   same 17 autosomal .smc.gz files used for the primary model
+#   17 autosomal .smc.gz files
 #
 # output:
 #   fitted SMC++ demographic model
-#   07_models/pchip_k8/
+#   07_models/piecewise_k8/
 # ================================================================
 
 
@@ -65,11 +65,17 @@ WORKDIR_LINK="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demo
 WORKDIR=$(readlink -f "$WORKDIR_LINK")
 SIF="${WORKDIR}/00_env/smcpp_latest.sif"
 
+
+# ------------------------------------------------------------
 # path to .smc.gz files
+# ------------------------------------------------------------
 SMCDIR="${WORKDIR}/06_smc/primary"
 
-# specify output directory
-OUTDIR="${WORKDIR}/07_models/pchip_k8"
+
+# ------------------------------------------------------------
+# output directory
+# ------------------------------------------------------------
+OUTDIR="${WORKDIR}/07_models/piecewise_k8"
 mkdir -p "$OUTDIR"
 
 
@@ -77,7 +83,7 @@ mkdir -p "$OUTDIR"
 # parameters
 # ------------------------------------------------------------
 MU="1.25e-8"
-SPLINE="pchip"
+SPLINE="piecewise"
 KNOTS="8"
 
 
@@ -88,8 +94,10 @@ SMCFILES=("${SMCDIR}"/*.smc.gz)
 NSMC=${#SMCFILES[@]}
 
 if [[ "$NSMC" -ne 17 ]]; then
+
     echo "ERROR: Expected 17 SMC files but found $NSMC"
     exit 1
+
 fi
 
 
@@ -99,11 +107,18 @@ fi
 SMC_IN=()
 
 for f in "${SMCFILES[@]}"; do
+
     basename_f=$(basename "$f")
+
     SMC_IN+=("/work/06_smc/primary/${basename_f}")
+
 done
 
-OUT_IN="/work/07_models/pchip_k8"
+
+# ------------------------------------------------------------
+# output path inside container
+# ------------------------------------------------------------
+OUT_IN="/work/07_models/piecewise_k8"
 
 
 # ------------------------------------------------------------
@@ -154,10 +169,8 @@ apptainer exec \
 # ------------------------------------------------------------
 # estimate demographic history
 #
-# relative to the original primary model:
-#
-#   --spline pchip
-#   --knots 8
+# piecewise spline
+# 8 knots
 #
 # no --timepoints restriction is applied.
 # ------------------------------------------------------------
@@ -182,8 +195,10 @@ apptainer exec \
 MODEL="${OUTDIR}/model.final.json"
 
 if [[ ! -s "$MODEL" ]]; then
+
     echo "ERROR: model.final.json was not produced"
     exit 1
+
 fi
 
 
