@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=get_venom_data
+#SBATCH --job-name=Crot_get_venom_data
 #SBATCH --nodes=1
 #SBATCH --partition=compute
 #SBATCH --ntasks=1
@@ -14,29 +14,33 @@
 set -euo pipefail
 
 ### commands start here ###
-# path to SRA toolkit
-export PATH=$PWD/sratoolkit.3.4.1-alma_linux64/bin:$PATH
+# obtain venom gland RNA-seq data for Crotalus adamanteus from NCBI SRA database
+# the specimen code for these RNA-seq data is DRR0105, which matches the genome individual as per Hogan et al. 2024 PNAS paper
+
+# activate conda env
+source /home/yshin/mendel-nas1/miniconda3/etc/profile.d/conda.sh
+conda activate sra_tools
 
 # set directories
-basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland"
+basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/crot_venom_gland"
 sradir="${basedir}/ncbi_seq"
 fastqdir="${basedir}/fastq"
 tmpdir="${basedir}/tmp"
 
-mkdir -p "$sradir" "$fastqdir" "$tmpdir"
+mkdir -p $basedir "$sradir" "$fastqdir" "$tmpdir"
 
 # download SRA files
-prefetch SRR35908235 -O "$sradir"
-prefetch SRR35908238 -O "$sradir"
+prefetch SRR12915693 -O "$sradir"   # C. adamanteus DRR0105 right venom gland
+prefetch SRR12915694 -O "$sradir"   # C. adamanteus DRR0105 left venom gland
 
 # convert .sra files to FASTQ files
-fasterq-dump "$sradir/SRR35908235/SRR35908235.sra" \
+fasterq-dump "$sradir/SRR12915693/SRR12915693.sra" \
   --split-files \
   --threads 12 \
   --temp "$tmpdir" \
   -O "$fastqdir"
 
-fasterq-dump "$sradir/SRR35908238/SRR35908238.sra" \
+fasterq-dump "$sradir/SRR12915694/SRR12915694.sra" \
   --split-files \
   --threads 12 \
   --temp "$tmpdir" \

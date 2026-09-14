@@ -14,8 +14,9 @@
 set -euo pipefail
 
 ### commands start here ###
-# path to SRA toolkit
-export PATH=$PWD/sratoolkit.3.4.1-alma_linux64/bin:$PATH
+# activate conda env
+source /home/yshin/mendel-nas1/miniconda3/etc/profile.d/conda.sh
+conda activate sra_tools
 
 # set directories
 basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland"

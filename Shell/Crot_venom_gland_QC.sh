@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=venom_gland_qc
+#SBATCH --job-name=Crot_venom_gland_qc
 #SBATCH --nodes=1
 #SBATCH --partition=compute
 #SBATCH --ntasks=1
@@ -18,7 +18,7 @@ source ~/.bash_profile
 conda activate genome_assembly
 
 # set directory
-basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland"
+basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/crot_venom_gland"
 cd "$basedir"
 
 # make output dir
