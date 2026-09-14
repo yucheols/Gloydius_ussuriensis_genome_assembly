@@ -199,7 +199,7 @@ library(GENESPACE)
 citation('GENESPACE')
 ```
 
-### Step 4: GFF-FASTA sequence ID matching
+### Step 4: Normalize assembly - annotation sequence IDs
 First, check whether sequence names in the GFF exactly match the FASTA headers:
 ```sh
 # from the synteny/assemblies_synteny dir
@@ -822,336 +822,59 @@ Some comparison taxa had protein fasta already downloaded alongside the genome f
 synteny_prep_protein.sh
 ```
 
-### Step 6: Setup for GENESPACE analyses
+### Step 6: Prepare GENESPACE inputs
+Some assemblies already only have chromosome-scale sequences, whereas some contain numerous unplaced scaffolds. Therefore, let's generate a chromosome manifest file to make input prep easier. Run the Python script below:
 ```sh
-DIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
+# activate conda env
+conda activate genespace
 
-mkdir -p \
-    "${DIR}/bed" \
-    "${DIR}/peptide" \
-    "${DIR}/mapping" \
-```
-
-Next, we will prepare a representative protein set that will be used as an input for GENESPACE analyses. Our annotation has multiple transcript/protein isoforms for some genes, while for macrosynteny we generally want one locus per protein. GENESPACE compares genes across genomes, and feeding every isoform would make one biological gene look like several nearby genes. Therefore, we will run the Python script below to select one representative (i.e. the longest) protein isoform per gene.
-```sh
-make_genespace_representative.py
-```
-
-The script will read the final GFF3:
-```sh
-Gloydius_ussuriensis_AMNH_21010.gff3
-```
-
-Which has lines like:
-```sh
-gene  ID=FUN_000001
-mRNA  ID=FUN_000001-T1;Parent=FUN_000001
-mRNA  ID=FUN_000001-T2;Parent=FUN_000001
-```
-
-From this, it will learn that:
-```sh
-FUN_000001-T1 = FUN_000001
-FUN_000001-T2 = FUN_000001
-```
-
-Then it will read the protein fasta and select the longest protein isoform.
-
-Run the script like this:
-```sh
-# activate conda env to access python
-conda activate synteny_qc
-
-# set paths
-GS="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
-FUN="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/funannotate"
+# set output path
+GS='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE'
 
 # run script
-python3 "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/Python/make_genespace_representative.py" \
-    "${FUN}/annotate_results/Gloydius_ussuriensis_AMNH_21010.gff3" \
-    "${FUN}/annotate_results/Gloydius_ussuriensis_AMNH_21010.proteins.fa" \
-    "${GS}/bed/Gloydius_ussuriensis.bed" \
-    "${GS}/peptide/Gloydius_ussuriensis.fa" \
-    "${GS}/mapping/Gloydius_ussuriensis.longest_isoform.tsv"
+python \
+    /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/Python/genespace_make_chr_map.py \
+    | tee "${GS}/QC/chromosome_manifest.log"
 ```
+This script will build a chromosome manifest for GENESPACE by identifying bona fide chromosome pseudomolecules, matching them to the sequence IDs used in each annotation, standardizing chromosome names (chr1, chr2, chrZ, chrW), and recording explicit Z/W status where available. It excludes unplaced/unlocalized scaffolds from the manifest and performs QC for unmatched or duplicated chromosome mappings. The output from this script is then used to build the final chromosome-only GENESPACE inputs.
 
-The output will print like this:
+Now, let's prepare input files for running GENESPACE. Run the Python script below. This script will convert the full annotation/protein resources into the final chromosome-only, longest-isoform GENESPACE input set.
 ```sh
-============================================================
-GENESPACE representative-protein preparation
-============================================================
-GFF genes:                         23,157
-GFF transcripts:                   28,000
-Input proteins:                    28,000
-Genes represented by proteins:     22,534
-GENESPACE loci written:            22,534
-Genes without protein:              623
-Proteins without transcript map:    0
-Representative genes without coord: 0
-============================================================
-```
+# activate conda env
+conda activate genespace
 
-Let's also run a BED-fasta identity check:
-```sh
-GS="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
-
-echo "===== counts ====="
-
-printf "BED loci: "
-wc -l < "${GS}/bed/Gloydius_ussuriensis.bed"
-
-printf "Protein sequences: "
-grep -c '^>' "${GS}/peptide/Gloydius_ussuriensis.fa"
-
-printf "Mapping rows: "
-awk 'NR>1' "${GS}/mapping/Gloydius_ussuriensis.longest_isoform.tsv" | wc -l
-
-
-echo
-echo "===== duplicate BED IDs ====="
-
-cut -f4 "${GS}/bed/Gloydius_ussuriensis.bed" \
-    | sort \
-    | uniq -d \
-    | head
-
-
-echo
-echo "===== duplicate FASTA IDs ====="
-
-grep '^>' "${GS}/peptide/Gloydius_ussuriensis.fa" \
-    | sed 's/^>//; s/[[:space:]].*$//' \
-    | sort \
-    | uniq -d \
-    | head
-
-
-echo
-echo "===== BED IDs absent from protein FASTA ====="
-
-comm -23 \
-    <(cut -f4 "${GS}/bed/Gloydius_ussuriensis.bed" | sort) \
-    <(grep '^>' "${GS}/peptide/Gloydius_ussuriensis.fa" | sed 's/^>//; s/[[:space:]].*$//' | sort) \
-    | head
-
-
-echo
-echo "===== protein IDs absent from BED ====="
-
-comm -13 \
-    <(cut -f4 "${GS}/bed/Gloydius_ussuriensis.bed" | sort) \
-    <(grep '^>' "${GS}/peptide/Gloydius_ussuriensis.fa" | sed 's/^>//; s/[[:space:]].*$//' | sort) \
-    | head
-```
-
-This will show:
-```sh
-BED loci:          22,534
-Protein sequences: 22,534
-Mapping rows:      22,534
-```
-This means one gene locus - one BED entry - one representative protein match.
-
-Now, we need to do the same for all comparison taxa. Let's inspect the exact annotation/protein filenames and formats in the comparison folders.
-```sh
-BASE="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny"
-
-for d in "${BASE}"/*; do
-
-    [ -d "${d}" ] || continue
-
-    echo
-    echo "============================================================"
-    echo "$(basename "${d}")"
-    echo "============================================================"
-
-    find "${d}" \
-        -maxdepth 1 \
-        -type f \
-        \( -iname "*.gff" \
-        -o -iname "*.gff3" \
-        -o -iname "*.gtf" \
-        -o -iname "*.faa" \
-        -o -iname "*.fa" \
-        -o -iname "*.fasta" \
-        -o -iname "*.pep" \) \
-        -printf '%f\n' \
-        | sort
-
-done
-```
-
-Let's also check how the protein IDs correspond to the annotation IDs. Check the protein headers first:
-```sh
-BASE="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny"
-
-for d in "${BASE}"/*; do
-
-    [ -d "${d}" ] || continue
-
-    echo
-    echo "============================================================"
-    echo "$(basename "${d}")"
-    echo "============================================================"
-
-    for f in "${d}"/*.faa; do
-
-        [ -f "${f}" ] || continue
-
-        echo "FILE: $(basename "${f}")"
-        grep '^>' "${f}" | head -3
-
-    done
-
-done
-```
-
-Do the same for the annotations:
-```sh
-BASE="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny"
-
-for d in "${BASE}"/*; do
-
-    [ -d "${d}" ] || continue
-
-    echo
-    echo "============================================================"
-    echo "$(basename "${d}")"
-    echo "============================================================"
-
-    for f in "${d}"/*.gff3 "${d}"/*.gtf; do
-
-        [ -f "${f}" ] || continue
-
-        echo "FILE: $(basename "${f}")"
-
-        awk -F'\t' '
-            $0 !~ /^#/ {
-                print
-                n++
-                if (n == 8) exit
-            }
-        ' "${f}"
-
-    done
-
-done
-```
-
-Running these two scripts will reveal that the annotation/protein relationships differ substantially among species. Therefore, let's run audit the ID mapping first:
-```sh
-audit_comparison_annotations.py
-``` 
-
-Run the script:
-```sh
-# set path
-GS="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
+# set output path
+GS='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE'
 
 # run
-python3 "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/Python/audit_comparison_annotations.py" \
-    | tee "${GS}/comparison_annotation_ID_audit.txt"
+python \
+    /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/Python/genespace_make_inputs.py \
+    | tee "${GS}/QC/genespace_build_chr_inputs.log"
 ```
+In more detail, this script does the following:
+1) Reads the chromosome manifest (chromosome_manifest.tsv) and uses it as a list of valid    
+   chromosome-scale pseudomolecules
+2) Keeps only the 11 intended species and excludes Crotalus viridis
+3) Loads each species’ source annotation and protein FASTA
+4) Parses GFF3/GTF annotations to recover:
+    - gene coordinates,
+    - transcript coordinates,
+    - transcript - gene relationships,
+    - protein_id - transcript relationships
+    - Maps every protein FASTA record back to its biological gene/locus using either: FASTA  ID = transcript ID, or FASTA ID = annotation protein_id
+    - Groups all protein isoforms belonging to the same gene/locus
+    - Selects the longest protein isoform per gene/locus as the representative protein.
+    - Replaces . characters in protein sequences with X so DIAMOND can process them; leaves U unchanged
+    - Filters representative loci to chromosome-scale sequences only and removes: unplaced/unlocalized scaffolds and contigs, explicitly annotated W chromosomes. But it will retain Z chromosomes and numerically labelled chromosomes whose sex-chromosome status is still unresolved
+    - Converts source chromosome IDs to standardized names such as: chr1, chr2, ..., chrZ
+    - Writes a GENESPACE BED file for each species
+    - Writes a representative peptide FASTA containing one protein per retained gene:
+    - Renames peptide FASTA headers to the gene/locus ID so that: BED column 4 = peptide FASTA ID
+    - Writes a mapping table recording the selected representative isoform, original protein/transcript ID, chromosome, coordinates, protein length, and number of isoforms
+    - Performs QC checks for: duplicate locus IDs, surviving explicit W chromosomes, BED/peptide count mismatches, BED/peptide ID mismatches, invalid protein characters, unmapped or ambiguous protein mappings
+    - Writes a final per-species summary
 
-This will show that all 11 comparison protein FASTAs can be mapped back to their annotations cleanly. The comparison dataset contains three mapping patterns, and we can use the batch converter script below to create a clean GENESPACE input for the comparison taxa.
-```sh
-# set path
-GS="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
-
-# run
-python3 "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/Python/make_comparison_genespace_inputs.py" \
-    | tee "${GS}/comparison_genespace_preprocessing.log"
-``` 
-
-The results look clean. All 11 comparison genomes passed the critical mapping test, with 0 unmapped proteins and 0 ambiguous mappings.
-
-Before moving on to the actual GENESPACE run, let's do one global QC across all 12 genomes (11 comparison taxa genome + 1 *G. ussuriensis*):
-```sh
-GS="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
-
-printf "species\tBED\tproteins\tdupBED\tdupFASTA\tBED_not_FASTA\tFASTA_not_BED\tbad_coords\tseqIDs\n"
-
-for bed in "${GS}"/bed/*.bed; do
-
-    sp=$(basename "${bed}" .bed)
-    pep="${GS}/peptide/${sp}.fa"
-
-    nbed=$(wc -l < "${bed}")
-    npep=$(grep -c '^>' "${pep}")
-
-    dupbed=$(
-        cut -f4 "${bed}" |
-        sort |
-        uniq -d |
-        wc -l
-    )
-
-    dupfa=$(
-        grep '^>' "${pep}" |
-        sed 's/^>//; s/[[:space:]].*$//' |
-        sort |
-        uniq -d |
-        wc -l
-    )
-
-    bed_not_fasta=$(
-        comm -23 \
-            <(cut -f4 "${bed}" | sort) \
-            <(grep '^>' "${pep}" |
-              sed 's/^>//; s/[[:space:]].*$//' |
-              sort) |
-        wc -l
-    )
-
-    fasta_not_bed=$(
-        comm -13 \
-            <(cut -f4 "${bed}" | sort) \
-            <(grep '^>' "${pep}" |
-              sed 's/^>//; s/[[:space:]].*$//' |
-              sort) |
-        wc -l
-    )
-
-    badcoords=$(
-        awk '
-            $2 < 0 || $3 <= $2 {n++}
-            END {print n+0}
-        ' "${bed}"
-    )
-
-    nseq=$(
-        cut -f1 "${bed}" |
-        sort -u |
-        wc -l
-    )
-
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
-        "${sp}" \
-        "${nbed}" \
-        "${npep}" \
-        "${dupbed}" \
-        "${dupfa}" \
-        "${bed_not_fasta}" \
-        "${fasta_not_bed}" \
-        "${badcoords}" \
-        "${nseq}"
-
-done | column -t
-```  
-The results will show:
-```sh
-BED count = protein count
-duplicate BED IDs = 0
-duplicate FASTA IDs = 0
-BED IDs missing from FASTA = 0
-FASTA IDs missing from BED = 0
-bad coordinates = 0
-```
-This means that the GENESPACE input prep has been successful.
-
-### Step 7: GENESPACE run
-__NOTE:__ Before running GENESPACE, I noticed that *C. viridis* had lots of duplicated transcript coordinates that needed further correction. Therefore, I excluded this species from the initial GENESPACE run.
-
+### Step 7: Run GENESPACE
 First, let's check whether the required packages are installed:
 ```sh
 conda activate genespace
@@ -1176,11 +899,34 @@ After this, create an R script to run GENESPACE:
 # ============================================================
 # GENESPACE macrosynteny analysis
 #
-# This run uses 11 snake genomes
-# NOTE: Crotalus viridis excluded pending annotation cleanup
+# 11 snake genomes
+#
+# Input preparation:
+#   - one longest representative protein per biological locus
+#   - chromosome-scale pseudomolecules only
+#   - unplaced/unlocalized sequences excluded
+#   - explicitly identified W chromosomes excluded
+#   - Z chromosomes retained
+#   - numerically labelled potential sex chromosomes retained
+#
+# NOTE:
+#   Crotalus viridis excluded pending annotation cleanup
 #
 # This script is run on AMNH Mendel HPC
 # ============================================================
+
+
+# ------------------------------------------------------------
+# clean R environment
+# ------------------------------------------------------------
+
+rm(list = ls(all.names = T))
+gc()
+
+
+# ------------------------------------------------------------
+# load GENESPACE
+# ------------------------------------------------------------
 
 library(GENESPACE)
 
@@ -1195,8 +941,11 @@ wd <- '/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GEN
 # ------------------------------------------------------------
 # genomes
 #
-# Order is approximately phylogenetic for convenient plotting
-# Crotalus_viridis is deliberately excluded
+# Order is approximately phylogenetic for convenient plotting.
+#
+# Crotalus_viridis is deliberately excluded because its
+# annotation contains extensive duplicated GeneWise models
+# requiring separate cleanup.
 # ------------------------------------------------------------
 
 genomeIDs <- c('Argyrophis_diardii',
@@ -1220,7 +969,7 @@ nCores <- as.integer(Sys.getenv('SLURM_CPUS_PER_TASK', unset = '48'))
 
 
 # ------------------------------------------------------------
-# path to external software
+# paths to external software
 # ------------------------------------------------------------
 
 path2orthofinder <- '/home/yshin/mendel-nas1/miniconda3/envs/genespace/bin/orthofinder'
@@ -1231,8 +980,20 @@ path2mcscanx <- '/home/yshin/mendel-nas1/miniconda3/envs/genespace/bin'
 
 
 # ------------------------------------------------------------
-# print run information
+# output file names
+#
+# Distinguish this chromosome-only run from earlier
+# exploratory GENESPACE analyses.
 # ------------------------------------------------------------
+
+parameterFile <- file.path(wd, 'GENESPACE_parameters_11snake_chrOnly.rds')
+resultFile <- file.path(wd, 'GENESPACE_results_11snake_chrOnly.rds')
+sessionFile <- file.path(wd, 'GENESPACE_sessionInfo_11snake_chrOnly.txt')
+
+
+# ============================================================
+# print run information
+# ============================================================
 
 cat('\n')
 cat('============================================================\n')
@@ -1240,113 +1001,249 @@ cat('GENESPACE genome macrosynteny analysis\n')
 cat('============================================================\n')
 
 cat('GENESPACE version: ', as.character(packageVersion('GENESPACE')), '\n', sep = '')
-
 cat('Working directory: ', wd, '\n', sep = '')
-cat('Cores: ', nCores, '\n', sep = '')
 
+cat('Cores: ', nCores, '\n', sep = '')
 cat('\nGenome IDs:\n')
 print(genomeIDs)
 
 cat('\nExternal software:\n')
+
 cat('OrthoFinder: ', path2orthofinder, '\n', sep = '')
 cat('DIAMOND:     ', path2diamond, '\n', sep = '')
 cat('MCScanX dir: ', path2mcscanx, '\n', sep = '')
 
 
-# ------------------------------------------------------------
-# check required input files
-# ------------------------------------------------------------
+# ============================================================
+# basic safeguards
+# ============================================================
 
-bedFiles <- file.path(wd, 'bed', paste0(genomeIDs, '.bed'))
-pepFiles <- file.path(wd, 'peptide', paste0(genomeIDs, '.fa'))
-
-
-if (!all(file.exists(bedFiles))) {
-  
-  stop(paste('Missing BED files:',
-             paste(bedFiles[!file.exists(bedFiles)],
-                   collapse = '\n')))
+if (length(genomeIDs) != 11) {
+  stop(paste('Expected 11 genomes, found', length(genomeIDs)))
 }
 
-
-if (!all(file.exists(pepFiles))) {
-  
-  stop(paste('Missing peptide files:',
-             paste(pepFiles[!file.exists(pepFiles)],
-                   collapse = '\n')))
+if (anyDuplicated(genomeIDs)) {
+  stop('Duplicate genome IDs found in genomeIDs.')
 }
-
-
-# explicit safeguard
 
 if ('Crotalus_viridis' %in% genomeIDs) {
   stop('Crotalus_viridis should not be included in this run.')
 }
 
+if (!dir.exists(wd)) {
+  stop(paste('Working directory does not exist:', wd))
+}
 
-cat('\nPASS: all 11 BED and peptide files found.\n')
+
+# ============================================================
+# check external programs
+# ============================================================
+
+if (!file.exists(path2orthofinder)) {
+  stop(paste('OrthoFinder executable not found:', path2orthofinder))
+}
+
+if (!file.exists(path2diamond)) {
+  stop(paste('DIAMOND executable not found:', path2diamond))
+}
+
+
+mcscanxExecutable <- file.path(path2mcscanx, 'MCScanX_h')
+
+if (!file.exists(mcscanxExecutable)) {
+  stop(paste('MCScanX_h executable not found:', mcscanxExecutable))
+}
+
+cat('\nPASS: external software paths found.\n')
+
+
+# ============================================================
+# check required GENESPACE input files
+# ============================================================
+
+bedFiles <- file.path(wd, 'bed', paste0(genomeIDs, '.bed'))
+pepFiles <- file.path(wd, 'peptide', paste0(genomeIDs, '.fa'))
+
+missingBeds <- bedFiles[!file.exists(bedFiles)]
+missingPeptides <- pepFiles[!file.exists(pepFiles)]
+
+
+if (length(missingBeds) > 0) {
+  stop(paste('Missing BED files:\n', paste(missingBeds, collapse = '\n')))
+}
+
+
+if (length(missingPeptides) > 0) {
+  stop(paste('Missing peptide files:\n', paste(missingPeptides, collapse = '\n')))
+}
+
+cat('PASS: all 11 BED and peptide files found.\n')
+
+
+# ============================================================
+# check BED files
+# ============================================================
+
+bedData <- lapply(bedFiles, function(x) {
+                    read.delim(x, header = F, stringsAsFactors = F, sep = '\t')
+                    })
+
+names(bedData) <- genomeIDs
 
 
 # ------------------------------------------------------------
+# BED files must contain exactly four columns
+# ------------------------------------------------------------
+
+badBedColumns <- names(bedData)[vapply(bedData, ncol, integer(1)) != 4]
+
+if (length(badBedColumns) > 0) {
+  stop(paste('BED files do not contain exactly four columns:',
+             paste(badBedColumns, collapse = ', ')))
+}
+
+cat('PASS: all BED files contain four columns.\n')
+
+
+# ============================================================
+# verify explicit W chromosomes are absent
+# ============================================================
+
+wCheck <- vapply(bedData,
+                 function(x) {
+                   any(x[[1]] == 'chrW')
+                   },
+                 logical(1))
+
+
+if (any(wCheck)) {
+  
+  stop(paste('Explicit chrW found in BED file(s):', 
+             paste(names(wCheck)[wCheck], collapse = ', ')))
+}
+
+cat('PASS: no explicitly labelled chrW remains in BED files.\n')
+
+
+# ============================================================
+# report chromosome counts and locus counts
+# ============================================================
+
+cat('\n')
+cat('============================================================\n')
+cat('GENESPACE INPUT SUMMARY\n')
+cat('============================================================\n')
+
+for (species in genomeIDs) {
+  
+  dat <- bedData[[species]]
+  chromosomeCount <- length(unique(dat[[1]]))
+  locusCount <- nrow(dat)
+  
+  cat(sprintf('%-25s chromosomes=%2d  loci=%6d\n', species, chromosomeCount, locusCount))
+}
+
+
+# ============================================================
 # initialize GENESPACE
 #
 # ploidy = 1:
-# each assembly represents one haploid chromosome complement
+#   each genome assembly represents one haploid chromosome
+#   complement for the purposes of GENESPACE.
 #
 # useHOGs = T:
-# use hierarchical orthogroups from OrthoFinder
+#   use hierarchical orthogroups generated by OrthoFinder.
 #
-# other synteny parameters remain at GENESPACE defaults
-# ------------------------------------------------------------
+# orthofinderInBlk = F:
+#   run OrthoFinder normally rather than using GENESPACE
+#   syntenic blocks to constrain OrthoFinder.
+#
+# onlySameChrs = F:
+#   do NOT restrict synteny searches to chromosomes carrying
+#   the same chromosome label. This is important because the
+#   source chromosome numbers are not being treated as
+#   pre-assigned homologous chromosomes across species.
+#
+# dotplots = 'check':
+#   generate diagnostic dotplots where practical.
+#
+# Other GENESPACE synteny parameters remain at defaults.
+# ============================================================
 
-gpar <- init_genespace(wd = wd, genomeIDs = genomeIDs, ploidy = 1,
+gpar <- init_genespace(wd = wd,
+                       genomeIDs = genomeIDs,
+                       ploidy = 1,
                        path2orthofinder = path2orthofinder,
                        path2diamond = path2diamond,
                        path2mcscanx = path2mcscanx,
+                       orthofinderInBlk = F,
                        useHOGs = T,
+                       onlySameChrs = F,
                        nCores = nCores,
                        dotplots = 'check')
 
 
-# ------------------------------------------------------------
+# ============================================================
 # save initialization parameters
-# ------------------------------------------------------------
+# ============================================================
 
-saveRDS(gpar, file.path(wd, 'GENESPACE_parameters_11snake.rds'))
-
+saveRDS(gpar, parameterFile)
 
 cat('\n')
 cat('============================================================\n')
 cat('GENESPACE initialization passed\n')
+cat('============================================================\n')
+
+cat('Parameters saved to:\n', parameterFile, '\n', sep = '')
+
+
+# ============================================================
+# save session information before long analysis
+# ============================================================
+
+writeLines(capture.output(sessionInfo()), sessionFile)
+
+
+# ============================================================
+# run complete GENESPACE pipeline
+# ============================================================
+
+cat('\n')
+cat('============================================================\n')
+cat('STARTING GENESPACE PIPELINE\n')
 cat('============================================================\n\n')
 
-
-# ------------------------------------------------------------
-# run complete GENESPACE pipeline
-# ------------------------------------------------------------
 
 out <- run_genespace(gsParam = gpar)
 
 
-# ------------------------------------------------------------
-# save final object
-# ------------------------------------------------------------
+# ============================================================
+# save final GENESPACE object
+# ============================================================
 
-saveRDS(out, file.path(wd, 'GENESPACE_results_11snake.rds'))
+saveRDS(out, resultFile)
 
 
-# ------------------------------------------------------------
-# session information
-# ------------------------------------------------------------
+# ============================================================
+# update session information
+# ============================================================
 
-writeLines(capture.output(sessionInfo()),
-           file.path(wd, 'GENESPACE_sessionInfo_11snake.txt'))
+writeLines(capture.output(sessionInfo()), sessionFile)
 
+
+# ============================================================
+# final report
+# ============================================================
 
 cat('\n')
 cat('============================================================\n')
 cat('GENESPACE RUN COMPLETED\n')
 cat('============================================================\n')
+
+cat('Final GENESPACE object:\n', resultFile, '\n', sep = '')
+cat('Session information:\n', sessionFile, '\n', sep = '')
+
+cat('\n')
 ```
 
 Run this script as a SLURM job:
@@ -1371,13 +1268,14 @@ Run this script as a SLURM job:
 # ============================================================
 
 # activate conda environment
-source ~/.bash_profile
+source /home/yshin/mendel-nas1/miniconda3/etc/profile.d/conda.sh
 conda activate genespace
 
 set -euo pipefail
 
 # set path
 GS="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
+cd "${GS}"
 
 # print helpful information
 echo "============================================================"
@@ -1478,47 +1376,4 @@ echo "============================================================"
 echo "GENESPACE FINISHED"
 echo "Date: $(date)"
 echo "============================================================"
-```
-__NOTE:__ The first GENESPACE run failed during DIAMOND database creation. I ran the script below to see if the protein files contained any invalid amino acid caharcters:
-```sh
-GS='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE'
-
-for sp in \
-    Argyrophis_diardii \
-    Xenopeltis_unicolor \
-    Candoia_aspera \
-    Elaphe_schrenckii \
-    Naja_naja \
-    Cerastes_gasperettii \
-    Vipera_berus \
-    Bothrops_insularis \
-    Crotalus_adamanteus \
-    Gloydius_shedaoensis \
-    Gloydius_ussuriensis
-do
-
-    echo "===== ${sp} ====="
-
-    grep -v '^>' "${GS}/peptide/${sp}.fa" \
-        | tr -d '[:space:]ABCDEFGHIKLMNPQRSTVWXYZ*abcdefghiklmnpqrstvwxyz' \
-        | fold -w1 \
-        | sort \
-        | uniq -c
-
-done
-```
-This revealed that A. diardii had 465 periods (.), X. unicolor had 371, B. insiularis had 3, and G. shedaoensis had 1151. The periods are not recognized by DIAMOND and this is what caused the job failure. The "U" characters in C. aspera and V. berus are harmless. Let's replace periods with "X", which deisgnates ambiguous amino acids:
-```sh
-GS='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE'
-for sp in \
-    Argyrophis_diardii \
-    Xenopeltis_unicolor \
-    Bothrops_insularis \
-    Gloydius_shedaoensis
-do
-
-    sed -i '/^>/! s/\./X/g' \
-        "${GS}/peptide/${sp}.fa"
-
-done
 ```

@@ -18,13 +18,14 @@
 # ============================================================
 
 # activate conda environment
-source ~/.bash_profile
+source /home/yshin/mendel-nas1/miniconda3/etc/profile.d/conda.sh
 conda activate genespace
 
 set -euo pipefail
 
 # set path
 GS="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE"
+cd "${GS}"
 
 # print helpful information
 echo "============================================================"
