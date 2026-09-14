@@ -154,6 +154,7 @@ conda create -n synteny_qc \
 ```
 
 ##### GENESPACE env
+__NOTE:__ OrthoFinder v3 and above are NOT compatible with GENESPACE. The version used here is v2.5.5.
 ```sh
 conda create -n genespace \
     -c conda-forge -c bioconda \
@@ -167,7 +168,7 @@ conda create -n genespace \
     r-data.table \
     bioconductor-biostrings \
     bioconductor-rtracklayer \
-    orthofinder \
+    'orthofinder=2.5.5' \
     diamond \
     git \
     make \
@@ -1149,7 +1150,7 @@ bad coordinates = 0
 This means that the GENESPACE input prep has been successful.
 
 ### Step 7: GENESPACE run
-__NOTE:__ Before running GENESPACE, I noticed that C. viridis had lots of duplicated transcript coordinates that needed further correction. Therefore, I excluded this species from the initial GENESPACE run.
+__NOTE:__ Before running GENESPACE, I noticed that *C. viridis* had lots of duplicated transcript coordinates that needed further correction. Therefore, I excluded this species from the initial GENESPACE run.
 
 First, let's check whether the required packages are installed:
 ```sh
@@ -1477,4 +1478,47 @@ echo "============================================================"
 echo "GENESPACE FINISHED"
 echo "Date: $(date)"
 echo "============================================================"
+```
+__NOTE:__ The first GENESPACE run failed during DIAMOND database creation. I ran the script below to see if the protein files contained any invalid amino acid caharcters:
+```sh
+GS='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE'
+
+for sp in \
+    Argyrophis_diardii \
+    Xenopeltis_unicolor \
+    Candoia_aspera \
+    Elaphe_schrenckii \
+    Naja_naja \
+    Cerastes_gasperettii \
+    Vipera_berus \
+    Bothrops_insularis \
+    Crotalus_adamanteus \
+    Gloydius_shedaoensis \
+    Gloydius_ussuriensis
+do
+
+    echo "===== ${sp} ====="
+
+    grep -v '^>' "${GS}/peptide/${sp}.fa" \
+        | tr -d '[:space:]ABCDEFGHIKLMNPQRSTVWXYZ*abcdefghiklmnpqrstvwxyz' \
+        | fold -w1 \
+        | sort \
+        | uniq -c
+
+done
+```
+This revealed that A. diardii had 465 periods (.), X. unicolor had 371, B. insiularis had 3, and G. shedaoensis had 1151. The periods are not recognized by DIAMOND and this is what caused the job failure. The "U" characters in C. aspera and V. berus are harmless. Let's replace periods with "X", which deisgnates ambiguous amino acids:
+```sh
+GS='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/GENESPACE'
+for sp in \
+    Argyrophis_diardii \
+    Xenopeltis_unicolor \
+    Bothrops_insularis \
+    Gloydius_shedaoensis
+do
+
+    sed -i '/^>/! s/\./X/g' \
+        "${GS}/peptide/${sp}.fa"
+
+done
 ```
