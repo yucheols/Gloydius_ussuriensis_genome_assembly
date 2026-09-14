@@ -1,0 +1,24 @@
+{
+    "id": "7C4C117F",
+    "path": "//wsl.localhost/Ubuntu/home/yshin/Gloydius_ussuriensis_genome_assembly/R/genespace_plotting.R",
+    "project_path": "genespace_plotting.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1789407996851.0,
+    "source_on_save": false,
+    "relative_order": 7,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1789404105,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1789404105,
+    "read_only": false,
+    "read_only_alternatives": []
+}
