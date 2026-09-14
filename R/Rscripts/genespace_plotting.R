@@ -15,8 +15,8 @@
 #   - Naja naja microchromosomes shown as numbers only
 #   - selected chromosomes inverted for cleaner visualization
 #   - asterisks added by GENESPACE to inverted chromosomes removed
-#   - scale value displayed above scale bar
-#   - scale description displayed next to scale bar
+#   - "5000 genes" above scale bar
+#   - scale description to LEFT of scale bar
 #
 # This script replots a completed GENESPACE run.
 # It does NOT rerun GENESPACE.
@@ -45,7 +45,9 @@ library(ggplot2)
 # ------------------------------------------------------------
 
 gs_dir <- '/home/yshin/Gloydius_ussuriensis_genome_assembly/R/Rdata/synteny'
+
 out_dir <- 'Rplots'
+
 
 dir.create(
   out_dir,
@@ -63,10 +65,12 @@ gs_rds <- file.path(
   'GENESPACE_results_11snake_chrOnly.rds'
 )
 
+
 phased_blocks <- file.path(
   gs_dir,
   'Gloydius_ussuriensis_phasedBlks.csv'
 )
+
 
 comb_bed <- file.path(
   gs_dir,
@@ -87,7 +91,9 @@ if (!all(file.exists(req_files))) {
     paste0(
       'Missing input file(s):\n',
       paste(
-        req_files[!file.exists(req_files)],
+        req_files[
+          !file.exists(req_files)
+        ],
         collapse = '\n'
       )
     )
@@ -104,6 +110,7 @@ gs <- readRDS(
   gs_rds
 )
 
+
 blks <- fread(
   phased_blocks
 )
@@ -112,6 +119,7 @@ blks <- fread(
 # redirect internal paths to local files
 
 gs$paths$results <- gs_dir
+
 gs$paths$riparian <- gs_dir
 
 
@@ -324,15 +332,6 @@ if (
 
 # ============================================================
 # chromosome label function
-#
-# Examples:
-#
-# chr1          -> 1
-# chr10         -> 10
-# chrZ          -> Z
-# MIC_1         -> 1
-# MIC_10        -> 10
-# G_ussuri_chr1 -> 1
 # ============================================================
 
 chr_lab_fun <- function(x) {
@@ -568,9 +567,13 @@ min_chr_genes <- 1
 
 # ------------------------------------------------------------
 # canvas
+#
+# Slightly wider to accommodate long scale annotation
+# on the LEFT side of scale bar.
 # ------------------------------------------------------------
 
-plot_width <- 24
+plot_width <- 27
+
 plot_height <- 13.5
 
 
@@ -579,9 +582,8 @@ plot_height <- 13.5
 # ------------------------------------------------------------
 
 species_font_size <- 22
-chromosome_font_size <- 14
 
-# scale labels use same size as species names
+chromosome_font_size <- 14
 
 scale_font_size <- species_font_size
 
@@ -616,15 +618,15 @@ rip_theme <- theme(
     color = 'black'
   ),
   
-  # old bottom x-axis title is intentionally removed
+  # remove old x-axis title
   
   axis.title.x = element_blank(),
   
   plot.margin = margin(
-    t = 35,
-    r = 45,
+    t = 38,
+    r = 35,
     b = 18,
-    l = 22
+    l = 25
   )
   
 )
@@ -658,21 +660,13 @@ rip <- plot_riparian(
   
   refGenome = 'Gloydius_ussuriensis',
   
-  # chromosome widths use representative gene order
-  
   useOrder = T,
   
   forceRecalcBlocks = F,
   
-  # chromosome labels for all species
-  
   labelTheseGenomes = genomeIDs,
   
-  # Macro -> Z -> Micro
-  
   customRefChrOrder = ref_chr_order,
-  
-  # gene-order units
   
   minChrLen2plot = min_chr_genes,
   
@@ -688,8 +682,6 @@ rip <- plot_riparian(
   
   braidAlpha = 0.55,
   
-  # chromosome appearance
-  
   chrFill = 'grey90',
   
   chrBorderCol = 'black',
@@ -702,11 +694,9 @@ rip <- plot_riparian(
   
   chrLabFun = chr_lab_fun,
   
-  # flip selected chromosomes
-  
   invertTheseChrs = invertTheseChrs,
   
-  # remove default bottom scale description
+  # remove GENESPACE's bottom description
   
   xlabel = NULL,
   
@@ -733,7 +723,7 @@ p <- rip$plotData$ggplotObj
 
 
 # ============================================================
-# remove asterisks added by GENESPACE to inverted chromosomes
+# remove asterisks from manually inverted chromosomes
 # ============================================================
 
 for (i in seq_along(p$layers)) {
@@ -775,7 +765,7 @@ for (i in seq_along(p$layers)) {
 
 
 # ------------------------------------------------------------
-# remove asterisks from source chromosome labels
+# remove asterisks from source chromosome data
 # ------------------------------------------------------------
 
 if (
@@ -824,15 +814,7 @@ if (
 
 
 # ============================================================
-# find GENESPACE scale-bar coordinates
-#
-# GENESPACE scale bar consists of:
-#
-#   left vertical segment
-#   right vertical segment
-#   middle horizontal segment
-#
-# We locate the middle segment directly from the ggplot layer.
+# locate GENESPACE scale bar
 # ============================================================
 
 scale_layer_index <- NA_integer_
@@ -902,9 +884,9 @@ if (is.na(scale_layer_index)) {
 }
 
 
-# ------------------------------------------------------------
+# ============================================================
 # scale-bar geometry
-# ------------------------------------------------------------
+# ============================================================
 
 scale_mid <- scale_bar_data[
   line == 'mid'
@@ -957,7 +939,7 @@ scale_bar_height <- (
 
 
 # ------------------------------------------------------------
-# overall x span used for offsets
+# overall x span
 # ------------------------------------------------------------
 
 plot_x_min <- min(
@@ -979,13 +961,7 @@ plot_x_span <- (
 
 
 # ============================================================
-# remove original GENESPACE scale-bar text
-#
-# We will recreate the label ourselves so that:
-#
-#   5000 genes
-#
-# appears ABOVE the bar at species-label font size.
+# hide original GENESPACE scale-bar text
 # ============================================================
 
 for (i in seq_along(p$layers)) {
@@ -1016,9 +992,6 @@ for (i in seq_along(p$layers)) {
     )
   ) {
     
-    # make original scale text invisible;
-    # replacement annotation is added below
-    
     p$layers[[i]]$aes_params$alpha <- 0
     
   }
@@ -1029,16 +1002,20 @@ for (i in seq_along(p$layers)) {
 # ============================================================
 # custom scale annotations
 #
-#   5000 genes
-#       ABOVE the scale bar
+# Layout:
 #
-#   Chromosome scale by the number of genes
-#       NEXT TO the scale bar
+# Chromosomes scaled by the number of genes    5000 genes
+#                                               |---------|
+#
+# More precisely:
+#
+# description = LEFT of bar
+# 5000 genes  = ABOVE bar
 # ============================================================
 
 
 # ------------------------------------------------------------
-# vertical position for "5000 genes"
+# "5000 genes" above scale bar
 # ------------------------------------------------------------
 
 scale_value_y <- (
@@ -1048,11 +1025,14 @@ scale_value_y <- (
 
 
 # ------------------------------------------------------------
-# position description to right of scale bar
+# scale description immediately LEFT of scale bar
+#
+# hjust = 1 means the RIGHT EDGE of the text terminates
+# at scale_description_x.
 # ------------------------------------------------------------
 
 scale_description_x <- (
-  scale_right +
+  scale_left -
     0.025 * plot_x_span
 )
 
@@ -1060,51 +1040,60 @@ scale_description_x <- (
 scale_description_y <- scale_mid_y
 
 
-# ------------------------------------------------------------
+# ============================================================
 # add custom scale annotations
-# ------------------------------------------------------------
+# ============================================================
 
 p <- p +
   
-  annotate(
-    
-    geom = 'text',
-    
-    x = scale_mid_x,
-    
-    y = scale_value_y,
-    
-    label = '5000 genes',
-    
-    size = scale_font_size / ggplot2::.pt,
-    
-    hjust = 0.5,
-    
-    vjust = 0.5,
-    
-    color = 'black'
-    
-  ) +
+  # ----------------------------------------------------------
+# value above scale bar
+# ----------------------------------------------------------
+
+annotate(
   
-  annotate(
-    
-    geom = 'text',
-    
-    x = scale_description_x,
-    
-    y = scale_description_y,
-    
-    label = 'Chromosomes scaled by the number of genes',
-    
-    size = scale_font_size / ggplot2::.pt,
-    
-    hjust = 0,
-    
-    vjust = 0.5,
-    
-    color = 'black'
-    
-  )
+  geom = 'text',
+  
+  x = scale_mid_x,
+  
+  y = scale_value_y,
+  
+  label = '5000 genes',
+  
+  size = scale_font_size / ggplot2::.pt,
+  
+  hjust = 0.5,
+  
+  vjust = 0.5,
+  
+  color = 'black'
+  
+) +
+  
+  
+  # ----------------------------------------------------------
+# description LEFT of scale bar
+# ----------------------------------------------------------
+
+annotate(
+  
+  geom = 'text',
+  
+  x = scale_description_x,
+  
+  y = scale_mid_y,
+  
+  label = 'Chromosomes scaled by the number of genes',
+  
+  size = scale_font_size / ggplot2::.pt,
+  
+  hjust = 1,
+  
+  vjust = 0.5,
+  
+  color = 'black'
+  
+)
 
 
 # ============================================================
@@ -1137,8 +1126,6 @@ species_labels <- gsub(
 
 # ------------------------------------------------------------
 # replace y-axis species labels
-#
-# Also remove bottom x-axis title.
 # ------------------------------------------------------------
 
 p <- p +
@@ -1181,25 +1168,25 @@ p <- p +
 
 pdf_out <- file.path(
   out_dir,
-  'Gloydius_ussuriensis_macrosynteny_geneScaled_customScale_v8.pdf'
+  'Gloydius_ussuriensis_macrosynteny_geneScaled_scaleLeft_v9.pdf'
 )
 
 
 png_out <- file.path(
   out_dir,
-  'Gloydius_ussuriensis_macrosynteny_geneScaled_customScale_v8.png'
+  'Gloydius_ussuriensis_macrosynteny_geneScaled_scaleLeft_v9.png'
 )
 
 
 rds_out <- file.path(
   out_dir,
-  'Gloydius_ussuriensis_macrosynteny_geneScaled_customScale_v8.rds'
+  'Gloydius_ussuriensis_macrosynteny_geneScaled_scaleLeft_v9.rds'
 )
 
 
 chr_out <- file.path(
   out_dir,
-  'Gloydius_ussuriensis_macrosynteny_geneScaled_customScale_v8_chromosomes.tsv'
+  'Gloydius_ussuriensis_macrosynteny_geneScaled_scaleLeft_v9_chromosomes.tsv'
 )
 
 
@@ -1292,6 +1279,7 @@ cat('\n========================================\n')
 cat('Chromosomes retained in curated plot\n')
 cat('========================================\n\n')
 
+
 print(
   plot_summary
 )
@@ -1302,12 +1290,31 @@ cat('CUSTOM SCALE ANNOTATION\n')
 cat('========================================\n\n')
 
 
-cat('Scale value:\n')
-cat('5000 genes\n\n')
+cat(
+  'Scale description:\n'
+)
+
+cat(
+  'Chromosomes scaled by the number of genes\n\n'
+)
 
 
-cat('Scale description:\n')
-cat('Chromosome scale by the number of genes\n\n')
+cat(
+  'Scale description position:\n'
+)
+
+cat(
+  'LEFT of scale bar\n\n'
+)
+
+
+cat(
+  'Scale value:\n'
+)
+
+cat(
+  '5000 genes above scale bar\n'
+)
 
 
 cat('\n========================================\n')
