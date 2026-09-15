@@ -14,7 +14,7 @@
 set -euo pipefail
 
 # initiate conda and activate the conda environment
-source ~/.bash_profile
+source /home/yshin/mendel-nas1/miniconda3/etc/profile.d/conda.sh
 conda activate genome_assembly
 
 # set directory

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=venom_gland_posttrim_qc
+#SBATCH --job-name=Crot_venom_gland_posttrim_qc
 #SBATCH --nodes=1
 #SBATCH --partition=compute
 #SBATCH --ntasks=1
@@ -16,20 +16,20 @@ source ~/.bash_profile
 conda activate genome_assembly
 
 # set directory
-basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland"
+basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/crot_venom_gland"
 cd "$basedir"
 
 # make output dir
-mkdir -p postrrim_qc_fastqc
+mkdir -p posttrim_qc_fastqc
 
 # run fastqc
 fastqc trimmed_fastq/*.fastq.gz \
-  -o postrrim_qc_fastqc \
+  -o posttrim_qc_fastqc \
   -t 12
 
 # activate multiqc conda env 
 conda activate multiqc
 
 # run multiqc
-multiqc postrrim_qc_fastqc \
-  -o postrrim_qc_fastqc
+multiqc posttrim_qc_fastqc \
+  -o posttrim_qc_fastqc

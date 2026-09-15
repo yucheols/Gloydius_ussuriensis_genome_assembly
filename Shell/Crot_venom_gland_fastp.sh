@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=venom_trim
+#SBATCH --job-name=Crot_venom_trim
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
@@ -10,11 +10,14 @@
 #SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
 #SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
-source ~/.bash_profile
+set -euo pipefail
+
+# initiate conda and activate the conda environment
+source /home/yshin/mendel-nas1/miniconda3/etc/profile.d/conda.sh
 conda activate scaffolding
 
 # set directories
-basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland"
+basedir="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/crot_venom_gland"
 indir="${basedir}/fastq"
 outdir="${basedir}/trimmed_fastq"
 reportdir="${basedir}/fastp_reports"
@@ -22,8 +25,8 @@ reportdir="${basedir}/fastp_reports"
 mkdir -p "$outdir" "$reportdir"
 
 ACCESSIONS=(
-  SRR35908235
-  SRR35908238
+  SRR12915693
+  SRR12915694
 )
 
 for acc in "${ACCESSIONS[@]}"; do
