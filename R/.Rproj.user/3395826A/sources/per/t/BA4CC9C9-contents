@@ -1,0 +1,166 @@
+########## summarize normalized Z/W/autosome coverage in R
+
+# clean working env
+rm(list = ls(all.names = T))
+gc()
+
+# load packages
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# local R project directory
+project <- '/home/yshin/Gloydius_ussuriensis_genome_assembly/R'
+
+# local input and output folders
+data_dir <- file.path(project, 'Rdata', 'sex_chr_coverage')
+plot_dir <- file.path(project, 'Rplots')
+
+# load metadata and chromosome set files
+meta <- fread(file.path(data_dir, 'sample_metadata.tsv'))
+chr_sets <- fread(file.path(data_dir, 'chr_sets.tsv'))
+
+# get list of mosdepth depth files
+depth_files <- list.files(file.path(data_dir, 'depth'), pattern = '\\.regions\\.bed\\.gz$', full.names = T)
+
+if (length(depth_files) == 0) {
+  stop('No mosdepth .regions.bed.gz files found')
+}
+
+cat('Number of depth files found:', length(depth_files), '\n')
+
+# read depth files
+depth_list <- lapply(depth_files, function(f) {
+  x <- fread(f, col.names = c('chrom', 'start', 'end', 'depth'))
+  x$sample <- sub('\\.regions\\.bed\\.gz$', '', basename(f))
+  x
+})
+
+depth <- rbindlist(depth_list)
+print(depth)
+
+# keep only chromosomes listed in chr_sets.tsv
+depth <- depth %>%
+  inner_join(chr_sets, by = 'chrom') %>%
+  left_join(meta, by = 'sample')
+
+head(depth)
+
+# check for missing metadata
+missing_meta <- depth %>%
+  filter(is.na(sex) | is.na(locality)) %>%
+  distinct(sample)
+
+if (nrow(missing_meta) > 0) {
+  print(missing_meta)
+  stop('Some depth files do not have matching sample metadata')
+}
+
+# autosome median depth per sample
+auto_median <- depth %>%
+  filter(class == 'AUTO') %>%
+  group_by(sample) %>%
+  summarise(auto_median_depth = median(depth, na.rm = T), .groups = 'drop')
+
+head(auto_median)
+
+# normalize depth by autosomal median
+depth_norm <- depth %>%
+  left_join(auto_median, by = 'sample') %>%
+  mutate(norm_depth = depth / auto_median_depth)
+
+head(depth_norm)
+
+# chromosome-level summary
+chr_summary <- depth_norm %>%
+  group_by(sample, sex, locality, chrom, class) %>%
+  summarise(median_norm_depth = median(norm_depth, na.rm = T),
+            mean_norm_depth = mean(norm_depth, na.rm = T),
+            n_windows = n(),
+            .groups = 'drop')
+
+head(chr_summary)
+
+# class-level summary: AUTO, Z, W
+class_summary <- depth_norm %>%
+  group_by(sample, sex, locality, class) %>%
+  summarise(median_norm_depth = median(norm_depth, na.rm = T), 
+            mean_norm_depth = mean(norm_depth, na.rm = T),
+            n_windows = n(),
+            .groups = 'drop')
+
+class_wide <- class_summary %>%
+  select(sample, sex, locality, class, median_norm_depth) %>%
+  pivot_wider(names_from = class, values_from = median_norm_depth)
+
+# write output summary tables to Rdata
+write.table(chr_summary, file = file.path(data_dir, 'sexchr_chromosome_depth_summary.tsv'), sep = '\t', quote = F, row.names = F)
+write.table(class_summary, file = file.path(data_dir, 'sexchr_class_depth_summary.tsv'), sep = '\t', quote = F, row.names = F)
+write.table(class_wide,file = file.path(data_dir, 'sexchr_class_depth_wide.tsv'), sep = '\t', quote = F, row.names = F)
+
+# plot 1: sex-specific Z/W coverage validation
+class_wide$sex <- recode(class_wide$sex, 'F' = 'Female', 'M' = 'Male')
+
+p1 <- ggplot(class_wide, aes(x = Z, y = W, shape = sex, fill = sex)) +
+  geom_point(size = 4.5, color = 'black', stroke = 1.5) +
+  geom_vline(xintercept = 0.75, linetype = 'dashed') +
+  geom_hline(yintercept = 0.15, linetype = 'dashed') +
+  scale_fill_manual(values = c(Female = 'salmon', Male = 'cornflowerblue')) +
+  scale_shape_manual(values = c(Female = 21, Male = 24)) +
+  labs(x = 'Normalized Z depth', y = 'Normalized W depth') +
+  theme_bw() +
+  theme(legend.position = 'top',
+        legend.title = element_blank(),
+        legend.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        axis.title.x = element_text(margin = margin(t = 15)),
+        axis.title.y = element_text(margin = margin(r = 20)),
+        axis.text = element_text(size = 14))
+
+print(p1)
+
+# plot 2: autosome-normalized coverage by chromosome class per sample
+class_summary$sample <- factor(class_summary$sample,
+                               levels = c('AMNH_21010', 'AMNH_21070', 'AMNH_21073', 'AMNH_21128',
+                                          'AMNH_21161', 'AMNH_21162', 'AMNH_21164', 'AMNH_21172',
+                                          'AMNH_21050', 'AMNH_21060', 'AMNH_21147', 'AMNH_21185'))
+
+class_summary$class <- recode(class_summary$class, 'AUTO' = 'Autosome', 'Z' = 'Z', 'W' = 'W')
+class_summary$class <- factor(class_summary$class, levels = c('Autosome', 'Z', 'W'))
+
+
+p2 <- ggplot(class_summary, aes(x = sample, y = median_norm_depth, fill = class)) +
+  geom_col(position = 'dodge') +
+  coord_flip() +
+  scale_fill_manual(values = c(Autosome = 'grey80',
+                               Z = 'steelblue3',
+                               W = 'goldenrod2')) +
+  labs(x = 'Sample', y = 'Median normalized depth') +
+  theme_bw() +
+  theme(legend.position = 'top',
+        legend.title = element_blank(),
+        legend.text = element_text(size = 16),
+        axis.title = element_text(size = 16),
+        axis.title.x = element_text(margin = margin(t = 15)),
+        axis.title.y = element_text(margin = margin(r = 20)),
+        axis.text = element_text(size = 14))
+
+print(p2)
+
+# plot 3: known sex comparison by chromosome class
+#p3 <- class_summary %>%
+#  filter(class %in% c('AUTO', 'Z', 'W')) %>%
+#  ggplot(aes(x = sex, y = median_norm_depth)) +
+#  geom_boxplot(outlier.shape = NA) +
+#  geom_jitter(width = 0.15, height = 0, size = 2) +
+#  facet_wrap(~class, scales = 'free_y') +
+#  labs(x = 'Known sex', y = 'Median normalized depth') +
+#  theme_bw()
+
+#print(p3)
+
+# save plots
+ggsave(filename = file.path(plot_dir, 'Z_vs_W_normalized_depth.png'), plot = p1, width = 7, height = 6, dpi = 800)
+ggsave(filename = file.path(plot_dir, 'AUTO_Z_W_depth_by_sample.png'), plot = p2, width = 8, height = 7, dpi = 800)
+#ggsave(filename = file.path(plot_dir, 'known_sex_AUTO_Z_W_validation.png'), plot = p3, width = 7, height = 5, dpi = 300)

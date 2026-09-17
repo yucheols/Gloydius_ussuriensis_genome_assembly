@@ -1599,13 +1599,25 @@ invertTheseChrs <- data.frame(
     'Argyrophis_diardii',
     'Argyrophis_diardii',
     'Argyrophis_diardii',
+    'Argyrophis_diardii',
+    'Argyrophis_diardii',
+    'Argyrophis_diardii',
+    'Argyrophis_diardii',
     
     # Bothrops insularis
     'Bothrops_insularis',
     'Bothrops_insularis',
     'Bothrops_insularis',
+    'Bothrops_insularis',
+    'Bothrops_insularis',
+    'Bothrops_insularis',
+    'Bothrops_insularis',
     
     # Candoia aspera
+    'Candoia_aspera',
+    'Candoia_aspera',
+    'Candoia_aspera',
+    'Candoia_aspera',
     'Candoia_aspera',
     'Candoia_aspera',
     
@@ -1620,8 +1632,14 @@ invertTheseChrs <- data.frame(
     'Crotalus_adamanteus',
     'Crotalus_adamanteus',
     'Crotalus_adamanteus',
+    'Crotalus_adamanteus',
+    'Crotalus_adamanteus',
     
     # Elaphe schrenckii
+    'Elaphe_schrenckii',
+    'Elaphe_schrenckii',
+    'Elaphe_schrenckii',
+    'Elaphe_schrenckii',
     'Elaphe_schrenckii',
     'Elaphe_schrenckii',
     'Elaphe_schrenckii',
@@ -1637,12 +1655,20 @@ invertTheseChrs <- data.frame(
     'Gloydius_ussuriensis',
     'Gloydius_ussuriensis',
     
+    # Gloydius shedaoensis
+    'Gloydius_shedaoensis',
+    'Gloydius_shedaoensis',
+    
     # Naja naja
     'Naja_naja',
     'Naja_naja',
     'Naja_naja',
     
     # Vipera berus
+    'Vipera_berus',
+    'Vipera_berus',
+    'Vipera_berus',
+    'Vipera_berus',
     'Vipera_berus',
     'Vipera_berus',
     'Vipera_berus',
@@ -1665,15 +1691,27 @@ invertTheseChrs <- data.frame(
     'chr7',
     'chr8',
     'chr9',
+    'chr12',
+    'chr14',
+    'chr16',
+    'chr17',
     
     # Bothrops insularis
     'chr1',
     'chr2',
     'chr7',
+    'chr9',
+    'chr12',
+    'chr13',
+    'chr16',
     
     # Candoia aspera
     'chr1',
     'chr8',
+    'chr10',
+    'chr12',
+    'chr15',
+    'chr17',
     
     # Cerastes gasperettii
     'chr2',
@@ -1684,24 +1722,34 @@ invertTheseChrs <- data.frame(
     'chr3',
     'chr4',
     'chr6',
+    'chr11',
     'chr13',
     'chr14',
+    'chr18',
     
     # Elaphe schrenckii
     'chr3',
     'chr5',
     'chr6',
     'chr7',
+    'chr11',
+    'chr13',
+    'chr15',
+    'chr16',
     
     # Gloydius ussuriensis
     'chr2',
     'chr3',
     'chr5',
     'chr9',
+    'chr10',
     'chr13',
     'chr15',
     'chr16',
-    'chr17',
+    
+    # Gloydius shedaoensis
+    'chr9',
+    'chr15',
     
     # Naja naja
     'chr1',
@@ -1712,6 +1760,10 @@ invertTheseChrs <- data.frame(
     'chr2',
     'chr5',
     'chr6',
+    'chr11',
+    'chr13',
+    'chr15',
+    'chr17',
     'chrZ',
     
     # Xenopeltis unicolor
@@ -1747,8 +1799,8 @@ plot_height <- 13.5
 # font sizes
 # ------------------------------------------------------------
 
-species_font_size <- 22
-chromosome_font_size <- 14
+species_font_size <- 29
+chromosome_font_size <- 18 
 scale_font_size <- species_font_size
 
 
@@ -2087,5 +2139,5 @@ saveRDS(rip, rds_out)
 
 
 # plot data
-fwrite(chr_plot_data, hr_out, sep = '\t')
+fwrite(chr_plot_data, chr_out, sep = '\t')
 ```
