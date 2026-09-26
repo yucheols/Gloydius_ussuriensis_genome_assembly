@@ -1502,3 +1502,63 @@ Rscript \
   -i /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/toxin_annotation.tsv \
   -o /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/plots/Gloydius_ussuriensis_toxin_annotation
 ```
+
+### (Post-Hi-C) Finalizing non-toxin gene annotation
+
+### (Post-Hi-C) Finalizing toxin gene annotation
+```sh
+# warning / removed counts == 7 warnings and 49 removed
+wc -l annotation_warning.txt
+wc -l annotation_removed.txt
+
+# GTF feature types
+grep -v '^#' toxin_annotation.gtf | cut -f3 | sort | uniq -c
+
+# CDS count
+grep -c '^>' toxin_annotation_cds.fasta
+
+# protein count
+grep -c '^>' toxin_annotation_pep.fasta
+
+# check TSV
+head -20 toxin_annotation.tsv
+```
+
+Next, check the annotations that are removed and flagged with warnings:
+```sh
+cat annotation_warning.txt
+cat annotation_removed.txt
+```
+
+The removed candidate gene models were:
+```sh
+- Ficolin-Partial-4
+- SVSP-Partial-8
+- CTL-Partial-7
+- CTL-Partial-10
+- SVMP-Partial-5
+```
+
+The annotations flagged for manual inspection were:
+```sh
+- SVSP-1
+- SVSP-16
+- Ficolin-4
+- PLA2-4
+- CTL-10
+- HYAL-4
+- CTL-16
+```
+
+So, there are five gene models what were removed, and seven that were retained with warnings. Now, let's inspect these flagged models.
+```sh
+awk -F '\t' '
+$1=="SVSP-1" ||
+$1=="SVSP-16" ||
+$1=="Ficolin-4" ||
+$1=="PLA2-4" ||
+$1=="CTL-10" ||
+$1=="HYAL-4" ||
+$1=="CTL-16"
+' toxin_annotation.tsv
+```

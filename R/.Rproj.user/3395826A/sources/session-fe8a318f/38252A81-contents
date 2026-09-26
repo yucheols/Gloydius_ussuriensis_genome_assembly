@@ -1,0 +1,405 @@
+# ============================================================
+# Gloydius ussuriensis annotated mitochondrial genome map
+# Geneious-style circular feature visualization
+# ============================================================
+
+# clear working environment
+rm(list = ls(all.names = T))
+gc()
+
+# load package
+library(circlize)
+
+
+# ------------------------------------------------------------
+# paths
+# ------------------------------------------------------------
+root <- '/home/yshin/Gloydius_ussuriensis_genome_assembly/R/Rdata'
+gb_file <- 'mito/AMNH_21010_Ref.gb'
+fasta_file <- 'mito/AMNH_21010_Ref.fasta'
+out_png <- 'Rplots/AMNH_21010_mitogenome_map.png'
+
+
+# ------------------------------------------------------------
+# read GenBank file
+# ------------------------------------------------------------
+
+gb <- readLines(file.path(root, gb_file))
+
+locus_line <- gb[grep('^LOCUS', gb)][1]
+genome_length <- as.numeric(sub('.*[[:space:]]([0-9]+)[[:space:]]+bp.*', '\\1', locus_line))
+
+feature_start <- grep('^FEATURES', gb)
+origin_start <- grep('^ORIGIN', gb)
+
+feature_lines <- gb[(feature_start + 1):(origin_start - 1)]
+
+
+# ------------------------------------------------------------
+# parse GenBank features
+# ------------------------------------------------------------
+
+feature_headers <- grep('^     [^ ]', feature_lines)
+
+features <- lapply(seq_along(feature_headers), function(i) {
+  
+  start_line <- feature_headers[i]
+  
+  if (i < length(feature_headers)) {
+    end_line <- feature_headers[i + 1] - 1
+  } else {
+    end_line <- length(feature_lines)
+  }
+  
+  block <- feature_lines[start_line:end_line]
+  
+  header <- block[1]
+  
+  type <- sub('^     ([^ ]+).*', '\\1', header)
+  location <- sub('^     [^ ]+[[:space:]]+', '', header)
+  
+  strand <- ifelse(grepl('complement', location), -1, 1)
+  
+  coords <- as.numeric(unlist(regmatches(location, gregexpr('[0-9]+', location))))
+  
+  start <- min(coords)
+  end <- max(coords)
+  
+  get_qualifier <- function(name) {
+    
+    hit <- grep(paste0('/', name, '='), block, value = T)
+    
+    if (length(hit) == 0) {
+      return(NA_character_)
+    }
+    
+    value <- sub(paste0('.*\\/', name, '='), '', hit[1])
+    value <- gsub('"', '', value)
+    
+    return(value)
+  }
+  
+  gene <- get_qualifier('gene')
+  product <- get_qualifier('product')
+  label <- get_qualifier('label')
+  
+  if (!is.na(gene)) {
+    name <- gene
+  } else if (!is.na(product)) {
+    name <- product
+  } else if (!is.na(label)) {
+    name <- label
+  } else {
+    name <- type
+  }
+  
+  data.frame(type = type,
+             start = start,
+             end = end,
+             strand = strand,
+             name = name,
+             stringsAsFactors = F)
+})
+
+features <- do.call(rbind, features)
+
+
+# ------------------------------------------------------------
+# retain mitochondrial annotation features
+# ------------------------------------------------------------
+
+features <- features[features$type %in% c('CDS',
+                                          'tRNA',
+                                          'rRNA',
+                                          'D-loop',
+                                          'rep_origin'), ]
+
+
+# ------------------------------------------------------------
+# clean display labels
+# ------------------------------------------------------------
+
+features$display <- features$name
+
+features$display[features$type == 'D-loop'] <- 'D-loop'
+features$display[features$type == 'rep_origin'] <- 'rep. origin'
+
+# distinguish duplicated control regions
+dloop_idx <- which(features$type == 'D-loop')
+
+if (length(dloop_idx) > 1) {
+  features$display[dloop_idx] <- paste0('D-loop ', seq_along(dloop_idx))
+}
+
+
+# ------------------------------------------------------------
+# assign feature classes
+# ------------------------------------------------------------
+
+features$class <- NA_character_
+
+features$class[features$type == 'tRNA'] <- 'tRNA'
+features$class[features$type == 'rRNA'] <- 'rRNA'
+features$class[features$type == 'D-loop'] <- 'Control region'
+features$class[features$type == 'rep_origin'] <- 'Replication origin'
+
+features$class[features$type == 'CDS' & grepl('^ND', features$name)] <- 'NADH dehydrogenase'
+features$class[features$type == 'CDS' & grepl('^COX', features$name)] <- 'Cytochrome c oxidase'
+features$class[features$type == 'CDS' & grepl('^ATP', features$name)] <- 'ATP synthase'
+features$class[features$type == 'CDS' & features$name == 'CYTB'] <- 'Cytochrome b'
+
+
+# ------------------------------------------------------------
+# colors
+# ------------------------------------------------------------
+
+feature_colors <- c('NADH dehydrogenase' = '#66C2A5',
+                    'Cytochrome c oxidase' = '#FC8D62',
+                    'ATP synthase' = '#8DA0CB',
+                    'Cytochrome b' = '#E78AC3',
+                    'rRNA' = '#A6D854',
+                    'tRNA' = '#FFD92F',
+                    'Control region' = '#B3B3B3',
+                    'Replication origin' = '#CAB2D6')
+
+features$color <- feature_colors[features$class]
+
+
+# ------------------------------------------------------------
+# draw directional feature arrow
+# ------------------------------------------------------------
+
+draw_feature_arrow <- function(start,
+                               end,
+                               strand,
+                               y_bottom,
+                               y_top,
+                               col,
+                               border = '#333333') {
+  
+  feature_width <- end - start + 1
+  
+  head_width <- min(120, feature_width * 0.30)
+  
+  y_mid <- mean(c(y_bottom, y_top))
+  
+  if (strand == 1) {
+    
+    body_end <- max(start, end - head_width)
+    
+    x_bottom <- seq(start, body_end, length.out = 30)
+    x_top <- rev(x_bottom)
+    
+    circos.polygon(x = c(x_bottom,
+                         end,
+                         x_top),
+                   y = c(rep(y_bottom, length(x_bottom)),
+                         y_mid,
+                         rep(y_top, length(x_top))),
+                   col = col,
+                   border = border,
+                   lwd = 0.6)
+    
+  } else {
+    
+    body_start <- min(end, start + head_width)
+    
+    x_bottom <- seq(body_start, end, length.out = 30)
+    x_top <- rev(x_bottom)
+    
+    circos.polygon(x = c(start,
+                         x_bottom,
+                         x_top),
+                   y = c(y_mid,
+                         rep(y_bottom, length(x_bottom)),
+                         rep(y_top, length(x_top))),
+                   col = col,
+                   border = border,
+                   lwd = 0.6)
+  }
+}
+
+
+# ------------------------------------------------------------
+# plotting parameters
+# ------------------------------------------------------------
+
+circos.clear()
+
+circos.par(start.degree = 90,
+           gap.degree = 0,
+           track.margin = c(0.003, 0.003),
+           cell.padding = c(0, 0, 0, 0),
+           points.overflow.warning = F,
+           canvas.xlim = c(-1.25, 1.25),
+           canvas.ylim = c(-1.25, 1.25))
+
+
+# ------------------------------------------------------------
+# initialize single mitochondrial chromosome
+# ------------------------------------------------------------
+
+circos.initialize(factors = 'mtDNA',
+                  xlim = matrix(c(0, genome_length), nrow = 1))
+
+
+# ============================================================
+# OUTER LABEL TRACK
+# ============================================================
+
+circos.trackPlotRegion(ylim = c(0, 1),
+                       track.height = 0.16,
+                       bg.border = NA,
+                       bg.col = NA,
+                       panel.fun = function(x, y) {
+                         
+                         # kb scale
+                         tick_at <- seq(0, genome_length, by = 2000)
+                         
+                         circos.axis(h = 'bottom',
+                                     major.at = tick_at,
+                                     labels = paste0(tick_at / 1000, ' kb'),
+                                     labels.cex = 0.48,
+                                     labels.facing = 'clockwise',
+                                     labels.niceFacing = T,
+                                     major.tick.length = 0.10,
+                                     minor.ticks = 1,
+                                     lwd = 0.5)
+                         
+                         # labels for short features
+                         short_features <- features[
+                           features$type %in% c('tRNA', 'rep_origin'), ]
+                         
+                         for (i in seq_len(nrow(short_features))) {
+                           
+                           mid <- mean(c(short_features$start[i],
+                                         short_features$end[i]))
+                           
+                           label_y <- ifelse(i %% 2 == 0, 0.53, 0.78)
+                           
+                           circos.text(x = mid,
+                                       y = label_y,
+                                       labels = short_features$display[i],
+                                       facing = 'clockwise',
+                                       niceFacing = T,
+                                       adj = c(0, 0.5),
+                                       cex = 0.48)
+                         }
+                       })
+
+
+# ============================================================
+# FEATURE TRACK
+#
+# outer half = forward strand
+# inner half = reverse strand
+# ============================================================
+
+circos.trackPlotRegion(ylim = c(0, 1),
+                       track.height = 0.24,
+                       bg.border = NA,
+                       bg.col = NA,
+                       panel.fun = function(x, y) {
+                         
+                         # genome backbone
+                         circos.lines(c(0, genome_length),
+                                      c(0.50, 0.50),
+                                      col = '#555555',
+                                      lwd = 0.8)
+                         
+                         for (i in seq_len(nrow(features))) {
+                           
+                           if (features$strand[i] == 1) {
+                             
+                             y_bottom <- 0.55
+                             y_top <- 0.95
+                             
+                           } else {
+                             
+                             y_bottom <- 0.05
+                             y_top <- 0.45
+                           }
+                           
+                           draw_feature_arrow(start = features$start[i],
+                                              end = features$end[i],
+                                              strand = features$strand[i],
+                                              y_bottom = y_bottom,
+                                              y_top = y_top,
+                                              col = features$color[i])
+                         }
+                         
+                         
+                         # labels for large features
+                         large_features <- features[
+                           features$type %in% c('CDS',
+                                                'rRNA',
+                                                'D-loop'), ]
+                         
+                         for (i in seq_len(nrow(large_features))) {
+                           
+                           mid <- mean(c(large_features$start[i],
+                                         large_features$end[i]))
+                           
+                           if (large_features$strand[i] == 1) {
+                             label_y <- 0.75
+                           } else {
+                             label_y <- 0.25
+                           }
+                           
+                           circos.text(x = mid,
+                                       y = label_y,
+                                       labels = large_features$display[i],
+                                       facing = 'bending.inside',
+                                       niceFacing = T,
+                                       cex = 0.55,
+                                       font = 2)
+                         }
+                       })
+
+
+# ------------------------------------------------------------
+# center labels
+# ------------------------------------------------------------
+
+text(0,
+     0.10,
+     expression(italic(Gloydius~ussuriensis)),
+     cex = 1.35,
+     font = 2)
+
+text(0,
+     0.00,
+     'AMNH 21010',
+     cex = 1.0)
+
+text(0,
+     -0.09,
+     paste0(format(genome_length, big.mark = ','), ' bp'),
+     cex = 0.9)
+
+text(0,
+     -0.18,
+     'mitochondrial genome',
+     cex = 0.8)
+
+
+# ------------------------------------------------------------
+# legend
+# ------------------------------------------------------------
+
+legend('bottom',
+       legend = names(feature_colors),
+       fill = feature_colors,
+       border = '#333333',
+       ncol = 2,
+       cex = 0.68,
+       bty = 'n',
+       xpd = NA,
+       inset = c(0, -0.18))
+
+
+# ------------------------------------------------------------
+# export
+# ------------------------------------------------------------
+
+circos.clear()
