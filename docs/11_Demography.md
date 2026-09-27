@@ -588,4 +588,257 @@ seqtk seq \
 
 Verify the output:
 ```sh
+gzip -t "${OUT}" && echo "repeat-masked FASTQ: OK"
+ls -lh "${OUT}"
+```
+
+Quantify the final usable sequence:
+```sh
+seqtk seq -A "${OUT}" \
+| awk '
+BEGIN {
+    total=0
+    acgt=0
+    het=0
+    lower=0
+    upperN=0
+}
+!/^>/ {
+    s=$0
+    total += length(s)
+
+    x=s
+    acgt += gsub(/[ACGT]/, "", x)
+
+    x=s
+    het += gsub(/[MRWSYK]/, "", x)
+
+    x=s
+    lower += gsub(/[a-z]/, "", x)
+
+    x=s
+    upperN += gsub(/N/, "", x)
+}
+END {
+    callable = acgt + het
+
+    printf "Total bases:            %d\n", total
+    printf "Uppercase A/C/G/T:      %d\n", acgt
+    printf "Uppercase heterozygous: %d\n", het
+    printf "Lowercase masked:       %d\n", lower
+    printf "Uppercase N:            %d\n", upperN
+    printf "Callable bases:         %d\n", callable
+    printf "Callable fraction:      %.4f (%.2f%%)\n", callable/total, 100*callable/total
+    printf "Het/callable:           %.8f\n", het/callable
+}'
+```
+This will print the following:
+```sh
+Total bases:            1380174220
+Uppercase A/C/G/T:      695456361
+Uppercase heterozygous: 2867028
+Lowercase masked:       681817017
+Uppercase N:            33814
+Callable bases:         698323389
+Callable fraction:      0.5060 (50.60%)
+Het/callable:           0.00410559
+```
+
+So the tradeoff is:
+```sh
+1) Without repeat mask:
+callable = 88.59%
+het/site = 0.00462
+more sequence, but greater risk of repeat-driven false heterozygosity
+
+2) With EarlGrey mask:
+callable = 50.60%
+het/site = 0.00411
+less sequence, but cleaner uniquely interpretable sequence
+```
+
+### Step 4: Convert the repeat-masked diploid FASTQ into PSMCFA
+```sh
+# cd into dir
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography_PSMC/03_psmc
+
+# set paths
+PSMCROOT="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography_PSMC"
+FQ="${PSMCROOT}/02_consensus/AMNH_21010.autosomes.dp4-24.repeatmasked.diploid.fq.gz"
+OUT="AMNH_21010.autosomes.dp4-24.repeatmasked.psmcfa"
+
+# convert
+fq2psmcfa -q20 "${FQ}" > "${OUT}"
+
+# check the output
+ls -lh "${OUT}"
+grep -c '^>' "${OUT}"
+```
+
+Quantify the PSMC bins:
+```sh
+awk '
+BEGIN {
+    total=0
+    t=0
+    k=0
+    n=0
+    seqs=0
+}
+(/^>/) {
+    seqs++
+    next
+}
+{
+    total += length($0)
+
+    x=$0
+    t += gsub(/T/, "", x)
+
+    x=$0
+    k += gsub(/K/, "", x)
+
+    x=$0
+    n += gsub(/N/, "", x)
+}
+END {
+    callable=t+k
+
+    printf "Sequences:              %d\n", seqs
+    printf "Total 100-bp bins:      %d\n", total
+    printf "T bins:                 %d\n", t
+    printf "K bins:                 %d\n", k
+    printf "N bins:                 %d\n", n
+    printf "Callable bins:          %d\n", callable
+    printf "Callable-bin fraction:  %.4f (%.2f%%)\n", callable/total, 100*callable/total
+    printf "Heterozygous-bin frac:  %.6f (%.3f%%)\n", k/callable, 100*k/callable
+}' "${OUT}"
+```
+
+This will print this:
+```sh
+Sequences:              17
+Total 100-bp bins:      13801750
+T bins:                 6230264
+K bins:                 1970294
+N bins:                 5601192
+Callable bins:          8200558
+Callable-bin fraction:  0.5942 (59.42%)
+Heterozygous-bin frac:  0.240263 (24.026%)
+```
+Therefore, after repeat masking you still have 8,200,558 callable 100-bp bins, corresponding to roughly 820 Mb of usable PSMC sequence.
+
+### Step 5: Run PSMC
+```sh
+#!/bin/bash
+#SBATCH --job-name=psmc_exploratory
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=300G
+#SBATCH --time=48:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography_PSMC/slurm_logs/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography_PSMC/slurm_logs/slurm-%x_%j.err
+
+# ================================================================
+# PSMC demographic inference
+#
+# individual: AMNH_21010
+#
+# input:
+#   Repeat-masked diploid consensus
+#   Autosomes only
+#   Illumina depth filter = 4-24x
+#
+# initial parameterization:
+#   -N25
+#   -t15
+#   -r5
+#   -p "4+25*2+4+6"
+#
+# NOTE:
+# This is the initial exploratory fit. The interval pattern will
+# be evaluated after the run before bootstrapping.
+# ================================================================
+
+
+# ------------------------------------------------------------
+# activate environment
+# ------------------------------------------------------------
+source /home/yshin/mendel-nas1/miniconda3/etc/profile.d/conda.sh
+conda activate psmc
+
+set -euo pipefail
+
+
+# ------------------------------------------------------------
+# paths
+# ------------------------------------------------------------
+PROJECT="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+PSMCROOT="${PROJECT}/demography_PSMC"
+INDIR="${PSMCROOT}/03_psmc"
+INPUT="${INDIR}/AMNH_21010.autosomes.dp4-24.repeatmasked.psmcfa"
+OUTPUT="${INDIR}/AMNH_21010.autosomes.dp4-24.repeatmasked.psmc"
+
+
+# ------------------------------------------------------------
+# check input
+# ------------------------------------------------------------
+if [[ ! -s "${INPUT}" ]]; then
+    echo "ERROR: missing or empty PSMCFA:"
+    echo "${INPUT}"
+    exit 1
+fi
+
+
+# ------------------------------------------------------------
+# run PSMC
+# ------------------------------------------------------------
+echo "============================================================"
+echo "Running PSMC"
+echo "============================================================"
+echo "Input:  ${INPUT}"
+echo "Output: ${OUTPUT}"
+echo
+
+psmc \
+    -N25 \
+    -t15 \
+    -r5 \
+    -p "4+25*2+4+6" \
+    -o "${OUTPUT}" \
+    "${INPUT}"
+
+
+# ------------------------------------------------------------
+# validate output
+# ------------------------------------------------------------
+if [[ ! -s "${OUTPUT}" ]]; then
+    echo "ERROR: PSMC output is empty"
+    exit 1
+fi
+
+echo
+echo "============================================================"
+echo "PSMC completed"
+echo "============================================================"
+
+ls -lh "${OUTPUT}"
+
+echo
+echo "Final iteration:"
+grep '^RD' "${OUTPUT}" | tail -1
+
+echo
+echo "Final theta/rho:"
+grep '^TR' "${OUTPUT}" | tail -1
+
+echo
+echo "Final inferred recombination summary:"
+grep 'n_recomb' "${OUTPUT}" | tail -1
+
+echo "============================================================"
 ```
