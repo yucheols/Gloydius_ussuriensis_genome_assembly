@@ -459,3 +459,133 @@ echo
 ls -lh "${DIPLOID_FQ}"
 echo "============================================================"
 ```
+
+Check the output:
+```sh
+# check file integrity
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography_PSMC/02_consensus
+
+FQ="AMNH_21010.autosomes.dp4-24.diploid.fq.gz"
+
+ls -lh "${FQ}"
+gzip -t "${FQ}" && echo "gzip integrity: OK"
+
+# make sure all 17 autosomes are present
+seqtk seq -A "${FQ}" \
+    | grep '^>' \
+    | sed 's/^>//'
+
+seqtk seq -A "${FQ}" \
+    | grep -c '^>'
+```
+
+Also quantify total sequence, callable uppercase bases, heterozygous IUPAC bases, and masked lowercase sequence:
+```sh
+seqtk seq -A "${FQ}" \
+| awk '
+BEGIN {
+    total=0
+    acgt=0
+    het=0
+    lower=0
+    upperN=0
+}
+!/^>/ {
+    s=$0
+    total += length(s)
+
+    x=s
+    acgt += gsub(/[ACGT]/, "", x)
+
+    x=s
+    het += gsub(/[MRWSYK]/, "", x)
+
+    x=s
+    lower += gsub(/[a-z]/, "", x)
+
+    x=s
+    upperN += gsub(/N/, "", x)
+}
+END {
+    callable = acgt + het
+
+    printf "Total bases:            %d\n", total
+    printf "Uppercase A/C/G/T:      %d\n", acgt
+    printf "Uppercase heterozygous: %d\n", het
+    printf "Lowercase masked:       %d\n", lower
+    printf "Uppercase N:            %d\n", upperN
+    printf "Callable bases:         %d\n", callable
+    printf "Callable fraction:      %.4f (%.2f%%)\n", callable/total, 100*callable/total
+    printf "Het/callable:           %.8f\n", het/callable
+}'
+```
+
+This will show:
+```sh
+Total bases:            1380174220
+Uppercase A/C/G/T:      1217013984
+Uppercase heterozygous: 5652966
+Lowercase masked:       157417510
+Uppercase N:            89760
+Callable bases:         1222666950
+Callable fraction:      0.8859 (88.59%)
+Het/callable:           0.00462347
+```
+
+Now, let's make a BED of lowercase regions from the softmasked reference. This is needed because the soft-masked reference already marks repetitive sequence in lowercase, but the consensus-generation step does not reliably preserve that original lowercase mask.
+
+The problem is that vcfutils.pl vcf2fq reconstructs the diploid consensus from the VCF rather than copying the original FASTA character-for-character. The lowercase block (= repeats) can emerge from consensus generation as callable uppercase sequence if it passes the depth/MQ criteria. In short, the vcf2fq code builds sequence from the VCF records and applies its own lowercase/uppercase logic based on quality and depth, not based on the original EarlGrey mask.
+
+Let's run the script below:
+```sh
+# set paths
+PROJECT="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+PSMCROOT="${PROJECT}/demography_PSMC"
+REF="${PROJECT}/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
+
+# run python script
+python /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/Python/extract_lowercase_bed.py \
+    "${REF}" \
+    "${PSMCROOT}/00_setup/autosome_contigs.txt" \
+    > "${PSMCROOT}/00_setup/autosome_repeat_mask.bed"
+```
+
+Now, check how much of the autosomes is softmasked:
+```sh
+awk '{
+    n++
+    bp += $3-$2
+}
+END {
+    printf "Repeat intervals: %d\n", n
+    printf "Repeat-masked bp: %d\n", bp
+    printf "Repeat-masked Mb: %.3f\n", bp/1e6
+    printf "Fraction of autosomes: %.2f%%\n", 100*bp/1380185643
+}' "${PSMCROOT}/00_setup/autosome_repeat_mask.bed"
+```
+
+The script above should print:
+```sh
+Repeat intervals: 1324681
+Repeat-masked bp: 635512154
+Repeat-masked Mb: 635.512
+Fraction of autosomes: 46.05%
+``` 
+
+Now, let's apply this mask to the diploid consensus:
+```sh
+cd "${PSMCROOT}/02_consensus"
+FQ="AMNH_21010.autosomes.dp4-24.diploid.fq.gz"
+MASK="${PSMCROOT}/00_setup/autosome_repeat_mask.bed"
+OUT="AMNH_21010.autosomes.dp4-24.repeatmasked.diploid.fq.gz"
+
+seqtk seq \
+    -M "${MASK}" \
+    "${FQ}" \
+| gzip -c \
+> "${OUT}"
+``` 
+
+Verify the output:
+```sh
+```
