@@ -731,17 +731,17 @@ Therefore, after repeat masking you still have 8,200,558 callable 100-bp bins, c
 ### Step 5: Run PSMC
 ```sh
 #!/bin/bash
-#SBATCH --job-name=psmc_exploratory
+#SBATCH --job-name=psmc_primary
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=300G
+#SBATCH --mem=100G
 #SBATCH --time=48:00:00
 #SBATCH --partition=compute
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography_PSMC/slurm_logs/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography_PSMC/slurm_logs/slurm-%x_%j.err
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
 
 # ================================================================
 # PSMC demographic inference
@@ -749,19 +749,23 @@ Therefore, after repeat masking you still have 8,200,558 callable 100-bp bins, c
 # individual: AMNH_21010
 #
 # input:
-#   Repeat-masked diploid consensus
-#   Autosomes only
+#   repeat-masked diploid consensus
+#   autosomes only
 #   Illumina depth filter = 4-24x
 #
-# initial parameterization:
-#   -N25
+# parameterization:
+#   -N100
 #   -t15
 #   -r5
 #   -p "4+25*2+4+6"
 #
-# NOTE:
-# This is the initial exploratory fit. The interval pattern will
-# be evaluated after the run before bootstrapping.
+# NOTE: this is aclean restart from the default PSMC 
+# initialization with up to 100 iterations
+#
+# the previous PSMC output, if present, 
+# is removed before the new run
+#
+# evaluate convergence before bootstrapping.
 # ================================================================
 
 
@@ -779,19 +783,28 @@ set -euo pipefail
 # ------------------------------------------------------------
 PROJECT="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
 PSMCROOT="${PROJECT}/demography_PSMC"
+
 INDIR="${PSMCROOT}/03_psmc"
 INPUT="${INDIR}/AMNH_21010.autosomes.dp4-24.repeatmasked.psmcfa"
 OUTPUT="${INDIR}/AMNH_21010.autosomes.dp4-24.repeatmasked.psmc"
 
 
 # ------------------------------------------------------------
-# check input
+# remove previous run
 # ------------------------------------------------------------
-if [[ ! -s "${INPUT}" ]]; then
-    echo "ERROR: missing or empty PSMCFA:"
-    echo "${INPUT}"
-    exit 1
+echo "============================================================"
+echo "Removing previous PSMC output"
+echo "============================================================"
+
+if [[ -e "${OUTPUT}" ]]; then
+    echo "Removing:"
+    echo "${OUTPUT}"
+    rm -f "${OUTPUT}"
+else
+    echo "No previous output found."
 fi
+
+echo
 
 
 # ------------------------------------------------------------
@@ -800,12 +813,17 @@ fi
 echo "============================================================"
 echo "Running PSMC"
 echo "============================================================"
-echo "Input:  ${INPUT}"
-echo "Output: ${OUTPUT}"
+echo "Input:          ${INPUT}"
+echo "Output:         ${OUTPUT}"
+echo "Iterations:     100"
+echo "Initial t:      15"
+echo "Initial rho/theta: 5"
+echo "Pattern:        4+25*2+4+6"
+echo "============================================================"
 echo
 
 psmc \
-    -N25 \
+    -N100 \
     -t15 \
     -r5 \
     -p "4+25*2+4+6" \
@@ -814,13 +832,8 @@ psmc \
 
 
 # ------------------------------------------------------------
-# validate output
+# report final results
 # ------------------------------------------------------------
-if [[ ! -s "${OUTPUT}" ]]; then
-    echo "ERROR: PSMC output is empty"
-    exit 1
-fi
-
 echo
 echo "============================================================"
 echo "PSMC completed"
@@ -833,6 +846,14 @@ echo "Final iteration:"
 grep '^RD' "${OUTPUT}" | tail -1
 
 echo
+echo "Final log likelihood:"
+grep '^LK' "${OUTPUT}" | tail -1
+
+echo
+echo "Final QD:"
+grep '^QD' "${OUTPUT}" | tail -1
+
+echo
 echo "Final theta/rho:"
 grep '^TR' "${OUTPUT}" | tail -1
 
@@ -840,5 +861,30 @@ echo
 echo "Final inferred recombination summary:"
 grep 'n_recomb' "${OUTPUT}" | tail -1
 
+echo
+echo "Final parameter set:"
+grep '^PA' "${OUTPUT}" | tail -1
+
+echo
 echo "============================================================"
+echo "PSMC run completed successfully"
+echo "============================================================"
+```
+
+Let's check the outputs:
+```sh
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography_PSMC/03_psmc
+PSMC="AMNH_21010.autosomes.dp4-24.repeatmasked.psmc"
+
+ls -lh "${PSMC}"
+
+grep '^RD' "${PSMC}" | tail -10
+grep '^TR' "${PSMC}" | tail -10
+grep '^RS' "${PSMC}" | tail -40
+grep 'n_recomb' "${PSMC}" | tail -10
+tail -100 "${PSMC}"
+
+# check convergence
+grep '^LK' "${PSMC}" | tail -10
+grep '^QD' "${PSMC}" | tail -10
 ```
