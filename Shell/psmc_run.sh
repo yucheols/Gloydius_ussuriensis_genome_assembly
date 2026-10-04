@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --job-name=psmc_primary
+#SBATCH --job-name=psmc
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=100G
-#SBATCH --time=48:00:00
+#SBATCH --time=144:00:00
 #SBATCH --partition=compute
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
@@ -22,7 +22,7 @@
 #   Illumina depth filter = 4-24x
 #
 # parameterization:
-#   -N100
+#   -N500
 #   -t15
 #   -r5
 #   -p "4+25*2+4+6"
@@ -91,7 +91,7 @@ echo "============================================================"
 echo
 
 psmc \
-    -N100 \
+    -N500 \
     -t15 \
     -r5 \
     -p "4+25*2+4+6" \

@@ -731,12 +731,12 @@ Therefore, after repeat masking you still have 8,200,558 callable 100-bp bins, c
 ### Step 5: Run PSMC
 ```sh
 #!/bin/bash
-#SBATCH --job-name=psmc_primary
+#SBATCH --job-name=psmc
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=100G
-#SBATCH --time=48:00:00
+#SBATCH --time=96:00:00
 #SBATCH --partition=compute
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yshin@amnh.org
@@ -754,7 +754,7 @@ Therefore, after repeat masking you still have 8,200,558 callable 100-bp bins, c
 #   Illumina depth filter = 4-24x
 #
 # parameterization:
-#   -N100
+#   -N500
 #   -t15
 #   -r5
 #   -p "4+25*2+4+6"
@@ -823,7 +823,7 @@ echo "============================================================"
 echo
 
 psmc \
-    -N100 \
+    -N500 \
     -t15 \
     -r5 \
     -p "4+25*2+4+6" \
@@ -878,13 +878,24 @@ PSMC="AMNH_21010.autosomes.dp4-24.repeatmasked.psmc"
 
 ls -lh "${PSMC}"
 
+# check convergence
 grep '^RD' "${PSMC}" | tail -10
+grep '^LK' "${PSMC}" | tail -10
+grep '^QD' "${PSMC}" | tail -10
 grep '^TR' "${PSMC}" | tail -10
 grep '^RS' "${PSMC}" | tail -40
+grep '^MT' "${PSMC}" | tail -20
 grep 'n_recomb' "${PSMC}" | tail -10
 tail -100 "${PSMC}"
 
-# check convergence
-grep '^LK' "${PSMC}" | tail -10
-grep '^QD' "${PSMC}" | tail -10
+# quantify the likelihood increment between iterations
+grep '^LK' "${PSMC}" \
+| awk '
+{
+    if (NR > 1) {
+        printf "%3d  LK=%15.6f  delta=%10.6f\n", NR-1, $2, $2-prev
+    }
+    prev=$2
+}' \
+| tail -20
 ```
