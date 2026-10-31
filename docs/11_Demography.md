@@ -1133,3 +1133,123 @@ ls -lh "${OUTPUT}"
 
 echo "============================================================"
 ```
+
+After this finishes running, QC the bootstrap runs:
+```sh
+# cd into outdir
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography_PSMC/04_bootstrap
+
+# this should return 100
+echo "Bootstrap PSMC files:"
+find replicates -type f -name 'bootstrap_*.psmc' | wc -l
+
+echo "Bootstrap QC files:"
+find qc -type f -name 'bootstrap_*.qc.tsv' | wc -l
+
+# make sure every run has 500 iterations == this will print nothing if this is the case
+for f in replicates/bootstrap_*.psmc; do
+    rep=$(basename "${f}" .psmc)
+    rd=$(grep '^RD' "${f}" | tail -1 | awk '{print $2}')
+    if [[ "${rd}" != "500" ]]; then
+        echo "${rep}: RD=${rd}"
+    fi
+done
+```
+
+Now, combine the individual QC summaries:
+```sh
+{
+    head -1 qc/bootstrap_001.qc.tsv
+
+    for f in qc/bootstrap_*.qc.tsv; do
+        tail -1 "${f}"
+    done
+} > bootstrap_convergence_summary.tsv
+```
+
+... and inspect the file:
+```sh
+column -t bootstrap_convergence_summary.tsv | head -20
+```
+
+Also get a quick summary of the final likelihood increments:
+```sh
+awk '
+NR>1 {
+    n++
+    sum += $4
+    if (n==1 || $4<min) min=$4
+    if (n==1 || $4>max) max=$4
+}
+END {
+    printf "Replicates: %d\n", n
+    printf "Mean final LK delta: %.6f\n", sum/n
+    printf "Min final LK delta:  %.6f\n", min
+    printf "Max final LK delta:  %.6f\n", max
+}' bootstrap_convergence_summary.tsv
+```
+
+Sort the replicates by their final likelihood delta:
+```sh
+{
+    head -1 bootstrap_convergence_summary.tsv
+
+    tail -n +2 bootstrap_convergence_summary.tsv \
+        | sort -k4,4nr
+} | column -t | head -20
+```
+
+The outputs from all of the above will show that the results are good enough to proceed to the next steps. Importantly, the bootstrap run is nicely centered around the primary run. Let's combine the primary fit + all 100 bootstrap fits.
+```sh
+PSMCROOT="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/demography_PSMC"
+
+PRIMARY="${PSMCROOT}/03_psmc/AMNH_21010.autosomes.dp4-24.repeatmasked.psmc"
+
+COMBINED="${PSMCROOT}/04_bootstrap/AMNH_21010.autosomes.dp4-24.repeatmasked.combined.psmc"
+
+cat "${PRIMARY}" \
+    "${PSMCROOT}"/04_bootstrap/replicates/bootstrap_*.psmc \
+    > "${COMBINED}"
+
+ls -lh "${COMBINED}"
+```
+
+And also run this:
+```sh
+grep '^RD' "${COMBINED}" \
+    | awk '$2==500' \
+    | wc -l
+```
+This should print 101.
+
+### Step 7: Plot PSMC curves
+We will first use the built-in "psmc_plot.pl" script to generate scales psmc datasets, and then generate a publication-ready plot in R.
+```sh
+# cd into plotting dir
+cd "${PSMCROOT}/05_plots"
+
+# set prefix
+PREFIX="${PSMCROOT}/05_plots/AMNH_21010_PSMC_bootstrap"
+
+# run
+psmc_plot.pl \
+    -u 1.25e-8 \
+    -g 3 \
+    -n 500 \
+    -x 20000 \
+    -R \
+    "${PREFIX}" \
+    "${COMBINED}"
+
+# verify the .eps file is created
+ls -lh AMNH_21010_PSMC_bootstrap.eps
+
+# check how many scaled datasets are created; expected = 101
+find "${PSMCROOT}/05_plots" \
+    -maxdepth 1 \
+    -type f \
+    -name 'AMNH_21010_PSMC_bootstrap.*.txt' \
+    | wc -l
+```
+
+Now, let's generate the plot in R. We will first need to scp the required input files into a local directory (AMNH_21010_PSMC_bootstrap.*.txt).
