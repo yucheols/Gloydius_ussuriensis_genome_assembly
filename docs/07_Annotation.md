@@ -1507,7 +1507,10 @@ Rscript \
 
 ### (Post-Hi-C) Finalizing toxin gene annotation
 ```sh
-# warning / removed counts == 7 warnings and 49 removed
+#cd into output dir
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome
+
+# warning / removed counts == 7 warnings and 48 removed
 wc -l annotation_warning.txt
 wc -l annotation_removed.txt
 
@@ -1561,4 +1564,755 @@ $1=="CTL-10" ||
 $1=="HYAL-4" ||
 $1=="CTL-16"
 ' toxin_annotation.tsv
+```
+
+The output will look like this:
+```sh
+|toxin_ID   |  toxin_family    |      chromosome   |     start  |       end   |  strand|
+|-----------|------------------|-------------------|------------|-------------|--------|
+|SVSP-1     |          SVSP    |   G_ussuri_chr1   |  16190589  |  16212840   |       -|
+|SVSP-16    |          SVSP    |  G_ussuri_chr10   |  18308689  |  18312041   |       -|
+|Ficolin-4  |       Ficolin    |  G_ussuri_chr15   |  10789984  |  10801121   |       -|
+|PLA2-4     |          PLA2    |  G_ussuri_chr16   |    285580  |    286640   |       +|
+|CTL-10     |           CTL    |   G_ussuri_chr6   |   1351446  |   1355701   |       +|
+|HYAL-4     |          HYAL    |   G_ussuri_chr6   |  72034421  |  72039204   |       +|
+|CTL-16     |           CTL    |   G_ussuri_chrZ   | 119509275  | 119512397   |       +|
+```
+
+Now, let's verify that all seven are present in both the CDS and protein FASTA outputs, then inspect their protein lengths.
+```sh
+echo "===== WARNED CDS HEADERS ====="
+
+grep '^>' toxin_annotation_cds.fasta | \
+grep -E 'SVSP-1($|[[:space:]])|SVSP-16($|[[:space:]])|Ficolin-4($|[[:space:]])|PLA2-4($|[[:space:]])|CTL-10($|[[:space:]])|HYAL-4($|[[:space:]])|CTL-16($|[[:space:]])'
+
+echo
+echo "===== WARNED PROTEIN HEADERS ====="
+
+grep '^>' toxin_annotation_pep.fasta | \
+grep -E 'SVSP-1($|[[:space:]])|SVSP-16($|[[:space:]])|Ficolin-4($|[[:space:]])|PLA2-4($|[[:space:]])|CTL-10($|[[:space:]])|HYAL-4($|[[:space:]])|CTL-16($|[[:space:]])'
+```
+
+Then get the protein lengths for the full toxin set, with the seven warning models labeled:
+```sh
+awk '
+BEGIN {
+    warn["SVSP-1"]=1
+    warn["SVSP-16"]=1
+    warn["Ficolin-4"]=1
+    warn["PLA2-4"]=1
+    warn["CTL-10"]=1
+    warn["HYAL-4"]=1
+    warn["CTL-16"]=1
+}
+/^>/ {
+    if (id != "") {
+        status = (id in warn ? "WARNING" : "")
+        print id, length(seq), status
+    }
+
+    id = substr($1, 2)
+    seq = ""
+    next
+}
+{
+    seq = seq $0
+}
+END {
+    if (id != "") {
+        status = (id in warn ? "WARNING" : "")
+        print id, length(seq), status
+    }
+}
+' OFS='\t' toxin_annotation_pep.fasta | column -t
+```
+
+The outputs of above scripts will show that all seven warned models are retained consistently in both the CDS and protein FASTA outputs, and that the protein lengths by themselves do not make any of the seven look obviously truncated. Therefore, retain all seven for now and move to sequence-integrity QC. We need to check whether their CDSs have proper starts/stops and whether the translated proteins contain internal stop codons.
+
+Run this first:
+```sh
+awk '
+BEGIN {
+    warn["SVSP-1"]=1
+    warn["SVSP-16"]=1
+    warn["Ficolin-4"]=1
+    warn["PLA2-4"]=1
+    warn["CTL-10"]=1
+    warn["HYAL-4"]=1
+    warn["CTL-16"]=1
+}
+/^>/ {
+    if (id != "" && id in warn) {
+        start = substr(seq,1,3)
+        stop = substr(seq,length(seq)-2,3)
+        print id, length(seq), length(seq)%3, start, stop
+    }
+    id = substr($1,2)
+    seq = ""
+    next
+}
+{
+    seq = seq $0
+}
+END {
+    if (id != "" && id in warn) {
+        start = substr(seq,1,3)
+        stop = substr(seq,length(seq)-2,3)
+        print id, length(seq), length(seq)%3, start, stop
+    }
+}
+' OFS='\t' toxin_annotation_cds.fasta | column -t
+```
+
+The output will look like this:
+```sh
+gene        CDS_length    length_mod_3    first_codon    last_codon
+SVSP-1             798               0            ATG           tag
+SVSP-16            810               0            atg           tga
+Ficolin-4         1113               0            ATG           TAG
+PLA2-4             417               0            ATG           TAA
+CTL-10             531               0            ATG           TGA
+HYAL-4            1626               0            ATG           TGA
+CTL-16             585               0            ATG           TAA
+```
+
+Also run:
+```sh
+awk '
+BEGIN {
+    warn["SVSP-1"]=1
+    warn["SVSP-16"]=1
+    warn["Ficolin-4"]=1
+    warn["PLA2-4"]=1
+    warn["CTL-10"]=1
+    warn["HYAL-4"]=1
+    warn["CTL-16"]=1
+}
+/^>/ {
+    if (id != "" && id in warn) {
+        tmp = seq
+        nstop = gsub(/\*/, "", tmp)
+
+        tmp = seq
+        nx = gsub(/[Xx]/, "", tmp)
+
+        first = substr(seq,1,1)
+        last = substr(seq,length(seq),1)
+
+        print id, length(seq), first, last, nstop, nx
+    }
+    id = substr($1,2)
+    seq = ""
+    next
+}
+{
+    seq = seq $0
+}
+END {
+    if (id != "" && id in warn) {
+        tmp = seq
+        nstop = gsub(/\*/, "", tmp)
+
+        tmp = seq
+        nx = gsub(/[Xx]/, "", tmp)
+
+        first = substr(seq,1,1)
+        last = substr(seq,length(seq),1)
+
+        print id, length(seq), first, last, nstop, nx
+    }
+}
+' OFS='\t' toxin_annotation_pep.fasta | column -t
+```
+
+The output will look like this:
+```sh
+gene        protein_length    first_AA    last_AA    number_of_*    number_of_X
+SVSP-1                 266           M          *              2              0
+SVSP-16                270           M          *              7              0
+Ficolin-4              371           M          *              3              0
+PLA2-4                 139           M          *              2              0
+CTL-10                 177           M          *              2              0
+HYAL-4                 542           M          *              2              0
+CTL-16                 195           M          *              3              0
+```
+
+This reveals some important clues:
+ 1) CDS length is divisible by 3 for every model.
+ 2) All begin with ATG; case differences are irrelevant.
+ 3) All end with a canonical stop codon.
+ 4) No proteins contain X.
+ 5) BUT, every warned protein contains at least one premature/internal stop codon (*) in addition to the normal terminal stop.
+
+SVSP-16 is immediately the most suspicious because it has six internal stops. The others may still represent pseudogenes, truncated paralogs, or gene-model boundary issues.
+
+Next, let's locate the exact amino-acid positions of those internal stops.
+
+Run this:
+```sh
+awk '
+BEGIN {
+    warn["SVSP-1"]=1
+    warn["SVSP-16"]=1
+    warn["Ficolin-4"]=1
+    warn["PLA2-4"]=1
+    warn["CTL-10"]=1
+    warn["HYAL-4"]=1
+    warn["CTL-16"]=1
+}
+function report() {
+    if (id != "" && id in warn) {
+        for (i=1; i<=length(seq); i++) {
+            if (substr(seq,i,1)=="*") {
+                status = (i==length(seq) ? "terminal" : "INTERNAL")
+                print id, i, status
+            }
+        }
+    }
+}
+/^>/ {
+    report()
+    id=substr($1,2)
+    seq=""
+    next
+}
+{
+    seq=seq $0
+}
+END {
+    report()
+}
+' OFS='\t' toxin_annotation_pep.fasta | column -t
+```
+
+The output will look like this:
+```sh
+SVSP-1     265  INTERNAL
+SVSP-1     266  terminal
+SVSP-16    56   INTERNAL
+SVSP-16    59   INTERNAL
+SVSP-16    68   INTERNAL
+SVSP-16    70   INTERNAL
+SVSP-16    72   INTERNAL
+SVSP-16    93   INTERNAL
+SVSP-16    270  terminal
+Ficolin-4  334  INTERNAL
+Ficolin-4  349  INTERNAL
+Ficolin-4  371  terminal
+PLA2-4     113  INTERNAL
+PLA2-4     139  terminal
+CTL-10     143  INTERNAL
+CTL-10     177  terminal
+HYAL-4     443  INTERNAL
+HYAL-4     542  terminal
+CTL-16     75   INTERNAL
+CTL-16     121  INTERNAL
+CTL-16     195  terminal
+```
+
+The output suggests that SVSP-1 is the least alarming: its internal stop is at aa 265 of 266, immediately before the terminal stop. Ficolin-4, PLA2-4, CTL-10, and HYAL-4 also have relatively late disruptions. CTL-16 is more concerning because its two stops are at aa 75 and 121, and SVSP-16 is the strongest pseudogene/error candidate because it has six clustered stops between aa 56–93.
+
+The next step is to map these premature stops back onto the genomic CDS exons. That will tell us whether they sit inside ordinary exons or near problematic splice boundaries.
+
+Run:
+```sh
+python3 - <<'PY'
+import re
+from collections import defaultdict
+
+warned = {
+    "SVSP-1",
+    "SVSP-16",
+    "Ficolin-4",
+    "PLA2-4",
+    "CTL-10",
+    "HYAL-4",
+    "CTL-16"
+}
+
+# read CDS FASTA
+cds = {}
+current = None
+
+with open("toxin_annotation_cds.fasta") as f:
+    for line in f:
+        line = line.strip()
+        if line.startswith(">"):
+            current = line[1:].split()[0]
+            cds[current] = []
+        elif current is not None:
+            cds[current].append(line)
+
+cds = {k: "".join(v).upper() for k, v in cds.items()}
+
+# read protein FASTA
+pep = {}
+current = None
+
+with open("toxin_annotation_pep.fasta") as f:
+    for line in f:
+        line = line.strip()
+        if line.startswith(">"):
+            current = line[1:].split()[0]
+            pep[current] = []
+        elif current is not None:
+            pep[current].append(line)
+
+pep = {k: "".join(v) for k, v in pep.items()}
+
+# read GTF CDS features
+features = defaultdict(list)
+
+with open("toxin_annotation.gtf") as f:
+    for line in f:
+        if line.startswith("#") or not line.strip():
+            continue
+
+        fields = line.rstrip().split("\t")
+
+        if len(fields) < 9 or fields[2] != "CDS":
+            continue
+
+        chrom = fields[0]
+        start = int(fields[3])
+        end = int(fields[4])
+        strand = fields[6]
+        phase = fields[7]
+        attributes = fields[8]
+
+        m = re.search(r'gene_id "([^"]+)"', attributes)
+        if not m:
+            continue
+
+        gene = m.group(1)
+
+        if gene not in warned:
+            continue
+
+        features[gene].append({
+            "chrom": chrom,
+            "start": start,
+            "end": end,
+            "strand": strand,
+            "phase": phase
+        })
+
+print(
+    "gene",
+    "aa_position",
+    "protein_length",
+    "codon",
+    "chromosome",
+    "genomic_positions",
+    "exon_rank",
+    "strand",
+    sep="\t"
+)
+
+for gene in sorted(warned):
+
+    sequence = cds[gene]
+    protein = pep[gene]
+    segs = features[gene]
+
+    strand = segs[0]["strand"]
+
+    if strand == "+":
+        segs = sorted(segs, key=lambda x: x["start"])
+    else:
+        segs = sorted(segs, key=lambda x: x["start"], reverse=True)
+
+    nt_to_genome = {}
+    nt_to_exon = {}
+
+    cds_pos = 1
+
+    for exon_rank, seg in enumerate(segs, start=1):
+
+        if strand == "+":
+            coords = range(seg["start"], seg["end"] + 1)
+        else:
+            coords = range(seg["end"], seg["start"] - 1, -1)
+
+        for genomic_pos in coords:
+            nt_to_genome[cds_pos] = genomic_pos
+            nt_to_exon[cds_pos] = exon_rank
+            cds_pos += 1
+
+    internal_stops = [
+        i + 1
+        for i, aa in enumerate(protein)
+        if aa == "*" and i + 1 < len(protein)
+    ]
+
+    for aa_pos in internal_stops:
+
+        nt_start = (aa_pos - 1) * 3 + 1
+        nt_positions = [nt_start, nt_start + 1, nt_start + 2]
+
+        codon = sequence[nt_start - 1:nt_start + 2]
+
+        genomic_positions = [
+            str(nt_to_genome.get(x, "NA"))
+            for x in nt_positions
+        ]
+
+        exon_ranks = sorted({
+            nt_to_exon.get(x, "NA")
+            for x in nt_positions
+        }, key=str)
+
+        print(
+            gene,
+            aa_pos,
+            len(protein),
+            codon,
+            segs[0]["chrom"],
+            ",".join(genomic_positions),
+            ",".join(map(str, exon_ranks)),
+            strand,
+            sep="\t"
+        )
+PY
+```
+
+The output of the above script confirms that every premature stop codon is contained entirely within a single CDS exon; none is produced by a codon spanning an exon junction.
+
+The patterns are:
+- SVSP-1: one stop in exon 5, essentially at the very end of the protein.
+- SVSP-16: all six stops cluster in exon 1.
+- Ficolin-4: both stops are in exon 9.
+- PLA2-4: one stop in exon 4.
+- CTL-10: one stop in exon 4.
+- HYAL-4: one stop in exon 4.
+- CTL-16: both stops are in exon 3.
+
+So SVSP-16 and CTL-16 remain the most suspicious structurally, whereas SVSP-1 may simply have a terminal-boundary issue.
+
+Next, inspect the complete CDS/exon structures for these seven models. 
+
+Run:
+```sh
+for gene in SVSP-1 SVSP-16 Ficolin-4 PLA2-4 CTL-10 HYAL-4 CTL-16
+do
+    echo
+    echo "===== ${gene} ====="
+    grep "gene_id \"${gene}\"" toxin_annotation.gtf
+done
+```
+
+The output of this script will provide some provisional results: SVSP-1 has its stop essentially at the end of the final CDS exon, so a terminal-boundary issue is most likely. Ficolin-4, PLA2-4, and CTL-10 also have stops in their final CDS exon, but farther upstream. HYAL-4 is more concerning because its stop is in exon 4 of 5. CTL-16 is clearly more suspicious because both stops occur in exon 3 of 5. SVSP-16 is the strongest disruption candidate because all six premature stops occur early in exon 1.
+
+Now we should bring in the evidence ToxCodAn used to construct these models. Rather than searching by final names, search matched_regions.gtf by genomic overlap:
+```sh
+awk -F '\t' '
+($1=="G_ussuri_chr1"  && $4<=16212840  && $5>=16190589) ||
+($1=="G_ussuri_chr10" && $4<=18312041  && $5>=18308689) ||
+($1=="G_ussuri_chr15" && $4<=10801121  && $5>=10789984) ||
+($1=="G_ussuri_chr16" && $4<=286640    && $5>=285580) ||
+($1=="G_ussuri_chr6"  && $4<=1355701   && $5>=1351446) ||
+($1=="G_ussuri_chr6"  && $4<=72039204  && $5>=72034421) ||
+($1=="G_ussuri_chrZ"  && $4<=119512397 && $5>=119509275)
+' matched_regions.gtf
+```
+
+Then, separately, identify the matched-GTF files corresponding to those loci:
+```sh
+for region in \
+"G_ussuri_chr1--161905" \
+"G_ussuri_chr10--183086" \
+"G_ussuri_chr15--107899" \
+"G_ussuri_chr16--285580" \
+"G_ussuri_chr6--1351446" \
+"G_ussuri_chr6--72034421" \
+"G_ussuri_chrZ--119509275"
+do
+    echo
+    echo "===== ${region} ====="
+    ls matched_GTFs | grep "$region"
+done
+```
+
+The output will show that three loci have clear transcript-derived support in matched_regions.gtf:
+ - SVSP-1 has multiple independent transcript assemblies (TRINITY, STRG, and NODE) covering essentially the same   locus, from 16190592–16212840.   
+ - SVSP-16 has extensive transcript evidence: Trinity, several StringTie (STRG) transcripts, and numerous NODE assemblies all map to this locus.
+ - PLA2-4 has several transcript-derived matches, including a very high-coverage NODE_11840... hit from 285580–286562, plus another NODE, STRG, and Trinity transcript.
+
+By contrast, the evidence shown for Ficolin-4, CTL-10, HYAL-4, and CTL-16 is toxin-database homology (Viperidae_Toxin_*) rather than transcript-derived evidence.
+
+There are also two particularly interesting boundary clues.
+
+For SVSP-1, the transcript-supported region begins at 16190592, exactly where its premature stop codon sits on the minus strand (16190594–16190592). The final ToxCodAn model extends three nucleotides farther to 16190589. That makes a terminal-boundary artifact quite plausible rather than a genuine disrupted gene.
+
+For PLA2-4, the strongest transcript-derived hit ends at 286562, exactly where the premature TGA is located (286560–286562). Meanwhile, homology models extend the locus through 286640. Again, that strongly suggests we may be looking at competing terminal boundaries rather than automatically at a pseudogene.
+
+SVSP-16 is different. It has abundant transcript evidence, yet six premature stops occur early in exon 1. So expression alone does not rescue it; this remains our strongest candidate for a transcribed pseudogene or erroneous CDS model.
+
+Another thing to note, CTL-16 (which is based on database homology matches) being located on the Z chromosome is rather suspicious given toxin gene annotations in other snake species. So this one also deserves careful inspection. 
+
+The next thing to do is to inspect the actual seven matched_GTFs files, because those tell us which model ToxCodAn selected as the best gene structure.
+
+Run:
+```sh
+for f in \
+matched_GTFs/G_ussuri_chr1--16190592-16212840.gtf \
+matched_GTFs/G_ussuri_chr10--18308689-18313198.gtf \
+matched_GTFs/G_ussuri_chr15--10789984-10801121.gtf \
+matched_GTFs/G_ussuri_chr16--285580-286562.gtf \
+matched_GTFs/G_ussuri_chr6--1351446-1355701.gtf \
+matched_GTFs/G_ussuri_chr6--72034421-72039204.gtf \
+matched_GTFs/G_ussuri_chrZ--119509275-119512397.gtf
+do
+    echo
+    echo "===== $f ====="
+    cat "$f"
+done
+```
+
+The output can be summarized like so:
+```txt
+1) SVSP-1: Selected best hit = STRG.279.1; internal codon located at aa 265/266. This gene CDS is supported by RNA transcript-supported CDS, but penultimate codon is a stop. This annotation is mildly suspicious; could be a tiny terminal modeling issue.
+
+2) SVSP-16: Selected best hit =	NODE_12577;	it is supported by transcript evidence but has 6 stops, spanning aa 56–93. This annotation is	highly suspicious; likely disrupted/transcribed pseudogene or bad model.
+
+3) Ficolin-4: Selected best hit = Viperidae_Toxin_745; internal stop codon located at	aa 334, 349/371. Therefore, this annotation is a homology-only model with two late stops.
+
+4) PLA2-4: Selected best hit = Viperidae_Toxin_1149; internal stop codon located at aa 113/139. This annotation is based on a homology model, but independent RNA evidence exists and one transcript ends at the internal stop.
+
+5) CTL-10: Selected best hit = Viperidae_Toxin_515;	internal stop codon located at aa 143/177. This is a homology-only disrupted model.
+
+6) HYAL-4: Selected best hit = Viperidae_Toxin_686; internal stop codon located at aa 443/542, exon 4/5. This is more concerning because substantial CDS follows the internal stop codon.
+
+7) CTL-16: Selected best hit = Viperidae_Toxin_739;	internal stop codon located at aa 75, 121/195, exon 3/5. This is highly suspicious, especially given its location on the Z chromosome.
+```
+
+For SVSP-1, the selected RNA-derived model itself contains exactly the same five CDS exons as the final ToxCodAn annotation. So the stop at aa 265 is not something ToxCodAn added after choosing the RNA model. The transcript-supported model itself produces that stop.
+
+SVSP-16 is even clearer. ToxCodAn selected a transcript-derived NODE model, and the final exon coordinates are identical. Yet six stop codons occur in its first coding exon. For now, we will put SVSP-16 in the pseudogene/problematic-model bucket, pending sequence validation.
+
+For PLA2-4, the situation is more nuanced. The selected model is actually the database-derived Viperidae_Toxin_1149_PLA2, extending through 286640. But independently, we have an RNA-derived NODE match ending at 286562, exactly where the apparent internal TGA occurs. So PLA2-4 deserves specific RNA inspection before we classify it. There may genuinely be a shorter expressed transcript ending at that stop.
+
+CTL-16 is looking increasingly questionable: database-only best hit, two internal stops in the middle of the gene, substantial coding sequence downstream, and its location on the Z chromosome. The Z location alone is not disqualifying, but combined with everything else it raises the possibility that this is a degraded/general C-type lectin-like locus that ToxCodAn matched to its toxin database rather than a functional venom CTL.
+
+Before going to raw-read validation, The cleanest next check would be to inspect the genomic context. Let's see whether these warning genes sit with the other members of their toxin families or are genomic outliers. 
+
+Run:
+```sh
+awk -F '\t' '
+BEGIN {
+    OFS="\t"
+}
+$2=="SVSP" ||
+$2=="Ficolin" ||
+$2=="PLA2" ||
+$2=="CTL" ||
+$2=="SNACLEC" ||
+$2=="HYAL" {
+    print $1,$2,$3,$4,$5,$6
+}
+' toxin_annotation.tsv | sort -k2,2 -k3,3V -k4,4n | column -t
+```
+
+The output will look like this:
+```sh
+> ' toxin_annotation.tsv | sort -k2,2 -k3,3V -k4,4n | column -t
+CTL-1      CTL      G_ussuri_chr1   111265878  111272415  -
+CTL-2      CTL      G_ussuri_chr5   95628854   95631475   -
+CTL-3      CTL      G_ussuri_chr6   448197     450286     +
+CTL-4      CTL      G_ussuri_chr6   867856     872443     +
+CTL-5      CTL      G_ussuri_chr6   1016550    1022773    -
+CTL-6      CTL      G_ussuri_chr6   1046375    1053967    +
+CTL-7      CTL      G_ussuri_chr6   1292124    1325647    +
+CTL-8      CTL      G_ussuri_chr6   1298499    1305085    +
+CTL-9      CTL      G_ussuri_chr6   1332993    1343087    -
+CTL-10     CTL      G_ussuri_chr6   1351446    1355701    +
+CTL-11     CTL      G_ussuri_chr6   1365922    1371014    -
+CTL-12     CTL      G_ussuri_chr6   1374967    1377991    +
+CTL-13     CTL      G_ussuri_chr6   1416996    1422999    -
+CTL-14     CTL      G_ussuri_chr6   1427637    1432276    +
+CTL-15     CTL      G_ussuri_chrZ   53703611   53706064   -
+CTL-16     CTL      G_ussuri_chrZ   119509275  119512397  +
+CTL-17     CTL      G_ussuri_chrZ   119519092  119521350  -
+CTL-18     CTL      G_ussuri_chrZ   133429644  133435453  -
+Ficolin-1  Ficolin  G_ussuri_chr1   107463308  107476757  +
+Ficolin-2  Ficolin  G_ussuri_chr1   107493750  107504245  +
+Ficolin-3  Ficolin  G_ussuri_chr1   107517199  107526160  +
+Ficolin-4  Ficolin  G_ussuri_chr15  10789984   10801121   -
+HYAL-1     HYAL     G_ussuri_chr2   202028395  202036528  -
+HYAL-2     HYAL     G_ussuri_chr6   71969588   71980263   +
+HYAL-3     HYAL     G_ussuri_chr6   72004412   72016075   +
+HYAL-4     HYAL     G_ussuri_chr6   72034421   72039204   +
+PLA2-1     PLA2     G_ussuri_chr10  20681231   20685339   +
+PLA2-2     PLA2     G_ussuri_chr16  278191     278997     +
+PLA2-3     PLA2     G_ussuri_chr16  281098     282719     -
+PLA2-4     PLA2     G_ussuri_chr16  285580     286640     +
+PLA2-5     PLA2     G_ussuri_chr16  293721     295345     +
+PLA2-6     PLA2     G_ussuri_chr16  302420     304043     +
+PLA2-7     PLA2     G_ussuri_chr16  311102     312734     +
+SNACLEC-1  SNACLEC  G_ussuri_chr6   1385725    1389251    -
+SNACLEC-2  SNACLEC  G_ussuri_chr6   1404163    1409516    +
+SVSP-1     SVSP     G_ussuri_chr1   16190589   16212840   -
+SVSP-21    SVSP     G_ussuri_chr2   24809373   24816201   +
+SVSP-22    SVSP     G_ussuri_chr2   137498143  137506778  +
+SVSP-2     SVSP     G_ussuri_chr10  17846269   17853935   -
+SVSP-3     SVSP     G_ussuri_chr10  17897988   17916218   -
+SVSP-4     SVSP     G_ussuri_chr10  17933543   17943451   -
+SVSP-5     SVSP     G_ussuri_chr10  17934046   17943451   -
+SVSP-6     SVSP     G_ussuri_chr10  17988255   17993030   -
+SVSP-7     SVSP     G_ussuri_chr10  18042288   18046724   -
+SVSP-8     SVSP     G_ussuri_chr10  18091907   18096890   -
+SVSP-9     SVSP     G_ussuri_chr10  18108802   18115307   -
+SVSP-10    SVSP     G_ussuri_chr10  18138584   18149575   -
+SVSP-11    SVSP     G_ussuri_chr10  18155360   18162289   -
+SVSP-12    SVSP     G_ussuri_chr10  18170088   18175096   -
+SVSP-13    SVSP     G_ussuri_chr10  18182232   18199625   -
+SVSP-14    SVSP     G_ussuri_chr10  18222991   18230561   -
+SVSP-15    SVSP     G_ussuri_chr10  18278654   18282773   -
+SVSP-16    SVSP     G_ussuri_chr10  18308689   18312041   -
+SVSP-17    SVSP     G_ussuri_chr10  18319874   18325066   -
+SVSP-18    SVSP     G_ussuri_chr10  18341314   18354244   -
+SVSP-19    SVSP     G_ussuri_chr10  18372679   18386109   -
+SVSP-20    SVSP     G_ussuri_chr10  18401912   18415458   -
+```
+This shows that the location of CTL-16 on the Z chromosome is not inherently suspicious after all. There are four CTL annotations on Z. More importantly, CTL-16 and CTL-17 are only ~6.7 kb apart, so CTL-16 sits next to another CTL-family member. That strongly supports this being a genuine CTL-family locus rather than a random spurious homology hit. What remains suspicious is its functionality: CTL-16 alone has two internal stops at aa 75 and 121.
+
+The same context is informative for the other warnings:
+ - SVSP-16 sits right inside the large chr10 SVSP tandem cluster (SVSP-2 through SVSP-20). So its identity as an SVSP-family locus is very convincing; the six internal stops make it look more like a pseudogenized SVSP paralog than a false annotation.
+ - PLA2-4 sits squarely inside the chr16 PLA2 cluster (PLA2-2 through PLA2-7). Again, family identity is strong; the issue is whether it is intact or pseudogenized.
+ - HYAL-4 is immediately downstream of HYAL-2 and HYAL-3 on chr6, so its HYAL identity is also well supported.
+ - CTL-10 is embedded inside the huge chr6 CTL/SNACLEC cluster, so it is almost certainly a real CTL-family locus.
+ - Ficolin-4 is the odd one: Ficolin-1–3 form a cluster on chr1, whereas Ficolin-4 is isolated on chr15. That doesn't make it false, but it deserves a higher bar.
+ - SVSP-1 is likewise isolated on chr1 while most SVSPs form the chr10 cluster.
+
+So at this point, there are two separate questions:
+
+__1) Is this really a member of the toxin-gene family?__
+For SVSP-16, PLA2-4, CTL-10, HYAL-4, and probably CTL-16, genomic context says yes, very plausibly.
+
+__2) Is the locus an intact functional toxin gene?__
+This is still unresolved, and the internal stops are the problem.
+
+For CTL-16 specifically, the next clean check should be to compare it directly with its nearby Z-linked paralog CTL-17.
+
+Run:
+```sh
+for gene in CTL-15 CTL-16 CTL-17 CTL-18
+do
+    echo
+    echo "===== ${gene} GTF ====="
+    grep "gene_id \"${gene}\"" toxin_annotation.gtf
+
+    echo
+    echo "===== ${gene} PROTEIN ====="
+    awk -v gene="$gene" '
+    /^>/ {
+        if (p) exit
+        if ($1==">"gene) {
+            p=1
+            print
+            next
+        }
+    }
+    p {print}
+    ' toxin_annotation_pep.fasta
+done
+```
+
+This comparison makes CTL-16 substantially more suspicious as a toxin annotation, and for a reason beyond the two premature stops.
+
+For example, CTL-17 looks exactly like a secreted venom C-type lectin/SNACLEC-like protein: it is ~155 aa in length and begins with a strongly hydrophobic N-terminal signal peptide:
+```txt
+MRPLAYSSLWLLGFFMAVSQAAF...
+```
+Then it transitions directly into a cysteine-rich lectin-like mature protein.
+
+CTL-16 looks quite different; the conspicuous hydrophobic stretch is not right at the N-terminus; it appears around aa ~50–70. This looks much more like a transmembrane helix than a conventional secretory signal peptide. 
+
+Combined with:
+- 195 aa length, longer than the nearby intact CTL-17;
+- two internal stop codons at aa 75 and 121;
+- five-exon structure;
+- database-only rather than transcript-derived ToxCodAn support;
+- location next to another CTL-like gene on the Z;
+
+The most likely conclusion is that the annotated CTL-16 is a genuine C-type lectin-domain-family locus, but probably not a functional secreted venom CTL. It could be a degraded membrane-associated CTL-like paralog/pseudogene that happens to match the toxin database.
+
+Another interesting pattern is that CTL-15 and CTL-18 also don't immediately resemble canonical secreted venom CTLs at their N-termini, whereas CTL-17 does. So the Z may contain a broader CTL-domain gene family, only some members of which should necessarily be considered venom toxins.
+
+The next useful check is very focused: inspect whether the autosomal chr6 CTLs have the expected short N-terminal signal peptides. Let's print all CTL proteins in one compact form, first 40 aa plus total length:
+```sh
+awk '
+function print_record() {
+    if (id ~ /^CTL-/) {
+        print id, length(seq), substr(seq,1,40)
+    }
+}
+
+/^>/ {
+    print_record()
+
+    id = substr($1,2)
+    seq = ""
+    next
+}
+
+{
+    seq = seq $0
+}
+
+END {
+    print_record()
+}
+' OFS='\t' toxin_annotation_pep.fasta | column -t
+```
+
+The output looks like this:
+```sh
+CTL-1   178  MCSWLFICAFLGITFMQDVSAQTCLCAQGFCASGWVQYKS
+CTL-2   167  MRLILLSSLLLLGTFLANGHETDPDGHVLNSLMLTVLRLQ
+CTL-3   168  MASFSLGLFLGLVLAPLAANAQADPCPSGWLAYNGHCYGY
+CTL-4   165  MFLITCFIFGVLGSLTWAGPSVRTVCPSGTFVYKDGSQWY
+CTL-5   167  MFLITCFIFGVLGSLTWAGPSVRTVCPSGTFAYKDRNQWY
+CTL-6   159  MGRLIFMSFGLLVVFLSLSGVKGCCCPRDWLPMNGLCYKV
+CTL-7   147  MGRFIFVSFGLLVVFLSLGGTGADCPSGWSSFEGHCYRVF
+CTL-8   139  MGRFIFMSFGLLVVFLSLRIGGNHHCPFGWFFHNASCYKL
+CTL-9   101  MGRFIFVSFGLLVLFLSLSGTAADCPSGWSSYEGHCYQPF
+CTL-10  177  MGRFIFVSFGLLVVFLSLSGTGADCPSDWSSYEGHCYKTF
+CTL-11  159  MGRFIFVSFSLLVVFLSLSGAEDDFDCPSDWPSNGRFCYK
+CTL-12  101  MGRLIFVSFGLLVVFLSLSGTGADCPSDWSSYEGHCYRIF
+CTL-13  159  MGRFIFVSFGLLVLFLSLSGTGADFDCPPGWSAYDRYCYQ
+CTL-14  151  MGRFIFVSFGLLVVAISLSGTGAGFCCPMGWSSYDQHCYR
+CTL-15  161  MIEELKEQLDNLSQEVALLKEKQALQTVCLKGTKINLKCV
+CTL-16  195  MLLHICLRLYKATAQKVREYLRGIQLDSPPLLSIQKEKTI
+CTL-17  155  MRPLAYSSLWLLGFFMAVSQAAFCPREWLRYQRNCYGLFH
+CTL-18  165  MKLTQAQLETMEQNSRALNCEIIEMKSNGSKSGCCPRGWL
+```
+This comparison is quite revealing. The chr6 CTLs (CTL-3 through CTL-14) are extremely consistent: nearly all begin with a strongly hydrophobic N-terminal signal peptide. CTL-17 on Z also fits this pattern. But CTL-15, CTL-16, and CTL-18 do not match this pattern.
+
+For CTL-16, this is especially problematic because it additionally has two internal stops and a hydrophobic stretch appearing much later in the sequence. So we would now treat this annotation as very unlikely to represent an intact secreted venom CTL. More likely it is a CTL-like paralog/pseudogene or a non-toxin CTL-family locus that ToxCodAn picked up based database homology.
+
+But this also uncovers something broader: CTL-15 and CTL-18 deserve review too, even though ToxCodAn did not flag them. The automated warning set is therefore not sufficient by itself for final curation.
+
+Before changing anything, let's formally test secretion signals for the whole CTL set rather than relying only on visual inspection. First extract the CTLs:
+```sh
+awk '
+/^>/ {
+    keep = ($1 ~ /^>CTL-/)
+}
+
+keep {
+    print
+}
+' toxin_annotation_pep.fasta > CTL_all.pep.fasta
+```
+
+Check the CTL peptide fasta file:
+```sh
+grep '^>' CTL_all.pep.fasta
+```
+
+And also check signalp installation:
+```sh
+which signalp
+signalp --version 2>&1 | head
 ```
