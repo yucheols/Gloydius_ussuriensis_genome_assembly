@@ -2293,26 +2293,91 @@ For CTL-16, this is especially problematic because it additionally has two inter
 
 But this also uncovers something broader: CTL-15 and CTL-18 deserve review too, even though ToxCodAn did not flag them. The automated warning set is therefore not sufficient by itself for final curation.
 
-Before changing anything, let's formally test secretion signals for the whole CTL set rather than relying only on visual inspection. First extract the CTLs:
-```sh
-awk '
-/^>/ {
-    keep = ($1 ~ /^>CTL-/)
-}
+The next useful step is to inspect whether the stop codons in the warned models are genuinely encoded in the genome or could reflect assembly/model errors. Let's check the reference bases first at the exact stop positions.
 
-keep {
-    print
-}
-' toxin_annotation_pep.fasta > CTL_all.pep.fasta
+Run:
+```sh
+samtools faidx \
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta \
+G_ussuri_chr6:1355590-1355605 \
+G_ussuri_chrZ:119511508-119511662 \
+G_ussuri_chr15:10790040-10790105 \
+G_ussuri_chr6:72038492-72038508 \
+G_ussuri_chr16:286553-286569 \
+G_ussuri_chr1:16190585-16190600 \
+G_ussuri_chr10:18311755-18311885 \
+G_ussuri_chrZ:53705975-53706070 \
+G_ussuri_chrZ:133435360-133435460
 ```
 
-Check the CTL peptide fasta file:
+This confirms that the premature stops are genuinely present in the reference assembly sequence; they are not artifacts introduced during translation or FASTA extraction. Also, for CTL-15 and CTL-18, their unusual N-termini are genuinely encoded by the reference assembly and are not caused by the protein FASTA extraction.
+
+Now, we still need to distinguish two possibilities: real biological disruption/pseudogenization versus an assembly/base-call error at the reference locus. Given our HiFi assembly quality, widespread assembly errors are unlikely, especially for models like SVSP-16 with six separate stops, but checking the underlying genomic reads is worthwhile before we label genes as pseudogenes.
+
+At this stage, this is the provisional status for different toxin gene annotations:
+  1) SVSP-1:   genuine SVSP locus; one very late internal stop; needs read validation
+  2) SVSP-16:  genuine SVSP locus; strong pseudogene candidate
+  3) Ficolin-4: homology-only isolated locus; questionable functional gene
+  4) PLA2-4:   genuine PLA2-cluster locus; one internal stop; needs read/RNA evaluation
+  5) CTL-10:   genuine CTL-cluster locus; likely disrupted if stop confirmed
+  6) HYAL-4:   genuine HYAL-cluster locus; likely disrupted if stop confirmed
+  7) CTL-15:   intact, transcript-supported CTL-like gene; no obvious signal peptide; toxin status questionable
+  8) CTL-16:   genuine CTL-like locus; strong nonfunctional/pseudogene candidate; two internal stops; no obvious  
+               signal peptide
+  9) CTL-17:   intact; no internal stops; conventional secreted CTL-like architecture
+ 10) CTL-18:   intact, transcript-supported CTL-like gene; no obvious signal peptide; toxin status questionable
+
+Now, let's move on to genomic read validation. The purpose here is very specific: determine whether each premature stop codon is genuinely supported by the underlying genomic reads or whether it could reflect an assembly/base-calling error. CTL-15, CTL-17, and CTL-18 do not need stop-codon validation because they have no internal stops.
+
+First, create a BED file containing all 14 internal stop codons:
 ```sh
-grep '^>' CTL_all.pep.fasta
+printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+'G_ussuri_chr1'  '16190591'  '16190594'  'SVSP-1_stop265'      '0' '-' \
+'G_ussuri_chr10' '18311873'  '18311876'  'SVSP-16_stop56'     '0' '-' \
+'G_ussuri_chr10' '18311864'  '18311867'  'SVSP-16_stop59'     '0' '-' \
+'G_ussuri_chr10' '18311837'  '18311840'  'SVSP-16_stop68'     '0' '-' \
+'G_ussuri_chr10' '18311831'  '18311834'  'SVSP-16_stop70'     '0' '-' \
+'G_ussuri_chr10' '18311825'  '18311828'  'SVSP-16_stop72'     '0' '-' \
+'G_ussuri_chr10' '18311762'  '18311765'  'SVSP-16_stop93'     '0' '-' \
+'G_ussuri_chr15' '10790094'  '10790097'  'Ficolin-4_stop334'  '0' '-' \
+'G_ussuri_chr15' '10790049'  '10790052'  'Ficolin-4_stop349'  '0' '-' \
+'G_ussuri_chr16' '286559'    '286562'    'PLA2-4_stop113'     '0' '+' \
+'G_ussuri_chr6'  '1355596'   '1355599'   'CTL-10_stop143'     '0' '+' \
+'G_ussuri_chr6'  '72038498'  '72038501'  'HYAL-4_stop443'     '0' '+' \
+'G_ussuri_chrZ'  '119511514' '119511517' 'CTL-16_stop75'      '0' '+' \
+'G_ussuri_chrZ'  '119511652' '119511655' 'CTL-16_stop121'     '0' '+' \
+> toxin_internal_stops.bed
 ```
 
-And also check signalp installation:
+Check:
 ```sh
-which signalp
-signalp --version 2>&1 | head
+column -t toxin_internal_stops.bed
+```
+
+Next, locate the genomic-read alignment we can use to validate internal-stop codons. There is a AMNH_21010 illumina WGS BAM file under the population genomics project separate from the genome assembly project directory:
+```sh
+REF="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
+
+BAM="/home/yshin/mendel-nas1/ussuri_popgen/WGS_mapping/bam/AMNH_21010.markdup.bam"
+```
+
+Confirm that the BAM is intact, indexed, and uses the same chromosome naming scheme:
+```sh
+samtools quickcheck -v "$BAM"
+
+ls -lh "$BAM" "$BAM".bai 2>/dev/null
+
+samtools idxstats "$BAM" | head -20
+```
+
+Now, let's generate a per-base pileup of the Illumina reads specifically at the 14 internal stop codons we identified:
+```sh
+samtools mpileup \
+    -f "$REF" \
+    -l toxin_internal_stops.bed \
+    -q 20 \
+    -Q 20 \
+    -aa \
+    "$BAM" \
+    > toxin_internal_stops.AMNH_21010.mpileup
 ```
