@@ -2379,5 +2379,35 @@ samtools mpileup \
     -Q 20 \
     -aa \
     "$BAM" \
-    > toxin_internal_stops.AMNH_21010_mpileup
+    > toxin_internal_stops_AMNH_21010.mpileup
 ```
+
+Inspect the pileup:
+```sh
+ls -lh toxin_internal_stops_AMNH_21010.mpileup
+
+wc -l toxin_internal_stops_AMNH_21010.mpileup
+column -t toxin_internal_stops_AMNH_21010.mpileup
+```
+
+The result of the "column -t" line should look something like this:
+```sh
+G_ussuri_chr1   16190592   t  19  ..,.,,..,..,.......       JJJJJJJJJJJJJJJJJJJ
+G_ussuri_chr1   16190593   c  19  ..,.,,..,..,.......       JJJJJJJJJJJJJJJJJJJ
+G_ussuri_chr1   16190594   A  20  ..,.,,..,..,.......^].    JJJJJJJJJJJJJJJJJJJB
+G_ussuri_chr6   1355597    T  9   ,.,..,.,.                 JsJJJJJJJ
+G_ussuri_chr6   1355598    A  9   ,.,..,.,.                 JsJJJJJJJ
+G_ussuri_chr6   1355599    G  9   ,$.,..,.,.                EsJJJJJJJ
+G_ussuri_chr6   72038499   T  11  .,..,,,,...               sJssJJJJJJJ
+G_ussuri_chr6   72038500   G  12  .,..,,,,..,.              sJssJJJJJJ9J
+G_ussuri_chr6   72038501   A  12  .$,..,,,,..,.             nJssJJJJJJ9J
+G_ussuri_chrZ   119511515  T  15  ,,..,,...,,,..,           JJJ9JJJJJJsJJJJ
+G_ussuri_chrZ   119511516  G  15  ,,..,,...,,,..,           JJJJJJJJJJsJJJJ
+G_ussuri_chrZ   119511517  A  15  ,,..,,...,,,..,           JJJJJJJJJJsJJJJ
+G_ussuri_chrZ   119511653  T  15  ,,.,.,..,,..,,,           JJJJJ9JJJJJJJJJ
+G_ussuri_chrZ   119511654  A  15  ,,.,.,..,,..,,,           JJJJJJJ9JJJJJJJ
+G_ussuri_chrZ   119511655  A  15  ,,.,.,..,,..,,,           JJJJJJJJJJJJJJJ
+```
+Here, . and , mean the Illumina base agrees with the reference. The ^] and $ symbols are just read-start/read-end markers and are not mismatches. The genomic read validation basically tells us that the Illumina reads agree with the reference sequence for essentially every stop position. Therefore, these premature stops are not reference assembly base-call errors.
+
+But Ficolin-4 has one interesting exception. At the second Ficolin-4 stop codon (chr15:10790050), the reference base is a T, read depth for that position is 16. Five of those reads match the reference base, while the other 11 have an alternative base, C (this is printed as .Ccc,,c.Cc.cCCCc). Because Ficolin-4 is on the minus strand, the reference allele produces a canonical stop (TGA), whereas the genomic T→C alternative converts the coding-strand codon to TGG, which is a Trp. So this appears to be a heterozygous stop-loss polymorphism at aa349.
