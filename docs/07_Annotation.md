@@ -2379,5 +2379,5 @@ samtools mpileup \
     -Q 20 \
     -aa \
     "$BAM" \
-    > toxin_internal_stops.AMNH_21010.mpileup
+    > toxin_internal_stops.AMNH_21010_mpileup
 ```
