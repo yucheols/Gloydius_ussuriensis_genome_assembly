@@ -2591,3 +2591,218 @@ samtools view -H "$RNA_BAM" \
     ' \
     | fold -s -w 120
 ```
+
+Next, let's check the alignment statistics and read identifiers:
+```sh
+echo "===== HISAT2 SUMMARY ====="
+cat /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/venom_RNA_mapping/venom_genome.hisat2_summary.txt
+
+echo
+echo "===== BAM READ IDENTIFIERS ====="
+samtools view "$RNA_BAM" | head -n 5 | cut -f1
+
+echo
+echo "===== SRR35908235 FASTQ IDENTIFIER ====="
+zcat /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland/trimmed_fastq/SRR35908235_1.trimmed.fastq.gz | head -n 1
+
+echo
+echo "===== SRR35908238 FASTQ IDENTIFIER ====="
+zcat /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland/trimmed_fastq/SRR35908238_1.trimmed.fastq.gz | head -n 1
+```
+
+The `samtools view "$RNA_BAM" | head -n 5 | cut -f1` line will print out:
+```sh
+SRR35908235.1905510
+SRR35908235.4122839
+SRR35908235.1905510
+SRR35908235.4122839
+SRR35908235.9683651
+```
+This means that the SRA accession SRR35908235 was successfully aligned to the reference genome. The overall alignment level is 87.69%, which means that the existing BAM is suitable for RNA read-based toxin gene validation. One important consideration is the relatively high multimapping rate (22.38%). This is likely because SVSP, PLA2, and CTL genes form tandem repeats.
+
+Now, let's check RNA read support across all 10 loci. First, let's quantify the number of RNA alignments overlapping each candidate gene.
+```sh
+# ============================================================
+# Preliminary venom-gland RNA support
+# Dataset: SRR35908235
+# Targets: 10 manually reviewed toxin loci
+# ============================================================
+
+RNA_BAM="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/venom_RNA_mapping/venom_genome.sorted.bam"
+
+OUT="toxin_RNA_validation_read_counts.tsv"
+
+# Output header
+printf 'Gene\tChromosome\tStart\tEnd\tPrimary_alignments\tMAPQ20_alignments\n' > "$OUT"
+
+# Process each locus
+while IFS='|' read -r gene chrom start end; do
+
+    region="${chrom}:${start}-${end}"
+
+    # Count primary mapped alignments
+    total=$(samtools view \
+        -c \
+        -F 0x904 \
+        "$RNA_BAM" \
+        "$region") || break
+
+    # Count primary mapped alignments with MAPQ >= 20
+    highconf=$(samtools view \
+        -c \
+        -F 0x904 \
+        -q 20 \
+        "$RNA_BAM" \
+        "$region") || break
+
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$gene" "$chrom" "$start" "$end" "$total" "$highconf" \
+        >> "$OUT"
+
+done <<'EOF'
+SVSP-1|G_ussuri_chr1|16190589|16212840
+SVSP-16|G_ussuri_chr10|18308689|18312041
+Ficolin-4|G_ussuri_chr15|10789984|10801121
+PLA2-4|G_ussuri_chr16|285580|286640
+CTL-10|G_ussuri_chr6|1351446|1355701
+HYAL-4|G_ussuri_chr6|72034421|72039204
+CTL-15|G_ussuri_chrZ|53703611|53706064
+CTL-16|G_ussuri_chrZ|119509275|119512397
+CTL-17|G_ussuri_chrZ|119519092|119521350
+CTL-18|G_ussuri_chrZ|133429644|133435453
+EOF
+
+# Display results
+echo "===== RNA SUPPORT SUMMARY ====="
+column -t "$OUT"
+
+echo
+echo "===== ROW COUNT ====="
+wc -l "$OUT"
+```
+THe results will show that seven of the ten loci have detectable venom-gland RNA alignments, but the strength and specificity of that evidence vary substantially. The most striking patterns are the strong RNA signal at the disrupted SVSP-16 and CTL-10 loci, the extensive ambiguous mapping at PLA2-4, and the very weak RNA support for the apparently intact Z-linked CTL-17.
+
+
+```sh
+Gene	  All primary	MAPQ ≥20	High-MAPQ fraction
+SVSP-1	        6,098	   6,096	            100.0%
+SVSP-16	      147,861	  82,277	             55.6%
+Ficolin-4	       85	      85	              100%
+PLA2-4	       58,132	     476	              0.8%
+CTL-10	       98,510	  46,502	             47.2%
+HYAL-4	            0	       0	                 —
+CTL-15	           43	      43	              100%
+CTL-16	            0	       0	                 —
+CTL-17	           11	      11	              100%
+CTL-18	           10	       9	               90%
+```
+
+Based on this result, the assessment can now be updated to:
+ 1) SVSP-1: Strong and nearly entirely high-MAPQ RNA coverage across the interval. This is encouraging evidence of locus-specific transcription, although we still need to check whether the predicted CDS containing the late premature stop is the transcript actually expressed.
+
+ 2) SVSP-16: Very substantial RNA signal, including more than 82,000 high-MAPQ alignments. This is particularly interesting because its predicted protein contains six premature stops. It could be a transcribed pseudogene, or the current gene model could be incorrect. RNA abundance alone cannot distinguish these explanations.
+
+ 3) Ficolin-4: Modest RNA support with no apparent low-MAPQ contribution. Because this locus was identified primarily through toxin-sequence homology, we should determine whether these reads cover its predicted exons and support splice junctions.
+
+ 4) PLA2-4: This is the most concerning result for mapping specificity. Only 0.8% of overlapping primary alignments have MAPQ ≥20. The chromosome 16 PLA2 cluster contains highly similar paralogs, so apparent transcription at this locus may largely reflect ambiguous assignment. We should be particularly cautious about interpreting its RNA support.
+
+ 5) CTL-10: Substantial RNA coverage, including approximately 46,500 high-MAPQ alignments. Like SVSP-16, it may represent a transcribed disrupted gene or a gene whose current model needs revision.
+
+ 6) HYAL-4 and CTL-16: No RNA alignments were detected within their intervals. This provides no transcriptional support in SRR35908235, but does not independently establish pseudogene status.
+
+ 7) CTL-15, CTL-17, and CTL-18: All have detectable but sparse RNA support. For CTL-17 specifically, 11 high-MAPQ alignments do not establish strong venom-gland expression, despite its intact ORF and apparent signal peptide. Its toxin status should remain unresolved.
+
+The next step now is to examine the actual CDS-level RNA coverage. The key remaining question is whether RNA reads support the specific CDS structures predicted by ToxCodAn, especially those containing premature stops. One important point for eventual annotation curation is that a premature-stop-containing gene can be strongly transcribed yet encode no functional toxin, while weak venom-gland expression does not rule out functionality. We'll keep those distinctions explicit throughout the analysis.
+
+We can extract the predicted CDS segments for all 10 loci directly from `toxin_annotation.gtf`. We'll use the existing SRR35908235 HISAT2 BAM and calculate the mean RNA read depth, percentage of CDS bases covered by at least one read, number of covered bases, and corresponding gene-wide CDS coverage.
+
+To reduce ambiguous paralog assignments, we'll initially use MAPQ ≥20 and base quality ≥20, excluding secondary, supplementary, duplicate, and QC-failed alignments. Run the python script below:
+```sh
+python3 /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/Python/toxin_RNA_exon_coverage.py
+```
+
+...and inspect the outputs:
+```sh
+echo "===== GENE-LEVEL CDS COVERAGE ====="
+column -t toxin_RNA_validation_CDS_summary.tsv
+
+echo
+echo "===== CDS SEGMENT COVERAGE ====="
+column -t toxin_RNA_validation_CDS_exons.tsv
+```
+
+The output of `toxin_RNA_validation_CDS_summary.tsv` looks like this:
+```sh
+Gene       Chromosome      Strand  CDS_segments  Total_CDS_bp  Covered_bases  Coverage_percent  Mean_depth
+SVSP-1     G_ussuri_chr1   -       5             798           798            100.0             979.45
+SVSP-16    G_ussuri_chr10  -       4             810           810            100.0             486.74
+Ficolin-4  G_ussuri_chr15  -       9             1113          671            60.29             1.33
+PLA2-4     G_ussuri_chr16  +       4             417           417            100.0             37.09
+CTL-10     G_ussuri_chr6   +       4             531           172            32.39             2116.58
+HYAL-4     G_ussuri_chr6   +       5             1626          0              0.0               0.0
+CTL-15     G_ussuri_chrZ   -       2             483           483            100.0             10.85
+CTL-16     G_ussuri_chrZ   +       5             585           0              0.0               0.0
+CTL-17     G_ussuri_chrZ   -       5             465           184            39.57             0.54
+CTL-18     G_ussuri_chrZ   -       4             495           449            90.71             1.88
+```
+
+This result show that some disrupted toxin genes have excellent RNA coverage, whereas others have incomplete or no support for their predicted coding sequences.In particular, SVSP-1 and SVSP-16 have exceptionally strong coverage across every predicted CDS segment. Conversely, CTL-10 has extremely uneven coverage, which raises a serious question about its predicted gene structure.
+
+At this point, these are the assessments we can make:
+ 1) SVSP-1 and SVSP-16: strong transcription despite premature stops. For SVSP-1, 100% of the CDS is covered and all 5 CDS segments have 507–1,176× mean depth. For SVSP-16, 100% of the CDS is covered and all 4 CDS segments have 155–1,129× mean depth. This is interesting because both predicted proteins contain internal stop codons, and genomic reads support those stops. For SVSP-16, all six premature stops occur within CDS segment 1, which has a mean RNA depth of approximately 202×. However, coverage alone cannot establish whether the RNA reads support the same mature transcript or an alternative splicing arrangement. We should not yet classify these as conclusively expressed pseudogenes.
+
+ 2) CTL-10: This is the most suspicious gene model; the predicted CDS consists of four segments, but nearly all RNA coverage is concentrated in the first two. CDS 3 has no detectable coverage, and CDS 4 has almost none. The premature stop at amino acid 143 lies in CDS segment 4, which is poorly supported by venom-gland RNA. This suggests that the highly abundant transcript reads at the beginning of CTL-10 might not support the complete ToxCodAn gene model. A truncated transcript, alternative gene model, or incorrect joining of CDS segments are plausible explanations.
+
+ 3) PLA2-4: The coverage is good, but mapping specificity remains a concern. All four CDS segments have 100% coverage, including CDS 4, which contains the premature stop at amino acid 113. However, there are only 476 MAPQ ≥20 alignments among 58,132 primary alignments overlapping this locus. The substantial multimapping makes it important to verify that the stop-containing exon and predicted splice junctions are supported by reads that genuinely distinguish PLA2-4 from adjacent paralogs.
+
+ 4) Ficolin-4: Only the later coding segments are supported. The first four CDS segments have zero coverage. The remaining five segments show low coverage. Both premature stops occur in CDS 9, which has approximately 91% positional coverage but less than 1× mean depth. This is weak support for a complete nine-segment transcript and reinforces the need for manual gene-model curation.
+
+ 5) CTL-15, CTL-16, CTL-17, and CTL-18: The Z-linked candidates show different patterns. For CTL-15, all coding bases are covered, with mean depth 10.85×. This provides reasonably good transcriptional evidence, although its venom-toxin identity remains uncertain. For CTL-16, there is no coverage across any CDS segment. Its two premature stops remain genomically supported, but it has no detectable venom-gland transcription in this dataset. For CTL-17, only the first three CDS segments have coverage; the last two have none. This is weak evidence for a complete transcript and does not justify calling it a confirmed venom toxin. For CTL-18, four segments have broad but low-depth coverage. Transcription is plausible, but venom-specific function remains unestablished.
+
+The next now would be splice-junction validation for all 10 loci. This will test whether RNA reads actually connect adjacent CDS segments predicted by ToxCodAn. Based on our `toxin_annotation.gtf.`, there are 47 CDS segments across 10 genes, which means that there are 37 predicted connections between CDS.
+
+Run this:
+```sh
+python3 /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/Python/toxin_RNA_splice_junctions.py
+```
+
+The script will spit out:
+```sh
+SVSP-1: 4/4 predicted junctions with >=3 MAPQ20 alignments
+SVSP-16: 1/3 predicted junctions with >=3 MAPQ20 alignments
+Ficolin-4: 0/8 predicted junctions with >=3 MAPQ20 alignments
+PLA2-4: 3/3 predicted junctions with >=3 MAPQ20 alignments
+CTL-10: 1/3 predicted junctions with >=3 MAPQ20 alignments
+HYAL-4: 0/4 predicted junctions with >=3 MAPQ20 alignments
+CTL-15: 1/1 predicted junctions with >=3 MAPQ20 alignments
+CTL-16: 0/4 predicted junctions with >=3 MAPQ20 alignments
+CTL-17: 0/4 predicted junctions with >=3 MAPQ20 alignments
+CTL-18: 1/3 predicted junctions with >=3 MAPQ20 alignments
+
+Completed splice-junction analysis.
+Expected junctions: 37
+Alternative junctions: 1
+```
+
+Let's inspect junction support as well:
+```sh
+column -t toxin_RNA_expected_junctions.tsv
+```
+
+The outputs are highly informative. We can now distinguish toxin loci with RNA-supported coding structures from those whose predicted exon connections are poorly supported. The strongest result is SVSP-1: all four predicted splice junctions have hundreds of high-confidence RNA reads supporting them. On the other hand, SVSP-16 and CTL-10 show abundant transcription but incomplete support for their predicted gene structures. 
+
+We can now summarize the results like so (≥3 reads cutoff means ≥3 high quality reads):
+```txt
+|Gene	    |  Junctions supported by ≥3 reads |   Interpretation                                            |
+|-----------|----------------------------------|-------------------------------------------------------------| 
+|SVSP-1	    |                              4/4 |   Excellent support for the predicted CDS structure         |
+|SVSP-16	|                              1/3 |   Strong expression, but incomplete structural support      |
+|Ficolin-4	|                              0/8 |   No junction support for the predicted nine-CDS model      |
+|PLA2-4	    |                              3/3 |   All predicted junctions supported, last one weakly        |
+|CTL-10	    |                              1/3 |   Strong evidence for first connection only                 |
+|HYAL-4	    |                              0/4 |   No RNA evidence in this dataset                           |
+|CTL-15	    |                              1/1 |   Both CDS segments connected by RNA reads                  |
+|CTL-16	    |                              0/4 |   No RNA evidence in this dataset                           |
+|CTL-17	    |                              0/4 |   Insufficient RNA evidence to validate the structure       |
+|CTL-18	    |                              1/3 |   Sparse support for all three junctions                    |
+```
