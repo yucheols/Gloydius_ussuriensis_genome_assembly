@@ -2410,4 +2410,184 @@ G_ussuri_chrZ   119511655  A  15  ,,.,.,..,,..,,,           JJJJJJJJJJJJJJJ
 ```
 Here, . and , mean the Illumina base agrees with the reference. The ^] and $ symbols are just read-start/read-end markers and are not mismatches. The genomic read validation basically tells us that the Illumina reads agree with the reference sequence for essentially every stop position. Therefore, these premature stops are not reference assembly base-call errors.
 
-But Ficolin-4 has one interesting exception. At the second Ficolin-4 stop codon (chr15:10790050), the reference base is a T, read depth for that position is 16. Five of those reads match the reference base, while the other 11 have an alternative base, C (this is printed as .Ccc,,c.Cc.cCCCc). Because Ficolin-4 is on the minus strand, the reference allele produces a canonical stop (TGA), whereas the genomic T→C alternative converts the coding-strand codon to TGG, which is a Trp. So this appears to be a heterozygous stop-loss polymorphism at aa349.
+But Ficolin-4 has one interesting exception. At the second Ficolin-4 stop codon (chr15:10790050), the reference base is a T, read depth for that position is 16x. Five of those reads match the reference base, while the other 11 have an alternative base, C (this is printed as .Ccc,,c.Cc.cCCCc). Because Ficolin-4 is on the minus strand, the reference allele produces a canonical stop (TGA), whereas the genomic T→C alternative converts the coding-strand codon to TGG, which is a Trp. So this appears to be a heterozygous stop-loss polymorphism at aa349. 
+
+However, this does not rescue Ficolin-4, because its earlier stop at aa334 is essentially completely supported by ~20× reads. Thus its current CDS still contains a genuine premature stop regardless of the aa349 allele.
+
+__At this stage, the assessment for flagged annotations can be summarized like this:__
+1) SVSP-1:
+   genuine SVSP locus; very late premature stop at aa265;
+   stop strongly supported by genomic Illumina reads;
+   assembly error ruled out; functional status still requires RNA/model evaluation
+
+2) SVSP-16:
+   genuine SVSP locus;
+   six premature stops at aa56–93;
+   all six strongly supported by genomic reads;
+   very strong pseudogene/disrupted paralog candidate
+
+3) Ficolin-4:
+   isolated homology-derived Ficolin locus;
+   premature stop at aa334 strongly supported;
+   second stop at aa349 appears heterozygous stop/TGG;
+   strong disrupted/nonfunctional candidate under current model
+
+4) PLA2-4:
+   genuine PLA2-cluster locus;
+   premature TGA at aa113 strongly supported by genomic reads;
+   requires RNA/model evaluation because transcript evidence exists
+
+5) CTL-10:
+   genuine CTL-cluster locus;
+   premature TAG at aa143 strongly supported by genomic reads;
+   likely disrupted under current model
+
+6) HYAL-4:
+   genuine HYAL-cluster locus;
+   premature TGA at aa443 strongly supported by genomic reads;
+   likely disrupted under current model
+
+7) CTL-15:
+   intact transcript-supported CTL-like gene;
+   no internal stops;
+   no obvious N-terminal signal peptide;
+   toxin status uncertain
+
+8) CTL-16:
+   genuine CTL-like locus;
+   two premature stops strongly supported by genomic reads;
+   no obvious N-terminal signal peptide;
+   very strong nonfunctional/pseudogene candidate
+
+9) CTL-17:
+   intact;
+   no internal stops;
+   conventional secreted CTL-like architecture;
+   intact, potentially secreted CTL-like gene; venom-toxin identity unconfirmed.
+
+10) CTL-18:
+    intact transcript-supported CTL-like gene;
+    no internal stops;
+    no obvious N-terminal signal peptide;
+    toxin status uncertain 
+
+Now, let's move on to RNA read validation. For each of the 10 loci, we'll assess:
+ 1) RNA expression: Are reads mapped to the gene, particularly in venom-gland RNA-seq?
+ 2) Exon structure: Do splice-junction reads support the predicted exon boundaries?
+ 3) Alternative transcripts: Is there an alternative isoform that avoids the premature stop codon?
+ 4) Stop-codon support: Do RNA reads support the premature stop or a different allele?
+ 5) Toxin identity: For CTL-15, CTL-17, and CTL-18, is there evidence for venom-gland expression rather than merely general transcription?
+
+We'll prioritize venom-gland datasets SRR35908235 and SRR35908238, but the six tissue RNA-seq datasets can provide useful comparative expression evidence. There is one important limitation in our sampling design: because the venom gland RNA-seq data were from different specimens than the reference individual, they may have different alleles from the reference individual. Therefore, a non-stop allele in RNA would not necessarily indicate an assembly error.
+
+First, let's create a BED file containing all 10 loci. This can be generated directly from toxin_annotation.tsv to avoid introducing coordinate errors. Run the script below from the "SRR35908235_ToxCodAn-Genome" directory.
+```sh
+python3 - <<'PY'
+targets = [
+    "SVSP-1",
+    "SVSP-16",
+    "Ficolin-4",
+    "PLA2-4",
+    "CTL-10",
+    "HYAL-4",
+    "CTL-15",
+    "CTL-16",
+    "CTL-17",
+    "CTL-18"
+]
+
+records = {}
+
+with open("toxin_annotation.tsv") as f:
+    for line in f:
+        if not line.strip() or line.startswith("#"):
+            continue
+
+        fields = line.rstrip("\n").split("\t")
+
+        if fields[0] in targets:
+            records[fields[0]] = fields
+
+missing = set(targets) - set(records)
+
+if missing:
+    raise ValueError(f"Missing genes: {sorted(missing)}")
+
+with open("toxin_RNA_validation_targets.bed", "w") as out:
+    for gene in targets:
+        fields = records[gene]
+
+        chrom = fields[2]
+        start = int(fields[3])
+        end = int(fields[4])
+        strand = fields[5]
+
+        # BED uses 0-based, half-open coordinates
+        out.write(
+            f"{chrom}\t{start-1}\t{end}\t{gene}\t0\t{strand}\n"
+        )
+
+print(f"Created BED containing {len(targets)} loci.")
+PY
+```
+
+Verify:
+```sh
+column -t toxin_RNA_validation_targets.bed
+```
+
+The venom gland RNA-seq fastq files are stored under this directory:
+```sh
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/venom_gland/trimmed_fastq
+```
+
+Next, let's check the location of RNA alignments generated in previous steps:
+```sh
+find /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation \
+    -type f \
+    \( -name "*.bam" -o -name "*.cram" -o -name "*.sam" \) \
+    | sort
+```
+
+Let's verify the existing RNA alignments:
+```sh
+RNA_BAM="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/venom_RNA_mapping/venom_genome.sorted.bam"
+
+conda activate funannotate
+
+echo "===== FILES ====="
+ls -lh "$RNA_BAM" "${RNA_BAM}.bai" "${RNA_BAM%.bam}.bai" 2>/dev/null
+
+echo
+echo "===== BAM INTEGRITY ====="
+samtools quickcheck -v "$RNA_BAM" && echo "PASS"
+
+echo
+echo "===== ALIGNMENT HEADER ====="
+samtools view -H "$RNA_BAM" \
+    | grep -E '^@HD|^@RG|^@PG' \
+    | cut -c1-250 \
+    | head -20
+
+echo
+echo "===== REFERENCE CHROMOSOMES ====="
+samtools view -H "$RNA_BAM" \
+    | grep '^@SQ' \
+    | head -20
+```
+This will show us that we have a usable, indexed, splice-aware RNA-seq BAM.
+
+Next, verify the original input reads. The script below will display the complete original HISAT2 command, but it will also show that HISAT2 recorded its inputs as temporary pipes (-1 /tmp/2326903.inpipe1 -2 /tmp/2326903.inpipe2).
+```sh
+samtools view -H "$RNA_BAM" \
+    | awk -F '\t' '
+        $1=="@PG" && $2=="ID:hisat2" {
+            for (i=1; i<=NF; i++) {
+                if ($i ~ /^CL:/) {
+                    print substr($i,4)
+                }
+            }
+        }
+    ' \
+    | fold -s -w 120
+```
