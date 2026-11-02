@@ -2806,3 +2806,126 @@ We can now summarize the results like so (≥3 reads cutoff means ≥3 high qual
 |CTL-17	    |                              0/4 |   Insufficient RNA evidence to validate the structure       |
 |CTL-18	    |                              1/3 |   Sparse support for all three junctions                    |
 ```
+
+Based on this output, SVSP-1 is likely to be a genuine transcript because we now have three independent observations: complete CDS coverage, all four predicted splice junctions supported, and genomic confirmation of the internal stop. The premature stop is at amino acid 265 of a 266-amino-acid predicted translation. That means translation would terminate only one codon earlier than the annotated terminal stop.
+
+For SVSP-16, there is abundant transcription, but the complete gene model is questionable. Because despite hundreds-fold RNA coverage across all four CDS segments, only the last connection is supported. This is a significant discrepancy. It suggests the segments may belong to different isoforms, or that ToxCodAn has incorrectly connected parts of the locus. The six premature stops in CDS1 remain concerning, but we first need to establish which transcripts are actually produced.
+
+The PLA2-4 annotation has considerably stronger evidence than initially expected. All three predicted junctions have RNA support, although the final connection is relatively weak. Because the PLA2 paralogs are highly similar, we should still check that these reads are uniquely assignable.
+
+CTL-10 annotation has a probable gene-model problem. The first connection has 7,045 high-MAPQ supporting reads, whereas the other two have zero. Combined with our earlier RNA coverage results, this basically tells us that the first two CDS segments are highly expressed, but the third and fourth have virtually no support. This is much more consistent with an incomplete or incorrectly joined predicted model than with a confidently validated four-CDS transcript. Crucially, the premature stop at amino acid 143 occurs in CDS4. We therefore have no convincing RNA support that the abundant transcript actually includes this stop-containing segment.
+
+For Z-linked CTL genes:
+CTL-15 has complete CDS coverage and five reads supporting its sole predicted splice junction. This is reasonable evidence for an expressed two-CDS gene, although toxin identity remains unconfirmed.
+
+CTL-16 has neither RNA coverage nor junction support, consistent with its provisional classification as a disrupted, possibly nonexpressed CTL-like gene.
+
+CTL-17 has only 11 overlapping RNA alignments and zero detected splice-junction reads. Its intact ORF and apparent signal peptide remain plausible structural features, but we cannot currently validate a complete expressed transcript or identify it as a venom toxin.
+
+CTL-18 has three predicted junctions that have at least one supporting high-MAPQ read (1, 1, and 4). The evidence is weak, but consistent with low-level transcription of its predicted model.
+
+The next step is to inspect the alternative splice junctions:
+```sh
+echo "===== ALTERNATIVE SPLICE JUNCTION ====="
+
+column -t toxin_RNA_alternative_junctions.tsv
+```
+
+This will show that SVSP-1 has one splice junction, but the annotated junction has a substantially stronger support than the alternative junction (887 vs. 16 alignments spanning the splice junction). Possible explanations include genuine low-frequency alternative splicing, transcription from another SVSP paralog, or a minority of incorrectly aligned reads.
+
+Now, let's examine the RNA nucleotide evidence at all 14 premature-stop codons. Because RNA pileup cannot distinguish whether a read comes from the predicted full-length transcript or an alternative isoform, we will interpret RNA nucleotide support together with the splice-junction results, especially for SVSP-16 and CTL-10. 
+
+Let's run this as a SLURM job, because running this on the head node turned out to be time-consuming.
+```sh
+#!/bin/bash
+#SBATCH --job-name=toxin_RNA_stop_validation
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8G
+#SBATCH --time=02:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# activate conda env
+source ~/.bash_profile
+conda activate funannotate
+
+set -euo pipefail
+
+
+# directories
+ROOT="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+WORKDIR="${ROOT}/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+
+# input files
+REF="${ROOT}/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
+RNA_BAM="${ROOT}/annotation/toxin_gene_annotation_RNAdata_added/venom_RNA_mapping/venom_genome.sorted.bam"
+BED="${WORKDIR}/toxin_internal_stops.bed"
+
+# output
+OUT="${WORKDIR}/toxin_internal_stops_SRR35908235.mpileup"
+TMP="${OUT}.tmp.${SLURM_JOB_ID:-$$}"
+
+cd "$WORKDIR"
+
+trap 'rm -f "$TMP"' EXIT
+
+# ------------------------------------------------------------
+# RNA pileup using indexed genomic regions
+#
+# BED: 0-based, half-open
+# mpileup -r: 1-based, inclusive
+#
+# -a: include zero-depth positions in requested regions
+# -q 20: minimum mapping quality
+# -Q 20: minimum base quality
+# -d 100000: maximum depth
+# ------------------------------------------------------------
+
+: > "$TMP"
+
+count=0
+
+while IFS=$'\t' read -r chrom start end gene score strand; do
+
+    region="${chrom}:$((start + 1))-${end}"
+
+    echo "Processing ${gene}: ${region}"
+
+    samtools mpileup \
+        -f "$REF" \
+        -r "$region" \
+        -q 20 \
+        -Q 20 \
+        -d 100000 \
+        -a \
+        "$RNA_BAM" \
+        >> "$TMP"
+
+    count=$((count + 1))
+
+done < "$BED"
+
+
+# validate output
+lines=$(wc -l < "$TMP")
+
+echo
+echo "===== RNA STOP VALIDATION ====="
+echo "Stop codons processed: $count"
+echo "Pileup positions:       $lines"
+
+if [[ "$count" -ne 14 || "$lines" -ne 42 ]]; then
+    echo "ERROR: Expected 14 codons and 42 positions." >&2
+    exit 1
+fi
+
+mv -f "$TMP" "$OUT"
+
+echo "Output: $OUT"
+echo "Status: PASS"
+```
