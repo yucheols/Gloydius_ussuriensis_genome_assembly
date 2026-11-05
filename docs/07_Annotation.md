@@ -3330,3 +3330,18 @@ echo "Codon-level results: $OUT_CODONS"
 echo "Base-level results:  $OUT_BASES"
 echo "Status: PASS"
 ```
+
+Inspect the output:
+```sh
+echo "===== FINAL RNA STOP-CODON RESULTS ====="
+column -t toxin_RNA_stop_codons_SRR35908235.final.tsv
+
+echo
+echo "===== FINAL RNA NUCLEOTIDE RESULTS ====="
+column -t toxin_RNA_stop_bases_SRR35908235.final.tsv
+```
+The results show that SVSP-1 and SVSP-16 have strong RNA support for their premature stops, whereas the predicted stop in CTL-10 has no direct RNA nucleotide support despite the strong transcriptional signal around that locus. 
+
+Specifically for CTL-10, despite extensive RNA alignment across the broader locus, only the first of three predicted splice junctions is supported, CDS3 has zero RNA coverage, CDS4 has extremely sparse coverage, the premature stop at aa143 has zero actual RNA nucleotide coverage, and approximately 19,645 RNA fragments have splice alignments that skip the stop position.
+
+Based on the RNA nucleotide stop codon validation, we can summarize the status of these loci as follows:
