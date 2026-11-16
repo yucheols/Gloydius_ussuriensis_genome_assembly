@@ -3345,3 +3345,628 @@ The results show that SVSP-1 and SVSP-16 have strong RNA support for their prema
 Specifically for CTL-10, despite extensive RNA alignment across the broader locus, only the first of three predicted splice junctions is supported, CDS3 has zero RNA coverage, CDS4 has extremely sparse coverage, the premature stop at aa143 has zero actual RNA nucleotide coverage, and approximately 19,645 RNA fragments have splice alignments that skip the stop position.
 
 Based on the RNA nucleotide stop codon validation, we can summarize the status of these loci as follows:
+- SVSP-1:  Strongly supported; Retain for functional-domain assessment
+- SVSP-16: Strongly supported pseudogene candidate; inspect transcript structure
+- Ficolin-4: Low-confidence annotation; manual review
+- PLA2-4: Likely disrupted gene model; verify paralog specificity
+- CTL-10: Prioritize transcript-model reconstruction
+- HYAL-4: No venom gland RNA support
+- CTL-16: No venom gland RNA support
+
+...and below is the summary for the Z-linked CTLs, just to reiterate and consolidate everything before moving on:
+- CTL-15: Intact, transcribed CTL-like gene
+- CTL-16: Disrupted candidate with no detected venom gland RNA-seq support
+- CTL-17: Intact ORF with weak transcript support
+- CTL-18: Intact ORF with weak transcript support
+
+Now, let's move on to transcript-model curation. We first will extract the dominant splice junctions that completely bypass one or more premature-stop codons. We will then compare those junctions against the predicted CDS boundaries and determine whether the evidence supports an alternative transcript, a misannotated exon, or a disrupted gene.
+
+Before doing any of this, let's locate the existing transcript assemblies:
+```sh
+ROOT="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+WORKDIR="${ROOT}/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+
+echo "===== TOXCODAN ANNOTATION FILES ====="
+ls -lh "$WORKDIR/matched_regions.gtf"
+ls -ld "$WORKDIR/matched_GTFs"
+
+echo
+echo "===== CONSOLIDATED TRINITY ASSEMBLY ====="
+ls -lh "$ROOT/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_TRassembly/GG/trinityGG/Trinity-GG.fasta"
+
+echo
+echo "===== TRANSCRIPT MODEL FILES ====="
+
+find "$ROOT/annotation" -type f \
+    \( -iname '*.gtf' -o -iname '*.gff3' \) \
+    \( -iname '*stringtie*' -o -iname '*pasa*' -o -iname '*transcript*' -o -iname '*trinity*' \) \
+    ! -path '*/Dir_mapped_sorted.bam.minC1.gff/*' \
+    | sort > "$WORKDIR/transcript_model_file_inventory.txt"
+
+echo "Number of candidate files:"
+wc -l "$WORKDIR/transcript_model_file_inventory.txt"
+
+echo
+echo "Candidate files (first 30):"
+sed -n '1,30p' "$WORKDIR/transcript_model_file_inventory.txt"
+```
+
+Next, let's retrieve the genomic coordinates of all 10 genes and identify overlapping Trinity assembly regions and EVM transcript-alignment files. The script below will produce a compact 10-row summary while saving the full paths separately.
+```sh
+python3 - <<'PY'
+import os
+import re
+import glob
+import csv
+from collections import defaultdict
+
+ROOT = '/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo'
+WORKDIR = ROOT + '/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome'
+
+GTF = WORKDIR + '/toxin_annotation.gtf'
+TRINITY = ROOT + '/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_TRassembly/GG/trinityGG/Dir_mapped_sorted.bam.minC1.gff'
+EVM = ROOT + '/annotation/funannotate/predict_misc/EVM'
+
+GENES = ['SVSP-1', 'SVSP-16', 'Ficolin-4', 'PLA2-4', 'CTL-10', 'HYAL-4', 'CTL-15', 'CTL-16', 'CTL-17', 'CTL-18']
+
+genes = defaultdict(list)
+
+with open(GTF) as f:
+    for line in f:
+        if line.startswith('#'):
+            continue
+        fields = line.rstrip('\n').split('\t')
+        if len(fields) < 9 or fields[2] != 'CDS':
+            continue
+        match = re.search(r'gene_id "([^"]+)"', fields[8])
+        if match and match.group(1) in GENES:
+            genes[match.group(1)].append(fields)
+
+summary = []
+details = []
+
+for gene in GENES:
+    records = genes[gene]
+    if not records:
+        raise RuntimeError('No CDS records for ' + gene)
+
+    chrom = records[0][0]
+    strand = records[0][6]
+    start = min(int(r[3]) for r in records)
+    end = max(int(r[4]) for r in records)
+
+    trinity_files = []
+    pattern = os.path.join(TRINITY, chrom, '*', '*.Trinity.fasta')
+
+    for path in glob.iglob(pattern):
+        name = os.path.basename(path)
+        match = re.match(r'^(\d+)_(\d+)\.trinity\.', name)
+        if not match:
+            continue
+        a, b = map(int, match.groups())
+        if a <= end and b >= start:
+            trinity_files.append(path)
+
+    evm_files = []
+    pattern = os.path.join(EVM, chrom, '*')
+
+    for directory in glob.iglob(pattern):
+        name = os.path.basename(directory)
+        match = re.match(re.escape(chrom) + r'_(\d+)-(\d+)$', name)
+        if not match:
+            continue
+        a, b = map(int, match.groups())
+        if a <= end and b >= start:
+            path = os.path.join(directory, 'transcript_alignments.gff3')
+            if os.path.isfile(path):
+                evm_files.append(path)
+
+    summary.append([gene, chrom, strand, start, end, len(records), len(trinity_files), len(evm_files)])
+
+    for path in sorted(trinity_files):
+        details.append([gene, 'Trinity_region', path])
+
+    for path in sorted(evm_files):
+        details.append([gene, 'EVM_transcript_alignment', path])
+
+with open(WORKDIR + '/toxin_transcript_evidence_inventory.tsv', 'w') as f:
+    writer = csv.writer(f, delimiter='\t')
+    writer.writerow(['Gene', 'Chromosome', 'Strand', 'Start', 'End', 'CDS_segments', 'Trinity_regions', 'EVM_files'])
+    writer.writerows(summary)
+
+with open(WORKDIR + '/toxin_transcript_evidence_paths.tsv', 'w') as f:
+    writer = csv.writer(f, delimiter='\t')
+    writer.writerow(['Gene', 'Evidence_type', 'Path'])
+    writer.writerows(details)
+
+print('Gene\tChromosome\tStrand\tCDS_segments\tTrinity_regions\tEVM_files')
+for row in summary:
+    print('{}\t{}\t{}\t{}\t{}\t{}'.format(row[0], row[1], row[2], row[5], row[6], row[7]))
+
+print('\nEvidence paths saved to toxin_transcript_evidence_paths.tsv')
+
+print('\n===== MATCHED GTF FILES =====')
+matched_dir = WORKDIR + '/matched_GTFs'
+for name in sorted(os.listdir(matched_dir)):
+    print(name)
+PY
+```
+
+This will show that all 10 flagged loci have overlapping EVM window and eight have overlapping Trinity window. However, the absence of overlapping Trinity windows for CTL-16 and CTL-18 does not necessarily indicate the absence of transcripts. Likewise, the presence of an EVM file does not establish that it contains alignments directly supporting the gene.
+
+Next, we will compare the actual transcript-alignment coordinates against all 10 ToxCodAn models in one batch.
+
+The script below will read the existing evidence inventory and calculate the following for all 10 genes:
+- Number of same-strand transcript alignments overlapping the predicted CDS.
+- Maximum CDS coverage by an individual transcript alignment.
+- Number of predicted CDS splice junctions matched by an alignment.
+- Best-supported transcript-alignment candidate for each locus.
+```sh
+python3 - <<'PY'
+import os
+import re
+import csv
+from collections import defaultdict
+
+ROOT = '/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo'
+WORKDIR = ROOT + '/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome'
+
+GTF = WORKDIR + '/toxin_annotation.gtf'
+INVENTORY = WORKDIR + '/toxin_transcript_evidence_paths.tsv'
+
+OUT_SUMMARY = WORKDIR + '/toxin_transcript_model_comparison_summary.tsv'
+OUT_DETAILS = WORKDIR + '/toxin_transcript_model_comparison_details.tsv'
+
+GENES = [
+    'SVSP-1', 'SVSP-16', 'Ficolin-4', 'PLA2-4',
+    'CTL-10', 'HYAL-4', 'CTL-15', 'CTL-16',
+    'CTL-17', 'CTL-18'
+]
+
+def parse_attributes(text):
+    result = {}
+    for item in text.split(';'):
+        item = item.strip()
+        if '=' in item:
+            key, value = item.split('=', 1)
+            result[key] = value
+    return result
+
+def merge_intervals(intervals):
+    merged = []
+    for start, end in sorted(intervals):
+        if merged and start <= merged[-1][1] + 1:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return merged
+
+def overlap_bp(a, b):
+    total = 0
+    for x1, x2 in a:
+        for y1, y2 in b:
+            total += max(0, min(x2, y2) - max(x1, y1) + 1)
+    return total
+
+def window_coordinates(path, chrom):
+    dirname = os.path.basename(os.path.dirname(path))
+    pattern = '^' + re.escape(chrom) + r'_(\d+)-(\d+)$'
+    match = re.match(pattern, dirname)
+
+    if not match:
+        raise RuntimeError('Cannot parse EVM window: ' + dirname)
+
+    return int(match.group(1)), int(match.group(2))
+
+# ------------------------------------------------------------
+# Read ToxCodAn CDS models
+# ------------------------------------------------------------
+
+models = defaultdict(list)
+
+with open(GTF) as handle:
+    for line in handle:
+        if line.startswith('#'):
+            continue
+
+        f = line.rstrip('\n').split('\t')
+
+        if len(f) < 9 or f[2] != 'CDS':
+            continue
+
+        match = re.search(r'gene_id "([^"]+)"', f[8])
+
+        if match and match.group(1) in GENES:
+            models[match.group(1)].append({
+                'chrom': f[0],
+                'start': int(f[3]),
+                'end': int(f[4]),
+                'strand': f[6]
+            })
+
+# ------------------------------------------------------------
+# Read EVM evidence file inventory
+# ------------------------------------------------------------
+
+evidence_files = defaultdict(list)
+
+with open(INVENTORY) as handle:
+    reader = csv.DictReader(handle, delimiter='\t')
+
+    for row in reader:
+        if row['Evidence_type'] == 'EVM_transcript_alignment':
+            evidence_files[row['Gene']].append(row['Path'])
+
+# ------------------------------------------------------------
+# Compare all 10 loci
+# ------------------------------------------------------------
+
+summary = []
+details = []
+
+for gene in GENES:
+
+    records = models[gene]
+
+    if not records:
+        raise RuntimeError('Missing ToxCodAn model: ' + gene)
+
+    chrom = records[0]['chrom']
+    strand = records[0]['strand']
+
+    cds = merge_intervals([
+        (r['start'], r['end']) for r in records
+    ])
+
+    cds_bp = sum(b - a + 1 for a, b in cds)
+
+    expected_junctions = set(
+        (cds[i][1], cds[i+1][0])
+        for i in range(len(cds) - 1)
+    )
+
+    transcripts = defaultdict(list)
+
+    for path in evidence_files[gene]:
+
+        if not os.path.isfile(path):
+            raise RuntimeError('Missing EVM file: ' + path)
+
+        window_start, window_end = window_coordinates(path, chrom)
+        window_length = window_end - window_start + 1
+        offset = window_start - 1
+
+        with open(path) as handle:
+
+            for line in handle:
+                if line.startswith('#') or not line.strip():
+                    continue
+
+                f = line.rstrip('\n').split('\t')
+
+                if len(f) < 9:
+                    continue
+
+                if f[0] != chrom or f[2] != 'cDNA_match':
+                    continue
+
+                local_start = int(f[3])
+                local_end = int(f[4])
+
+                if not (1 <= local_start <= local_end <= window_length):
+                    raise RuntimeError(
+                        'Unexpected EVM coordinates in ' + path
+                    )
+
+                # Convert EVM window-relative coordinates
+                # to chromosome-wide coordinates.
+                global_start = offset + local_start
+                global_end = offset + local_end
+
+                attr = parse_attributes(f[8])
+
+                transcript_id = attr.get(
+                    'ID', attr.get('Target', '')
+                ).split(' ')[0]
+
+                if not transcript_id:
+                    raise RuntimeError(
+                        'Missing transcript ID in ' + path
+                    )
+
+                key = (
+                    path,
+                    f[5],
+                    f[6],
+                    transcript_id
+                )
+
+                transcripts[key].append(
+                    (global_start, global_end)
+                )
+
+    candidates = []
+
+    for key, intervals in transcripts.items():
+
+        path, score, aligned_strand, transcript_id = key
+
+        segments = merge_intervals(intervals)
+        covered_bp = overlap_bp(segments, cds)
+
+        if covered_bp == 0:
+            continue
+
+        observed_junctions = set(
+            (segments[i][1], segments[i+1][0])
+            for i in range(len(segments) - 1)
+        )
+
+        matched_junctions = len(
+            expected_junctions & observed_junctions
+        )
+
+        coverage_percent = 100.0 * covered_bp / cds_bp
+        same_strand = aligned_strand == strand
+
+        candidate = {
+            'id': transcript_id,
+            'strand': aligned_strand,
+            'same_strand': same_strand,
+            'coverage': coverage_percent,
+            'covered_bp': covered_bp,
+            'matched': matched_junctions,
+            'segments': len(segments),
+            'path': path
+        }
+
+        candidates.append(candidate)
+
+        details.append([
+            gene,
+            chrom,
+            strand,
+            transcript_id,
+            aligned_strand,
+            int(same_strand),
+            covered_bp,
+            round(coverage_percent, 2),
+            matched_junctions,
+            len(expected_junctions),
+            len(segments),
+            path
+        ])
+
+    same = [
+        x for x in candidates if x['same_strand']
+    ]
+
+    opposite = [
+        x for x in candidates
+        if x['strand'] in ('+', '-') and not x['same_strand']
+    ]
+
+    same.sort(
+        key=lambda x: (x['matched'], x['coverage']),
+        reverse=True
+    )
+
+    best = same[0] if same else None
+
+    max_coverage = max(
+        [x['coverage'] for x in same] or [0.0]
+    )
+
+    summary.append([
+        gene,
+        chrom,
+        strand,
+        len(cds),
+        cds_bp,
+        len(same),
+        len(opposite),
+        round(max_coverage, 2),
+        round(best['coverage'], 2) if best else 0.0,
+        best['matched'] if best else 0,
+        len(expected_junctions),
+        best['id'] if best else '.'
+    ])
+
+# ------------------------------------------------------------
+# Save complete results
+# ------------------------------------------------------------
+
+with open(OUT_SUMMARY, 'w', newline='') as handle:
+    writer = csv.writer(handle, delimiter='\t')
+    writer.writerow([
+        'Gene',
+        'Chromosome',
+        'Strand',
+        'CDS_segments',
+        'CDS_bp',
+        'Same_strand_transcripts',
+        'Opposite_strand_transcripts',
+        'Maximum_CDS_coverage_percent',
+        'Best_transcript_CDS_coverage_percent',
+        'Best_matched_junctions',
+        'Predicted_junctions',
+        'Best_transcript_ID'
+    ])
+    writer.writerows(summary)
+
+with open(OUT_DETAILS, 'w', newline='') as handle:
+    writer = csv.writer(handle, delimiter='\t')
+    writer.writerow([
+        'Gene',
+        'Chromosome',
+        'Gene_strand',
+        'Transcript_ID',
+        'Transcript_strand',
+        'Same_strand',
+        'CDS_overlap_bp',
+        'CDS_coverage_percent',
+        'Matched_junctions',
+        'Predicted_junctions',
+        'Aligned_segments',
+        'EVM_file'
+    ])
+    writer.writerows(details)
+
+# ------------------------------------------------------------
+# Print concise results
+# ------------------------------------------------------------
+
+print('\n===== CORRECTED TRANSCRIPT-MODEL COMPARISON =====')
+print('Gene\tSame_strand\tOpposite_strand\tMax_CDS_coverage_%\tBest_junctions')
+
+for row in summary:
+    print('{}\t{}\t{}\t{}\t{}/{}'.format(
+        row[0], row[5], row[6], row[7], row[9], row[10]
+    ))
+
+print('\nSummary:', OUT_SUMMARY)
+print('Details:', OUT_DETAILS)
+PY
+```
+
+The output will look like this:
+```sh
+Gene       Same_strand     Opposite_strand Max_CDS_coverage_%      Best_junctions
+SVSP-1               7                   0              98.87                 0/4
+SVSP-16              0                   0                0.0                 0/3
+Ficolin-4            0                   3                0.0                 0/8
+PLA2-4               0                   1                0.0                 0/3
+CTL-10               0                   0                0.0                 0/3
+HYAL-4               0                   0                0.0                 0/4
+CTL-15               6                   0              100.0                 1/1
+CTL-16               2                   0              61.54                 1/4
+CTL-17               0                   0                0.0                 0/4
+CTL-18              12                   0              100.0                 3/3
+```
+
+Based on this we can make the following assessments:
+- SVSP-1: 98.87% CDS coverage, 0/4 exact junction matches, nearly complete transcript alignment
+- SVSP-16: No overlapping same-strand EVM transcript, six RNA-supported premature stops, likely a disrupted-gene
+- Ficolin-4: Three opposite-strand alignments, no independent same-strand transcript-model support
+- PLA2-4: One opposite-strand alignment, existing RNA junction and stop-codon evidence remains relevant
+- CTL-10: No overlapping EVM transcript, predicted four-CDS model remains questionable
+- HYAL-4: No overlapping EVM transcript, no detected venom gland RNA read support, unresolved
+- CTL-15: 100% CDS coverage, 1/1 junction, strong transcript-structure support
+- CTL-16: 61.54% CDS coverage, 1/4 junctions, partial transcript evidence despite no venom gland RNA read coverage
+- CTL-17: No overlapping EVM transcript, weak RNA support; unresolved
+- CTL-18: 100% CDS coverage, 3/3 junctions, strong transcript-structure support
+
+Even though some genes remain unresolved, the outstanding question now is whether the predicted proteins from these genes have the characteristics expected of their respective toxin families.
+
+Now, let's move on to protein-level validation. We will examine the predicted protein sequences of all 10 genes. Run the script below from the "SRR35908235_ToxCodAn-Genome" directory. The initial check will report protein length, internal stop symbols, terminal stop symbols, and N-terminal sequences.
+```sh
+cd /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/
+
+python3 - <<'PY'
+import re
+from collections import defaultdict
+
+FASTA = 'toxin_annotation_pep.fasta'
+
+GENES = [
+    'SVSP-1', 'SVSP-16', 'Ficolin-4',
+    'PLA2-4', 'CTL-10', 'HYAL-4',
+    'CTL-15', 'CTL-16', 'CTL-17', 'CTL-18'
+]
+
+sequences = []
+header = None
+sequence = []
+
+with open(FASTA) as f:
+    for line in f:
+        line = line.strip()
+
+        if not line:
+            continue
+
+        if line.startswith('>'):
+            if header is not None:
+                sequences.append((header, ''.join(sequence)))
+
+            header = line[1:]
+            sequence = []
+        else:
+            sequence.append(line)
+
+if header is not None:
+    sequences.append((header, ''.join(sequence)))
+
+print('===== TOXIN PROTEIN SEQUENCE AUDIT =====')
+print('Gene\tLength_aa\tInternal_stops\tTerminal_stop\tN_terminal_30aa')
+
+for gene in GENES:
+
+    pattern = re.compile(
+        r'(?<![A-Za-z0-9])' +
+        re.escape(gene) +
+        r'(?![A-Za-z0-9])'
+    )
+
+    matches = [
+        (h, s) for h, s in sequences
+        if pattern.search(h)
+    ]
+
+    if not matches:
+        print('{}\tNOT_FOUND\t.\t.\t.'.format(gene))
+        continue
+
+    for h, seq in matches:
+        seq = seq.upper()
+
+        internal = seq[:-1].count('*')
+        terminal = seq.endswith('*')
+        length = len(seq.rstrip('*'))
+
+        print('{}\t{}\t{}\t{}\t{}'.format(
+            gene,
+            length,
+            internal,
+            'Yes' if terminal else 'No',
+            seq[:30]
+        ))
+
+print('\nTotal FASTA records:', len(sequences))
+PY
+```
+
+The output will look like this:
+```sh
+Gene       Length_aa       Internal_stops  Terminal_stop     N_terminal_30aa
+SVSP-1           264                    1            Yes     MAGSSFWIFIIFLSIFSVSANRPRGRILGG
+SVSP-16          269                    6            Yes     MLCVPQSSVTLQNYCTNKNTTNKSDFVLLH
+Ficolin-4        370                    2            Yes     MKLLLGSLLLAGVCWLGDATDIPVMPNFNN
+PLA2-4           138                    1            Yes     MRTLWIMAVLLLGVEGSLVEFGRMIKEETG
+CTL-10           176                    1            Yes     MGRFIFVSFGLLVVFLSLSGTGADCPSDWS
+HYAL-4           541                    1            Yes     MSFMWSSALALKSAQLPVFQRMPFIAAWNA
+CTL-15           160                    0            Yes     MIEELKEQLDNLSQEVALLKEKQALQTVCL
+CTL-16           194                    2            Yes     MLLHICLRLYKATAQKVREYLRGIQLDSPP
+CTL-17           154                    0            Yes     MRPLAYSSLWLLGFFMAVSQAAFCPREWLR
+CTL-18           164                    0            Yes     MKLTQAQLETMEQNSRALNCEIIEMKSNGS
+
+Total FASTA records: 120
+```
+
+This result suggests that all 10 flagged toxin genes were recovered from the 120 ToxCodAn protein predictions. Based on this, we can make the following preliminary assessment:
+```sh
+Gene	  Internal stops	N-terminal property	          Preliminary assessment
+---------------------------------------------------------------------------------------------------------
+SVSP-1	               1	Strongly hydrophobic	      Possible secreted protein; near-terminal stop
+SVSP-16	               6	No obvious signal peptide	  Strongly disrupted prediction
+Ficolin-4	           2	Strongly hydrophobic	      Possible secreted protein; disrupted prediction
+PLA2-4	               1	Strongly hydrophobic	      Possible secreted protein; disrupted prediction
+CTL-10	               1	Strongly hydrophobic	      Questionable gene structure
+HYAL-4	               1	Potential secretion signal	  Disrupted prediction; no venom RNA
+CTL-15	               0	No obvious signal peptide	  Intact ORF, uncertain toxin identity
+CTL-16	               2	No obvious signal peptide	  Disrupted prediction
+CTL-17	               0	Strongly hydrophobic	      Intact ORF; candidate secreted protein
+CTL-18	               0	No obvious signal peptide	  Intact ORF, uncertain toxin identity
+```
+
+Next, we will check conserved domains and signal peptides. For this step, we already have SignalP 6 and HMMER installed. SignalP predicts N-terminal signal peptides associated with protein secretion, and HMMER identifies conserved protein domains using the Pfam database.
