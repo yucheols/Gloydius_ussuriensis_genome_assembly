@@ -4943,3 +4943,27 @@ echo
 echo "===== DETAILED DOMAIN MATCHES ====="
 column -t "$WORKDIR/protein_validation/pfam_targeted/toxin_domain_validation_details.tsv"
 ```
+
+The results can be summarized like so:
+```sh
+Gene	   Expected domain coverage	   Relative to first stop	 Interpretation
+------------------------------------------------------------------------------------------------------------------
+SVSP-1	                       100%	                   Before	 Strong intact SVSP candidate
+SVSP-16	                     39.09%	                    After	 Disrupted coding model
+Ficolin-4	                 82.81%	                   Before	 Substantial domain retained; C-terminus uncertain
+PLA2-4	                     90.83%	                   Before	 Nearly complete domain; premature stop concerning
+CTL-10	                     77.57%	                   Before	 Partial CTL domain; uncertain gene structure
+HYAL-4	                     99.71%	                   Before	 Strong domain homology; function unresolved
+CTL-15	                     99.07%	         No internal stop	 Intact CTL-family protein candidate
+CTL-16	                     61.68%	                    After	 Disrupted coding model
+CTL-17	                     98.13%	         No internal stop	 Strong candidate for a secreted CTL
+CTL-18	                     99.07%	         No internal stop	 Intact CTL-family protein candidate
+```
+
+SVSP-1 is now the strongest candidate for retention. The PF00089 match spans residues 27–249 with 100% HMM coverage and an independent domain E-value of \(3.6 \times 10^{-65}\). Both terminal stops occur after this domain. Combined with the strong signal peptide and RNA evidence, this supports an apparently intact SVSP-family protein.
+
+HYAL-4 deserves more careful treatment. Its PF01630 match covers 99.71% of the domain profile (residues 14–361), whereas its stop occurs at position 443. Therefore, the stop does not interrupt the detected domain. The missing signal peptide and venom gland RNA support remain as concerns, but a pseudogene classification would be premature without examining the remainder of the protein and its genomic context.
+
+PLA2-4 remains unresolved despite strong homology. Its PF00068 match covers 90.83% of the profile and ends immediately before the premature stop at residue 113. This suggests that much of the characteristic PLA2 structure is retained, but the C-terminal truncation may affect protein stability or function.
+
+For the Z-linked CTLs, CTL-15, CTL-17, and CTL-18 now each have nearly complete PF00059 matches and intact predicted ORFs. CTL-17 remains the strongest conventional secretion candidate because it also has a highly confident signal peptide. The additional weak CTL-18 match at E = 2.1 can be ignored; its principal match at \(6.9 \times 10^{-28}\) is convincing. However, this still does not mean that these are functional venom toxin genes.
