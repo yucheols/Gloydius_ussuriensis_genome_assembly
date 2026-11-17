@@ -4960,10 +4960,1513 @@ CTL-17	                     98.13%	         No internal stop	 Strong candidate f
 CTL-18	                     99.07%	         No internal stop	 Intact CTL-family protein candidate
 ```
 
-SVSP-1 is now the strongest candidate for retention. The PF00089 match spans residues 27–249 with 100% HMM coverage and an independent domain E-value of \(3.6 \times 10^{-65}\). Both terminal stops occur after this domain. Combined with the strong signal peptide and RNA evidence, this supports an apparently intact SVSP-family protein.
+SVSP-1 is now the strongest candidate for retention. The PF00089 match spans residues 27–249 with 100% HMM coverage and an independent domain E-value of \(3.6 \times 10^{-65}\). Both terminal stops occur after this domain. Combined with the signal peptide and RNA read evidence, this supports an intact SVSP-family protein.
 
-HYAL-4 deserves more careful treatment. Its PF01630 match covers 99.71% of the domain profile (residues 14–361), whereas its stop occurs at position 443. Therefore, the stop does not interrupt the detected domain. The missing signal peptide and venom gland RNA support remain as concerns, but a pseudogene classification would be premature without examining the remainder of the protein and its genomic context.
+This is not the case for HYAL-4. Its PF01630 match covers 99.71% of the domain profile (residues 14–361), whereas its stop occurs at position 443. Therefore, the stop does not interrupt the detected domain. The missing signal peptide and venom gland RNA support remain as concerns, but a pseudogene classification would be premature without examining the remainder of the protein and its genomic context.
 
 PLA2-4 remains unresolved despite strong homology. Its PF00068 match covers 90.83% of the profile and ends immediately before the premature stop at residue 113. This suggests that much of the characteristic PLA2 structure is retained, but the C-terminal truncation may affect protein stability or function.
 
-For the Z-linked CTLs, CTL-15, CTL-17, and CTL-18 now each have nearly complete PF00059 matches and intact predicted ORFs. CTL-17 remains the strongest conventional secretion candidate because it also has a highly confident signal peptide. The additional weak CTL-18 match at E = 2.1 can be ignored; its principal match at \(6.9 \times 10^{-28}\) is convincing. However, this still does not mean that these are functional venom toxin genes.
+For the Z-linked CTLs, CTL-15, CTL-17, and CTL-18 now each have nearly complete PF00059 matches and intact predicted ORFs. CTL-17 remains the strongest candidate as a conventional secreted protein because it also has a highly confident signal domain. The additional weak CTL-18 match at E = 2.1 can be ignored; its principal match at \(6.9 \times 10^{-28}\) is convincing. However, this still does not mean that these are functional venom toxin genes. The fact that there are no venom genes annotated on the Z chromosome in published toxin annotations suggests that we need to consider these loci more carefully.
+
+Moving on, we will analyze the catalytic residues in the flagged annotations. Although we are going to batch process all 10 flagged annotations, note that only four gene types (SVSPs, PLAs, HYALs, Ficolin/CTLs) belong to enzyme families with catalytic residues to evaluate. Below are the expected residues for theses genes:
+```sh
+Genes	                        |  Expected structure
+--------------------------------------------------------------------------------------------------
+SVSP-1, SVSP-16	                |  His–Asp–Ser triplet
+PLA2-4	                        |  His48, Asp49, Tyr52, Asp99 catalytic/calcium-binding network
+HYAL-4	                        |  Conserved hyaluronidase catalytic & substrate-binding residues
+Ficolin-4, CTL-10, CTL-15–18	|  Conserved cysteines & domain integrity (not catalytic activity)
+```
+
+We'll use three characterized reference proteins:
+- UniProt P04971: catalytic residues H65, D110, S202 in its precursor sequence.
+- UniProt P00623: PLA2 reference.
+- UniProt J3S820: hyaluronidase reference.
+
+The analysis will report each aligned residue, its position in the predicted protein, whether it matches the reference, and whether it lies before/after the first premature stop. Again, conserved catalytic residues indicate potential enzymatic competence, not demonstrated enzyme activity or venom-toxin function.
+
+Run the script below. This script downloads and caches the three UniProt reference records, aligns them with the relevant ToxCodAn proteins using Biopython, and generates two TSV files. It also incorporates conserved-domain cysteine counts from our previous Pfam analysis.
+```sh
+#!/bin/bash
+#SBATCH --job-name=toxin_residue_validation
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=02:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# activate conda environment
+source ~/.bash_profile
+conda activate funannotate
+
+set -euo pipefail
+
+# fix shared-library compatibility
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+
+# set paths
+ROOT="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+WORKDIR="${ROOT}/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+OUTDIR="${WORKDIR}/protein_validation/catalytic_residues"
+REFDIR="${OUTDIR}/references"
+
+PEP="${WORKDIR}/toxin_annotation_pep.fasta"
+PFAM="${WORKDIR}/protein_validation/pfam_targeted/toxin_domain_validation_details.tsv"
+
+SUMMARY="${OUTDIR}/toxin_catalytic_summary.tsv"
+DETAILS="${OUTDIR}/toxin_catalytic_residue_details.tsv"
+
+mkdir -p "$REFDIR"
+
+# ------------------------------------------------------------
+# STEP 1: validate environment
+# ------------------------------------------------------------
+
+echo "===== STEP 1: ENVIRONMENT ====="
+
+[[ -s "$PEP" ]] || {
+    echo "ERROR: Missing protein FASTA: $PEP" >&2
+    exit 1
+}
+
+python -c 'from Bio import pairwise2; import json; print("Biopython: PASS")'
+
+command -v curl >/dev/null || {
+    echo "ERROR: curl not found" >&2
+    exit 1
+}
+
+# ------------------------------------------------------------
+# STEP 2: obtain reference sequences and annotations
+#
+# cached JSON files are reused automatically.
+# ------------------------------------------------------------
+
+echo
+echo "===== STEP 2: REFERENCE PROTEINS ====="
+
+for accession in P04971 P00623 J3S820; do
+
+    ref="${REFDIR}/${accession}.json"
+
+    if [[ -s "$ref" ]] && python - "$ref" "$accession" <<'PY'
+import sys, json
+data = json.load(open(sys.argv[1]))
+assert data['primaryAccession'] == sys.argv[2]
+assert len(data['sequence']['value']) > 100
+PY
+    then
+        echo "Cached: $accession"
+        continue
+    fi
+
+    echo "Downloading: $accession"
+
+    tmp="${ref}.tmp"
+    rm -f "$tmp"
+
+    curl -fLsS \
+        --retry 2 \
+        --connect-timeout 10 \
+        --max-time 45 \
+        "https://rest.uniprot.org/uniprotkb/${accession}.json" \
+        -o "$tmp" || {
+            echo "ERROR: Reference download failed: $accession" >&2
+            echo "Run this script with --download-only on the login node." >&2
+            exit 1
+        }
+
+    python - "$tmp" "$accession" <<'PY'
+import sys, json
+data = json.load(open(sys.argv[1]))
+assert data['primaryAccession'] == sys.argv[2]
+assert len(data['sequence']['value']) > 100
+print('Validated:', sys.argv[2])
+PY
+
+    mv "$tmp" "$ref"
+done
+
+if [[ "${1:-}" == '--download-only' ]]; then
+    echo "All reference records are cached."
+    exit 0
+fi
+
+# ------------------------------------------------------------
+# STEP 3: reference-guided residue comparison
+# ------------------------------------------------------------
+
+echo
+echo "===== STEP 3: CATALYTIC RESIDUE ANALYSIS ====="
+
+python - "$PEP" "$REFDIR" "$PFAM" "$SUMMARY" "$DETAILS" <<'PY'
+import sys
+import os
+import re
+import csv
+import json
+import warnings
+from collections import defaultdict
+
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    from Bio import pairwise2
+
+pep_file, refdir, pfam_file, summary_file, details_file = sys.argv[1:]
+
+genes = [
+    'SVSP-1', 'SVSP-16', 'Ficolin-4',
+    'PLA2-4', 'CTL-10', 'HYAL-4',
+    'CTL-15', 'CTL-16', 'CTL-17', 'CTL-18'
+]
+
+enzyme_references = {
+    'SVSP-1': 'P04971',
+    'SVSP-16': 'P04971',
+    'PLA2-4': 'P00623',
+    'HYAL-4': 'J3S820'
+}
+
+# ------------------------------------------------------------
+# Read protein FASTA
+# ------------------------------------------------------------
+
+records = []
+header = None
+parts = []
+
+with open(pep_file) as f:
+    for line in f:
+        line = line.strip()
+
+        if not line:
+            continue
+
+        if line.startswith('>'):
+            if header is not None:
+                records.append((header, ''.join(parts).upper()))
+            header = line[1:]
+            parts = []
+        else:
+            parts.append(line)
+
+if header is not None:
+    records.append((header, ''.join(parts).upper()))
+
+proteins = {}
+
+for gene in genes:
+    pattern = re.compile(
+        r'(?<![A-Za-z0-9])' +
+        re.escape(gene) +
+        r'(?![A-Za-z0-9])'
+    )
+
+    matches = [
+        s for h, s in records if pattern.search(h)
+    ]
+
+    if len(matches) != 1:
+        raise RuntimeError(
+            '{}: expected one protein, found {}'.format(
+                gene, len(matches)
+            )
+        )
+
+    original = matches[0]
+
+    # Remove one annotated terminal stop only.
+    proteins[gene] = (
+        original[:-1] if original.endswith('*') else original
+    )
+
+# ------------------------------------------------------------
+# Read previously validated Pfam domain positions
+# ------------------------------------------------------------
+
+domain_hits = defaultdict(list)
+
+if os.path.isfile(pfam_file):
+    with open(pfam_file) as f:
+        for row in csv.DictReader(f, delimiter='\t'):
+            if row['Gene'] in genes:
+                if float(row['Domain_iEvalue']) <= 1e-3:
+                    domain_hits[row['Gene']].append(row)
+
+# ------------------------------------------------------------
+# Read reference records
+# ------------------------------------------------------------
+
+references = {}
+
+for accession in sorted(set(enzyme_references.values())):
+    with open(os.path.join(refdir, accession + '.json')) as f:
+        record = json.load(f)
+
+    references[accession] = record
+
+def feature_position(feature, endpoint):
+    value = feature.get('location', {}).get(endpoint, {}).get('value')
+    return int(value) if value is not None else None
+
+def mature_start(record):
+    features = record.get('features', [])
+
+    chains = [
+        feature_position(f, 'start')
+        for f in features
+        if f.get('type') == 'Chain'
+        and feature_position(f, 'start') is not None
+    ]
+
+    if chains:
+        return min(chains)
+
+    signals = [
+        feature_position(f, 'end')
+        for f in features
+        if f.get('type') in ('Signal', 'Signal peptide')
+        and feature_position(f, 'end') is not None
+    ]
+
+    if signals:
+        return max(signals) + 1
+
+    return None
+
+def annotated_sites(record):
+    seq = record['sequence']['value'].upper()
+    sites = []
+    seen = set()
+
+    for feature in record.get('features', []):
+        if feature.get('type') not in ('Active site', 'Binding site'):
+            continue
+
+        start = feature_position(feature, 'start')
+        end = feature_position(feature, 'end')
+
+        if start is None or start != end:
+            continue
+
+        if not 1 <= start <= len(seq):
+            continue
+
+        if start in seen:
+            continue
+
+        seen.add(start)
+
+        sites.append({
+            'label': feature['type'].replace(' ', '_') + '_' + str(start),
+            'position': start,
+            'expected': seq[start - 1],
+            'source': 'UniProt_feature'
+        })
+
+    return sites
+
+def canonical_sites(record, numbered_sites, max_shift=5):
+    seq = record['sequence']['value'].upper()
+    start = mature_start(record)
+
+    if start is None:
+        return []
+
+    candidates = []
+
+    for shift in range(-max_shift, max_shift + 1):
+        positions = [
+            start + number - 1 + shift
+            for label, number, aa in numbered_sites
+        ]
+
+        if not all(1 <= p <= len(seq) for p in positions):
+            continue
+
+        if all(
+            seq[p - 1] == aa
+            for p, (label, number, aa)
+            in zip(positions, numbered_sites)
+        ):
+            candidates.append(positions)
+
+    # Never force uncertain reference numbering.
+    if len(candidates) != 1:
+        return []
+
+    sites = []
+
+    for (label, number, aa), position in zip(
+        numbered_sites, candidates[0]
+    ):
+        sites.append({
+            'label': label,
+            'position': position,
+            'expected': aa,
+            'source': 'validated_reference_numbering'
+        })
+
+    return sites
+
+def reference_sites(accession):
+    record = references[accession]
+    seq = record['sequence']['value'].upper()
+
+    if accession == 'P04971':
+        # Verified batroxobin precursor positions (MEROPS).
+        positions = [
+            ('Catalytic_His', 65, 'H'),
+            ('Catalytic_Asp', 110, 'D'),
+            ('Catalytic_Ser', 202, 'S')
+        ]
+
+        for label, pos, aa in positions:
+            if seq[pos - 1] != aa:
+                raise RuntimeError(
+                    'Batroxobin reference residue mismatch: ' + label
+                )
+
+        return [
+            {
+                'label': label,
+                'position': pos,
+                'expected': aa,
+                'source': 'MEROPS_P04971'
+            }
+            for label, pos, aa in positions
+        ]
+
+    if accession == 'P00623':
+        sites = canonical_sites(record, [
+            ('Catalytic_His48', 48, 'H'),
+            ('Calcium_Asp49', 49, 'D'),
+            ('Catalytic_network_Tyr52', 52, 'Y'),
+            ('Catalytic_network_Asp99', 99, 'D')
+        ])
+
+        return sites if sites else annotated_sites(record)
+
+    if accession == 'J3S820':
+        # Snake hyaluronidase numbering is validated against
+        # the downloaded reference before mapping.
+        sites = canonical_sites(record, [
+            ('Substrate_Asp110', 110, 'D'),
+            ('Catalytic_Glu112', 112, 'E'),
+            ('Substrate_Tyr183', 183, 'Y'),
+            ('Substrate_Tyr230', 230, 'Y'),
+            ('Substrate_Trp315', 315, 'W')
+        ])
+
+        return sites if sites else annotated_sites(record)
+
+    return []
+
+def align_and_map(reference, query):
+    # Keep stop positions as X so original protein
+    # coordinates remain unchanged.
+    query_for_alignment = query.replace('*', 'X')
+
+    aln = pairwise2.align.globalms(
+        reference,
+        query_for_alignment,
+        2, -1, -8, -0.5,
+        one_alignment_only=True
+    )[0]
+
+    aligned_ref, aligned_query = aln[0], aln[1]
+
+    mapping = {}
+    refpos = 0
+    querypos = 0
+    matches = 0
+    compared = 0
+
+    for a, b in zip(aligned_ref, aligned_query):
+        if a != '-':
+            refpos += 1
+        if b != '-':
+            querypos += 1
+
+        if a != '-':
+            mapping[refpos] = querypos if b != '-' else None
+
+        if a != '-' and b not in ('-', 'X'):
+            compared += 1
+            if a == b:
+                matches += 1
+
+    identity = (
+        100.0 * matches / compared
+        if compared else 0.0
+    )
+
+    return mapping, identity
+
+# ------------------------------------------------------------
+# Evaluate all genes
+# ------------------------------------------------------------
+
+summary_rows = []
+detail_rows = []
+
+for gene in genes:
+    seq = proteins[gene]
+
+    first_stop = seq.find('*')
+    first_stop = first_stop + 1 if first_stop >= 0 else None
+
+    internal_stops = seq.count('*')
+    amino_acids = sum(aa != '*' for aa in seq)
+
+    best_domain = None
+    if domain_hits[gene]:
+        best_domain = min(
+            domain_hits[gene],
+            key=lambda x: float(x['Domain_iEvalue'])
+        )
+
+    domain_cys = 'NA'
+
+    if best_domain:
+        a = int(best_domain['Protein_start'])
+        b = int(best_domain['Protein_end'])
+        domain_cys = seq[a-1:b].count('C')
+
+    if gene not in enzyme_references:
+        summary_rows.append([
+            gene, amino_acids, internal_stops,
+            first_stop if first_stop else 'NA',
+            domain_cys, 'NA', 'NA',
+            0, 0, 0, 0, 0,
+            'STRUCTURAL_DOMAIN_ONLY'
+        ])
+        continue
+
+    accession = enzyme_references[gene]
+    reference = references[accession]['sequence']['value'].upper()
+
+    mapping, identity = align_and_map(reference, seq)
+    sites = reference_sites(accession)
+
+    counts = defaultdict(int)
+
+    for site in sites:
+        pos = site['position']
+        query_pos = mapping.get(pos)
+
+        if query_pos is None:
+            observed = '-'
+            status = 'UNMAPPED'
+        else:
+            observed = seq[query_pos - 1]
+
+            if observed == '*':
+                status = 'AT_STOP'
+            elif first_stop and query_pos > first_stop:
+                status = 'DOWNSTREAM_OF_FIRST_STOP'
+            elif observed == site['expected']:
+                status = 'CONSERVED_BEFORE_STOP'
+            else:
+                status = 'ALTERED_BEFORE_STOP'
+
+        counts[status] += 1
+
+        detail_rows.append([
+            gene,
+            accession,
+            site['label'],
+            site['source'],
+            pos,
+            site['expected'],
+            query_pos if query_pos is not None else 'NA',
+            observed,
+            first_stop if first_stop else 'NA',
+            status,
+            round(identity, 2)
+        ])
+
+    if not sites:
+        interpretation = 'REFERENCE_SITE_MAPPING_UNRESOLVED'
+    elif counts['DOWNSTREAM_OF_FIRST_STOP'] or counts['AT_STOP']:
+        interpretation = 'SITES_DOWNSTREAM_OF_STOP'
+    elif counts['ALTERED_BEFORE_STOP']:
+        interpretation = 'CATALYTIC_SITE_ALTERED'
+    elif counts['UNMAPPED']:
+        interpretation = 'INCOMPLETE_SITE_MAPPING'
+    elif counts['CONSERVED_BEFORE_STOP'] == len(sites):
+        interpretation = 'ALL_TESTED_SITES_CONSERVED'
+    else:
+        interpretation = 'REVIEW'
+
+    summary_rows.append([
+        gene,
+        amino_acids,
+        internal_stops,
+        first_stop if first_stop else 'NA',
+        domain_cys,
+        accession,
+        round(identity, 2),
+        len(sites),
+        counts['CONSERVED_BEFORE_STOP'],
+        counts['ALTERED_BEFORE_STOP'],
+        counts['DOWNSTREAM_OF_FIRST_STOP'] + counts['AT_STOP'],
+        counts['UNMAPPED'],
+        interpretation
+    ])
+
+# ------------------------------------------------------------
+# Write output files
+# ------------------------------------------------------------
+
+with open(summary_file, 'w', newline='') as f:
+    writer = csv.writer(f, delimiter='\t')
+
+    writer.writerow([
+        'Gene',
+        'Residues_aa',
+        'Internal_stops',
+        'First_stop_position',
+        'Pfam_domain_Cys',
+        'Reference_accession',
+        'Alignment_identity_percent',
+        'Sites_checked',
+        'Conserved_before_stop',
+        'Altered_before_stop',
+        'Sites_at_or_after_stop',
+        'Unmapped_sites',
+        'Site_assessment'
+    ])
+
+    writer.writerows(summary_rows)
+
+with open(details_file, 'w', newline='') as f:
+    writer = csv.writer(f, delimiter='\t')
+
+    writer.writerow([
+        'Gene',
+        'Reference_accession',
+        'Site',
+        'Site_source',
+        'Reference_position',
+        'Expected_residue',
+        'ToxCodAn_position',
+        'Observed_residue',
+        'First_stop_position',
+        'Status',
+        'Alignment_identity_percent'
+    ])
+
+    writer.writerows(detail_rows)
+
+print('\n===== CATALYTIC RESIDUE SUMMARY =====')
+print('Gene\tSites\tConserved\tAltered\tAfter_stop\tUnmapped\tAssessment')
+
+for row in summary_rows:
+    print('{}\t{}\t{}\t{}\t{}\t{}\t{}'.format(
+        row[0], row[7], row[8],
+        row[9], row[10], row[11], row[12]
+    ))
+
+print('\nSummary:', summary_file)
+print('Details:', details_file)
+PY
+
+echo
+echo "===== COMPLETED ====="
+echo "Status: PASS"
+```
+
+Examine the output:
+```sh
+WORKDIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+
+echo "===== CATALYTIC SUMMARY ====="
+column -t "$WORKDIR/protein_validation/catalytic_residues/toxin_catalytic_summary.tsv"
+
+echo
+echo "===== INDIVIDUAL RESIDUES ====="
+column -t "$WORKDIR/protein_validation/catalytic_residues/toxin_catalytic_residue_details.tsv"
+```
+
+The outputs will print out a whole bunch of stuff, but everything can be summarized like so:
+```sh
+Gene	  |   Examined residues	 |                          Results	 | Interpretation
+----------------------------------------------------------------------------------------------------------------
+SVSP-1	  |   His–Asp–Ser triad	 | 3/3 conserved before termination	 | Strong support for catalytic-site integrity
+SVSP-16	  |   His–Asp–Ser triad	 | 0/3 conserved before first stop	 | Severely disrupted coding sequence
+PLA2-4	  |   His48, Asp49,      | 3/4 before stop; Asp99 downstream | Truncation disrupts the catalytic network
+          |   Tyr52, Asp99		 |                                   |      
+HYAL-4	  |   Catalytic Glu	     | 1/1 conserved before stop	     | Catalytic Glu retained; other essential   
+          |                      |                                   | residues not yet assessed   
+Ficolin-4 |	  Nonenzymatic	     | Conserved-domain screening	     | N/A
+CTL-10,   |   Nonenzymatic       |  Conserved-domain screening	     | N/A
+CTL-15–18 |		                 |                                   |  
+```
+
+Based on this summary, SVSP-1 now has strong evidence for an intact serine protease. All three expected catalytic domains are present and they occur before the first stop codon. This complements earlier findings of a complete trypsin-like Pfam domain, strong SignalP prediction, complete venom gland RNA coverage, and support for all four expected splice junctions.
+
+On the other hand, SVSP-16 has strong evidence for coding disruption or pseudogenization, because the three domains occur downstream from the first stop codon, and two of the three aligned residues differ from the reference. Also recall that there were six internal stops and the incomplete Pfam domain match.
+
+PLA2-4 has a potential loss of enzymatic activity.The predicted PLA2-4 conserves His63, Asp64, and Tyr67. However, the essential Asp99-equivalent residue maps to position 114, immediately after the premature stop at position 113. Therefore, the current translation is unlikely to encode a conventional full-length catalytically active PLA2. However, catalytically inactive PLA2 homologs can still function as venom toxins, so loss of the catalytic network does not automatically exclude relevance as a venom toxin. We will retain this as an expressed PLA2-family locus, but flag its coding integrity.
+
+HYAL-4 retains the glutamate corresponding to the annotated reference active site. Its Pfam glycoside hydrolase domain is nearly complete, and the identified catalytic glutamate occurs well before the stop. However, the script we used examined only one residue because the broader reference-numbering validation did not resolve the other expected sites. Therefore, this locus is a recognizable hyaluronidase-family protein with the annotated catalytic glutamate retained, but its coding integrity, secretion, and venom function remain unresolved.
+
+Below is the update interpretation for the remaining, non-enzymatic loci:
+- Ficolin-4: Substantial fibrinogen-like domain; coding integrity uncertain
+- CTL-10: Partial lectin domain; uncertain transcript structure
+- CTL-15: Apparently intact CTL-domain protein; venom role unknown
+- CTL-16: Predicted coding sequence disrupted
+- CTL-17: Apparently intact, potentially secreted CTL-domain protein; venom role unknown
+- CTL-18: Apparently intact CTL-domain protein; venom role unknown
+
+As it currently stands, the domain and SignalP results do not provide sufficient evidence to count CTL-15, CTL-17, or CTL-18 as confirmed venom toxins.
+
+Now, we will move on to resolving questionable gene structures. For PLA2-4, we will determine whether the supported stop at position 113 genuinely truncates the expressed protein or whether an alternative transcript restores the C-terminus. For SVSP-16 and CTL-16, we will evaluate whether alternative exon structures could restore intact ORFs despite multiple premature stops. For CTL-10 and Ficolin-4, we will investigate discrepancies between predicted exon structures and transcript evidence. Finally, for HYAL-4, we will evaluate the stop at position 443, remaining catalytic-site residues, and possible alternative isoforms.
+
+For this step, we will leave the original ToxCodAn annotation unchanged. Also, rather than repeating the entire transcriptome assembly, we'll reuse the genome-guided Trinity transcripts already available for these regions. Next, we will perform splice-aware alignment against the complete reference genome using minimap2, compare transcript structure with ToxCodAn CDS, and identify candidate alternative gene models for manual validation.
+
+Run this script:
+```sh
+#!/bin/bash
+#SBATCH --job-name=toxin_gene_model_review
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=40G
+#SBATCH --time=04:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# activate conda environment
+source ~/.bash_profile
+conda activate funannotate
+
+set -euo pipefail
+
+# ------------------------------------------------------------
+# directories and inputs
+# ------------------------------------------------------------
+ROOT="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+WORKDIR="${ROOT}/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+OUTDIR="${WORKDIR}/gene_model_review"
+
+REF="${ROOT}/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
+GTF="${WORKDIR}/toxin_annotation.gtf"
+INVENTORY="${WORKDIR}/toxin_transcript_evidence_paths.tsv"
+
+TRANSCRIPTS="${OUTDIR}/regional_trinity_transcripts.fasta"
+METADATA="${OUTDIR}/regional_trinity_metadata.tsv"
+
+BAM="${OUTDIR}/regional_trinity_genome_alignment.bam"
+
+SUMMARY="${OUTDIR}/gene_model_review_summary.tsv"
+DETAILS="${OUTDIR}/gene_model_review_transcripts.tsv"
+BED="${OUTDIR}/gene_model_review_transcripts.bed"
+MODEL_GTF="${OUTDIR}/original_toxin_models.gtf"
+
+mkdir -p "$OUTDIR"
+
+for tool in python minimap2 samtools; do
+    command -v "$tool" >/dev/null || {
+        echo "ERROR: Missing tool: $tool" >&2
+        exit 1
+    }
+done
+
+for file in "$REF" "$GTF" "$INVENTORY"; do
+    [[ -s "$file" ]] || {
+        echo "ERROR: Missing input: $file" >&2
+        exit 1
+    }
+done
+
+# ------------------------------------------------------------
+# STEP 1: collect regional Trinity transcripts
+# ------------------------------------------------------------
+
+echo "===== STEP 1: COLLECT REGIONAL TRANSCRIPTS ====="
+
+python - "$GTF" "$INVENTORY" "$TRANSCRIPTS" "$METADATA" "$MODEL_GTF" <<'PY'
+import sys
+import csv
+import re
+import hashlib
+from collections import defaultdict
+
+gtf_file, inventory_file, output_fasta, output_metadata, output_gtf = sys.argv[1:]
+
+genes = [
+    'SVSP-16',
+    'Ficolin-4',
+    'PLA2-4',
+    'CTL-10',
+    'HYAL-4',
+    'CTL-16'
+]
+
+# Save original gene models
+found = set()
+
+with open(gtf_file) as source, open(output_gtf, 'w') as output:
+    for line in source:
+        match = re.search(r'gene_id "([^"]+)"', line)
+        if match and match.group(1) in genes:
+            output.write(line)
+            found.add(match.group(1))
+
+missing = set(genes) - found
+
+if missing:
+    raise RuntimeError(
+        'Missing toxin models: ' + ','.join(sorted(missing))
+    )
+
+# Read the inventory produced during Step 4
+paths = defaultdict(set)
+
+with open(inventory_file) as f:
+    for row in csv.DictReader(f, delimiter='\t'):
+        if row['Gene'] in genes:
+            if row['Evidence_type'] == 'Trinity_region':
+                paths[row['Gene']].add(row['Path'])
+
+def read_fasta(path):
+    name = None
+    parts = []
+
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            if line.startswith('>'):
+                if name is not None:
+                    yield name, ''.join(parts)
+
+                name = line[1:].split()[0]
+                parts = []
+            else:
+                parts.append(line)
+
+    if name is not None:
+        yield name, ''.join(parts)
+
+# Deduplicate identical sequences across regional FASTA files
+sequences = {}
+sources = defaultdict(set)
+
+for gene in genes:
+
+    for path in sorted(paths[gene]):
+
+        import os
+
+        if not os.path.isfile(path):
+            raise RuntimeError(
+                'Missing Trinity FASTA: ' + path
+            )
+
+        for original_id, sequence in read_fasta(path):
+
+            sequence = sequence.upper().replace('U', 'T')
+
+            if not sequence:
+                continue
+
+            digest = hashlib.sha256(
+                sequence.encode('ascii')
+            ).hexdigest()
+
+            sequences[digest] = sequence
+            sources[digest].add((gene, original_id, path))
+
+with open(output_fasta, 'w') as fasta, \
+     open(output_metadata, 'w', newline='') as meta:
+
+    writer = csv.writer(meta, delimiter='\t')
+
+    writer.writerow([
+        'Transcript_ID',
+        'Length_bp',
+        'Source_genes',
+        'Original_IDs',
+        'Source_paths'
+    ])
+
+    for index, digest in enumerate(sorted(sequences), 1):
+
+        transcript_id = 'TX{:06d}'.format(index)
+        sequence = sequences[digest]
+
+        annotations = sorted(sources[digest])
+
+        source_genes = sorted(set(x[0] for x in annotations))
+        original_ids = sorted(set(x[1] for x in annotations))
+        source_paths = sorted(set(x[2] for x in annotations))
+
+        fasta.write(
+            '>{}\n{}\n'.format(transcript_id, sequence)
+        )
+
+        writer.writerow([
+            transcript_id,
+            len(sequence),
+            ','.join(source_genes),
+            ','.join(original_ids),
+            ';'.join(source_paths)
+        ])
+
+print('Trinity transcripts collected:', len(sequences))
+
+for gene in genes:
+    count = sum(
+        gene in set(x[0] for x in annotations)
+        for annotations in sources.values()
+    )
+
+    print('{}\t{}'.format(gene, count))
+
+if not sequences:
+    raise RuntimeError('No regional Trinity transcripts found')
+PY
+
+
+# ------------------------------------------------------------
+# STEP 2: align assembled transcripts to the ref genome
+#
+# this helps to identify paralogous placements
+# do not force transcript strand with -uf
+# ------------------------------------------------------------
+
+echo
+echo "===== STEP 2: SPLICE-AWARE TRANSCRIPT ALIGNMENT ====="
+
+minimap2 \
+    -ax splice:hq \
+    -N 10 \
+    -t "${SLURM_CPUS_PER_TASK:-8}" \
+    "$REF" \
+    "$TRANSCRIPTS" \
+    2> "${OUTDIR}/minimap2.log" | \
+samtools sort \
+    -@ 4 \
+    -m 1G \
+    -o "$BAM" -
+
+samtools index "$BAM"
+
+echo "Alignment complete."
+
+
+# ------------------------------------------------------------
+# STEP 3: compare aligned transcripts with toxin gene models
+# ------------------------------------------------------------
+
+echo
+echo "===== STEP 3: GENE-MODEL COMPARISON ====="
+
+python - "$GTF" "$METADATA" "$BAM" "$SUMMARY" "$DETAILS" "$BED" <<'PY'
+import sys
+import csv
+import re
+import subprocess
+from collections import defaultdict
+
+gtf_file, metadata_file, bam_file, summary_file, details_file, bed_file = sys.argv[1:]
+
+genes = [
+    'SVSP-16',
+    'Ficolin-4',
+    'PLA2-4',
+    'CTL-10',
+    'HYAL-4',
+    'CTL-16'
+]
+
+models = defaultdict(list)
+metadata = {}
+
+with open(metadata_file) as f:
+    for row in csv.DictReader(f, delimiter='\t'):
+        metadata[row['Transcript_ID']] = row
+
+with open(gtf_file) as f:
+    for line in f:
+        if line.startswith('#'):
+            continue
+
+        fields = line.rstrip('\n').split('\t')
+
+        if len(fields) < 9 or fields[2] != 'CDS':
+            continue
+
+        match = re.search(
+            r'gene_id "([^"]+)"',
+            fields[8]
+        )
+
+        if not match:
+            continue
+
+        gene = match.group(1)
+
+        if gene in genes:
+            models[gene].append({
+                'chrom': fields[0],
+                'start': int(fields[3]),
+                'end': int(fields[4]),
+                'strand': fields[6]
+            })
+
+def merge(intervals):
+    result = []
+
+    for start, end in sorted(intervals):
+        if result and start <= result[-1][1] + 1:
+            result[-1][1] = max(result[-1][1], end)
+        else:
+            result.append([start, end])
+
+    return result
+
+def overlap(a, b):
+    return sum(
+        max(0, min(x2, y2) - max(x1, y1) + 1)
+        for x1, x2 in a
+        for y1, y2 in b
+    )
+
+def cigar_blocks(pos, cigar):
+    operations = re.findall(r'(\d+)([MIDNSHP=X])', cigar)
+
+    if ''.join(a+b for a,b in operations) != cigar:
+        return [], 0
+
+    refpos = pos
+    block_start = refpos
+    aligned_query_bases = 0
+    blocks = []
+
+    for number, operation in operations:
+        number = int(number)
+
+        if operation in ('M', '=', 'X', 'I'):
+            aligned_query_bases += number
+
+        if operation in ('M', 'D', '=', 'X'):
+            refpos += number
+
+        elif operation == 'N':
+            if refpos > block_start:
+                blocks.append((block_start, refpos - 1))
+
+            refpos += number
+            block_start = refpos
+
+    if refpos > block_start:
+        blocks.append((block_start, refpos - 1))
+
+    return blocks, aligned_query_bases
+
+def inferred_strand(flag, tags):
+    ts = tags.get('ts')
+
+    if ts not in ('+', '-'):
+        return '.'
+
+    alignment_strand = '-' if flag & 16 else '+'
+
+    if ts == '+':
+        return alignment_strand
+
+    return '+' if alignment_strand == '-' else '-'
+
+def junction_matches(expected, observed, tolerance):
+    return sum(
+        any(
+            abs(a-c) <= tolerance and abs(b-d) <= tolerance
+            for c,d in observed
+        )
+        for a,b in expected
+    )
+
+model_info = {}
+
+for gene in genes:
+    records = models[gene]
+
+    if not records:
+        raise RuntimeError('Missing CDS model: ' + gene)
+
+    cds = merge([
+        (r['start'], r['end']) for r in records
+    ])
+
+    model_info[gene] = {
+        'chrom': records[0]['chrom'],
+        'strand': records[0]['strand'],
+        'cds': cds,
+        'cds_bp': sum(b-a+1 for a,b in cds),
+        'junctions': [
+            (cds[i][1], cds[i+1][0])
+            for i in range(len(cds)-1)
+        ]
+    }
+
+candidates = defaultdict(list)
+
+process = subprocess.Popen(
+    ['samtools', 'view', bam_file],
+    stdout=subprocess.PIPE,
+    universal_newlines=True
+)
+
+with open(bed_file, 'w') as bed:
+
+    for line in process.stdout:
+
+        f = line.rstrip('\n').split('\t')
+
+        if len(f) < 11:
+            continue
+
+        qname = f[0]
+        flag = int(f[1])
+
+        # Exclude unmapped and supplementary alignments.
+        # Retain secondary alignments to assess paralogs.
+        if flag & (4 | 2048):
+            continue
+
+        if qname not in metadata:
+            continue
+
+        chrom = f[2]
+        pos = int(f[3])
+        mapq = int(f[4])
+        cigar = f[5]
+
+        blocks, aligned_query_bases = cigar_blocks(
+            pos, cigar
+        )
+
+        if not blocks:
+            continue
+
+        tags = {}
+
+        for field in f[11:]:
+            parts = field.split(':', 2)
+            if len(parts) == 3:
+                tags[parts[0]] = parts[2]
+
+        strand = inferred_strand(flag, tags)
+
+        observed_junctions = [
+            (blocks[i][1], blocks[i+1][0])
+            for i in range(len(blocks)-1)
+        ]
+
+        for gene in genes:
+
+            model = model_info[gene]
+
+            if chrom != model['chrom']:
+                continue
+
+            cds_overlap = overlap(
+                blocks, model['cds']
+            )
+
+            if cds_overlap == 0:
+                continue
+
+            exact = junction_matches(
+                model['junctions'],
+                observed_junctions,
+                0
+            )
+
+            near = junction_matches(
+                model['junctions'],
+                observed_junctions,
+                2
+            )
+
+            cds_coverage = (
+                100.0 * cds_overlap /
+                model['cds_bp']
+            )
+
+            query_coverage = (
+                100.0 * aligned_query_bases /
+                int(metadata[qname]['Length_bp'])
+            )
+
+            primary = not bool(flag & 256)
+
+            if strand == '.':
+                strand_status = 'UNRESOLVED'
+            elif strand == model['strand']:
+                strand_status = 'MATCH'
+            else:
+                strand_status = 'OPPOSITE'
+
+            row = {
+                'gene': gene,
+                'transcript': qname,
+                'original': metadata[qname]['Original_IDs'],
+                'source': metadata[qname]['Source_genes'],
+                'mapq': mapq,
+                'primary': int(primary),
+                'strand': strand,
+                'strand_status': strand_status,
+                'cds_coverage': cds_coverage,
+                'query_coverage': query_coverage,
+                'exact': exact,
+                'near': near,
+                'segments': len(blocks),
+                'chrom': chrom,
+                'start': blocks[0][0],
+                'end': blocks[-1][1]
+            }
+
+            candidates[gene].append(row)
+
+            # BED12 transcript blocks for IGV inspection
+            chrom_start = blocks[0][0] - 1
+            chrom_end = blocks[-1][1]
+
+            block_sizes = [
+                end-start+1 for start,end in blocks
+            ]
+
+            block_starts = [
+                start-1-chrom_start
+                for start,end in blocks
+            ]
+
+            bed.write('\t'.join(map(str, [
+                chrom,
+                chrom_start,
+                chrom_end,
+                gene + '__' + qname,
+                mapq,
+                strand,
+                chrom_start,
+                chrom_end,
+                0,
+                len(blocks),
+                ','.join(map(str, block_sizes)),
+                ','.join(map(str, block_starts))
+            ])) + '\n')
+
+returncode = process.wait()
+
+if returncode != 0:
+    raise RuntimeError('samtools view failed')
+
+# Save detailed candidate alignments
+with open(details_file, 'w', newline='') as f:
+    writer = csv.writer(f, delimiter='\t')
+
+    writer.writerow([
+        'Gene', 'Transcript_ID', 'Original_Trinity_IDs',
+        'Source_genes', 'Primary_alignment',
+        'MAPQ', 'Inferred_transcript_strand',
+        'Strand_status', 'CDS_coverage_percent',
+        'Transcript_aligned_percent',
+        'Exact_junctions', 'Junctions_within_2bp',
+        'Aligned_exon_blocks', 'Chromosome',
+        'Alignment_start', 'Alignment_end'
+    ])
+
+    for gene in genes:
+        for x in candidates[gene]:
+            writer.writerow([
+                gene, x['transcript'], x['original'],
+                x['source'], x['primary'], x['mapq'],
+                x['strand'], x['strand_status'],
+                round(x['cds_coverage'], 2),
+                round(x['query_coverage'], 2),
+                x['exact'], x['near'],
+                x['segments'], x['chrom'],
+                x['start'], x['end']
+            ])
+
+# Summarize the most promising candidates
+summary = []
+
+for gene in genes:
+
+    model = model_info[gene]
+    rows = candidates[gene]
+
+    # Prefer same-strand, primary, well-mapped transcripts.
+    # Unknown-strand alignments remain visible for review.
+    ranked = sorted(
+        rows,
+        key=lambda x: (
+            x['strand_status'] == 'MATCH',
+            x['primary'],
+            x['mapq'],
+            x['exact'],
+            x['near'],
+            x['cds_coverage']
+        ),
+        reverse=True
+    )
+
+    best = ranked[0] if ranked else None
+
+    summary.append([
+        gene,
+        model['chrom'],
+        model['strand'],
+        model['cds_bp'],
+        len(model['junctions']),
+        len(set(x['transcript'] for x in rows)),
+        len(rows),
+        sum(x['strand_status'] == 'MATCH' for x in rows),
+        round(max(
+            [x['cds_coverage'] for x in rows] or [0]
+        ), 2),
+        best['transcript'] if best else '.',
+        best['strand_status'] if best else '.',
+        best['primary'] if best else '.',
+        best['mapq'] if best else '.',
+        round(best['cds_coverage'], 2) if best else 0,
+        best['exact'] if best else 0,
+        best['near'] if best else 0,
+        'CANDIDATES_FOR_REVIEW' if best else 'NONE_DETECTED'
+    ])
+
+with open(summary_file, 'w', newline='') as f:
+    writer = csv.writer(f, delimiter='\t')
+
+    writer.writerow([
+        'Gene', 'Chromosome', 'Strand', 'CDS_bp',
+        'Expected_junctions', 'Distinct_transcripts',
+        'Candidate_alignments', 'Matching_strand_alignments',
+        'Maximum_CDS_coverage_percent',
+        'Best_transcript', 'Best_strand_status',
+        'Best_is_primary', 'Best_MAPQ',
+        'Best_CDS_coverage_percent',
+        'Best_exact_junctions',
+        'Best_junctions_within_2bp',
+        'Review_status'
+    ])
+
+    writer.writerows(summary)
+
+print('\n===== GENE-MODEL REVIEW SUMMARY =====')
+print('Gene\tTranscripts\tBest_CDS_%\tExact\tWithin_2bp\tMAPQ\tStrand')
+
+for row in summary:
+    print('{}\t{}\t{}\t{}/{}\t{}/{}\t{}\t{}'.format(
+        row[0], row[5], row[13],
+        row[14], row[4],
+        row[15], row[4],
+        row[12], row[10]
+    ))
+
+print('\nSummary:', summary_file)
+print('Details:', details_file)
+print('IGV BED12:', bed_file)
+PY
+
+echo
+echo "===== COMPLETED ====="
+echo "Status: PASS"
+```
+
+Examine the results when it's done:
+```sh
+WORKDIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+
+echo "===== GENE-MODEL REVIEW ====="
+column -t "$WORKDIR/gene_model_review/gene_model_review_summary.tsv"
+
+echo
+echo "===== CANDIDATE TRANSCRIPTS ====="
+column -t "$WORKDIR/gene_model_review/gene_model_review_transcripts.tsv"
+```
+
+The result basically suggests that PLA2-4 is the only one of the six problematic loci with a reasonably convincing candidate transcript alignment. None of the other five currently has sufficient evidence to support reconstructing an alternative coding sequence. Below is the summary:
+
+- PLA2-4: 62.83% CDS coverage, 2/3 junctions, MAPQ 60, same strand;	strongest candidate for further investigation
+- SVSP-16: Maximum 18.77% CDS coverage; 0/3 junctions; No convincing alternative gene model
+- Ficolin-4: Maximum 28.03% CDS coverage; 0/8 junctions; No convincing alternative gene model
+- CTL-10: 4.33% coverage; opposite strand; Insufficient support
+- HYAL-4: No candidate transcript; Unresolved
+- CTL-16: No candidate transcript; Unresolved
+
+Regarding PLA2-4, the transcript TX000340 (original Trinity ID c133_g1_i1) has several encouraging characteristics: It is a primary alignment with MAPQ of 60, has the same inferred transcriptional strand as PLA2-4, 100% of the assembled transcript aligns to the genome, has three aligned blocks matching two of the three annotated CDS junctions, and has a 62.83% coverage of the annotated CDS. This independently supports a substantial portion of the PLA2-4 gene structure. 
+
+However, we already established that PLA2-4 contains a premature stop at amino acid position 113 and that its Asp99-equivalent catalytic residue lies downstream of this stop. The key question is whether TX000340 provides an alternative coding sequence that bypasses the premature stop while retaining the expected PLA2 domain.
+
+We will perform a a small, targeted analysis using existing files. The following command checks which bases of the PLA2-4 premature-stop interval are actually represented in the Trinity alignment, and reports the corresponding transcript bases when available. Make sure the funannotate conda env is activated before running.
+```sh
+
+WORKDIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+
+python3 - "$WORKDIR" <<'PY'
+import os
+import sys
+import re
+import subprocess
+
+workdir = sys.argv[1]
+
+bed = os.path.join(workdir, 'toxin_internal_stops.bed')
+bam = os.path.join(workdir, 'gene_model_review', 'regional_trinity_genome_alignment.bam')
+
+gene = 'PLA2-4'
+transcript = 'TX000340'
+
+stops = []
+
+with open(bed) as f:
+    for line in f:
+        if not line.strip() or line.startswith('#'):
+            continue
+
+        fields = line.rstrip('\n').split('\t')
+
+        if gene in line:
+            stops.append({
+                'chrom': fields[0],
+                'start': int(fields[1]) + 1,
+                'end': int(fields[2]),
+                'name': fields[3] if len(fields) > 3 else '.'
+            })
+
+if not stops:
+    raise RuntimeError('No PLA2-4 stop found in BED')
+
+print('===== PLA2-4 PREMATURE STOP =====')
+
+for stop in stops:
+    print('{name}\t{chrom}:{start}-{end}'.format(**stop))
+
+print('\n===== TX000340 GENOME ALIGNMENT =====')
+
+process = subprocess.Popen(
+    ['samtools', 'view', bam],
+    stdout=subprocess.PIPE,
+    universal_newlines=True
+)
+
+alignments = []
+
+for line in process.stdout:
+    f = line.rstrip('\n').split('\t')
+
+    if f[0] == transcript and not (int(f[1]) & 4):
+        alignments.append(f)
+
+if process.wait() != 0:
+    raise RuntimeError('samtools view failed')
+
+if not alignments:
+    raise RuntimeError('TX000340 alignment not found')
+
+for f in alignments:
+
+    flag = int(f[1])
+    chrom = f[2]
+    refpos = int(f[3])
+    cigar = f[5]
+    sequence = f[9]
+    querypos = 0
+
+    mapped_bases = {}
+
+    operations = re.findall(r'(\d+)([MIDNSHP=X])', cigar)
+
+    if ''.join(n + op for n, op in operations) != cigar:
+        raise RuntimeError('Unexpected CIGAR: ' + cigar)
+
+    for count, operation in operations:
+        count = int(count)
+
+        if operation in ('M', '=', 'X'):
+            for i in range(count):
+                mapped_bases[refpos + i] = sequence[querypos + i]
+
+            refpos += count
+            querypos += count
+
+        elif operation in ('D', 'N'):
+            refpos += count
+
+        elif operation in ('I', 'S'):
+            querypos += count
+
+    print('Chromosome:', chrom)
+    print('Position:', f[3])
+    print('MAPQ:', f[4])
+    print('FLAG:', flag)
+    print('CIGAR:', cigar)
+
+    for stop in stops:
+
+        if stop['chrom'] != chrom:
+            continue
+
+        positions = list(range(stop['start'], stop['end'] + 1))
+        bases = [mapped_bases.get(p) for p in positions]
+
+        print('\nStop:', stop['name'])
+        print('Genomic positions:', positions)
+        print('Aligned transcript bases:', ''.join(b if b else '-' for b in bases))
+
+        if all(b is not None for b in bases):
+            print('Result: STOP_REGION_ALIGNED')
+        elif any(b is not None for b in bases):
+            print('Result: PARTIALLY_ALIGNED')
+        else:
+            print('Result: STOP_REGION_NOT_ALIGNED')
+
+    print()
+PY
+```
+
+The output will look like this:
+```sh
+===== PLA2-4 PREMATURE STOP =====
+PLA2-4_stop113  G_ussuri_chr16:286560-286562
+
+===== TX000340 GENOME ALIGNMENT =====
+Chromosome: G_ussuri_chr16
+Position: 285913
+MAPQ: 60
+FLAG: 0
+CIGAR: 18M207N101M259N169M
+
+Stop: PLA2-4_stop113
+Genomic positions: [286560, 286561, 286562]
+Aligned transcript bases: TGA
+Result: STOP_REGION_ALIGNED
+```
+
+This shows that the Trinity transcript TX000340 contains the same premature stop codon (TGA) as the reference genome. This provides additional evidence that the premature stop is present in an expressed transcript, rather than being solely a consequence of the original ToxCodAn prediction.
+
+At this point, the premature stop is supported by multiple lines of sequence evidence (e.g., genome seq reads, venom gland RNA-seq reads, assembled Trinity transcripts). Importantly, the transcript TX000340 does not rescue the predicted coding sequence. Its alignment includes the premature stop rather than an alternative sequence that removes it. Although the transcript supports two annotated junctions, it does not demonstrate an intact alternative PLA2-4 ORF. In addition, the predicted protein is likely truncated before an important catalytic residue. The His48-, Asp49-, and Tyr52-equivalent residues occur before the stop, but the Asp99-equivalent residue is located downstream. Translation of the annotated ORF would therefore terminate before that residue.
+
+All of this evidence substantially weakens the case for PLA2-4 encoding a conventional, full-length catalytically active phospholipase A2. However, we should distinguish a disrupted predicted coding sequence from a confirmed pseudogene.
+
+We will now finish the validation steps and move on to a systematic QC of all 120 annotated toxin genes
