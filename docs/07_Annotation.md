@@ -3969,4 +3969,977 @@ CTL-17	               0	Strongly hydrophobic	      Intact ORF; candidate secrete
 CTL-18	               0	No obvious signal peptide	  Intact ORF, uncertain toxin identity
 ```
 
-Next, we will check conserved domains and signal peptides. For this step, we already have SignalP 6 and HMMER installed. SignalP predicts N-terminal signal peptides associated with protein secretion, and HMMER identifies conserved protein domains using the Pfam database.
+Next, we will check signal peptides using SignalP, which predicts N-terminal signal peptides associated with protein secretion.
+
+Run this script below:
+```sh
+#!/bin/bash
+#SBATCH --job-name=toxin_signalp_validation
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=02:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# activate conda env
+source ~/.bash_profile
+conda activate funannotate
+
+set -euo pipefail
+
+# ------------------------------------------------------------
+# STEP 0: fix shared-library compatibility
+# ------------------------------------------------------------
+
+# prioritize Conda's C++ runtime over the older system libraries
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+# restrict CPU thread usage
+export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
+export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
+export OPENBLAS_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
+
+echo "===== ENVIRONMENT VALIDATION ====="
+echo "Conda environment: $CONDA_DEFAULT_ENV"
+echo "Conda prefix:      $CONDA_PREFIX"
+echo "Python:            $(command -v python)"
+echo "SignalP 6:         $(command -v signalp6)"
+
+if [[ ! -s "${CONDA_PREFIX}/lib/libstdc++.so.6" ]]; then
+    echo "ERROR: Conda libstdc++.so.6 not found." >&2
+    exit 1
+fi
+
+# verify that the original import error is resolved
+if ! python -c 'from PIL import Image; import matplotlib; import signalp; print("SignalP dependencies: PASS")'; then
+    echo "ERROR: SignalP dependencies could not be loaded." >&2
+    echo "Check the Conda C++ runtime and GLIBCXX_3.4.29." >&2
+    exit 1
+fi
+
+
+# ------------------------------------------------------------
+# directories
+# ------------------------------------------------------------
+ROOT="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+WORKDIR="${ROOT}/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+OUTDIR="${WORKDIR}/protein_validation"
+
+# input
+PEP="${WORKDIR}/toxin_annotation_pep.fasta"
+
+# intermediate and final outputs
+INPUT="${OUTDIR}/toxin_signalp6_input.fasta"
+METADATA="${OUTDIR}/toxin_signalp6_metadata.tsv"
+SIGNAL_OUT="${OUTDIR}/signalp6_${SLURM_JOB_ID:-manual}"
+SUMMARY="${OUTDIR}/toxin_signalp6_summary.tsv"
+TMP_SUMMARY="${SUMMARY}.tmp.${SLURM_JOB_ID:-$$}"
+
+mkdir -p "$OUTDIR"
+cd "$WORKDIR"
+
+trap 'rm -f "$TMP_SUMMARY"' EXIT
+
+if [[ ! -s "$PEP" ]]; then
+    echo "ERROR: Protein FASTA not found: $PEP" >&2
+    exit 1
+fi
+
+
+# -------------------------------------------------------------------------------------
+# STEP 1: prepare all 10 protein sequences
+#
+# SignalP requires an amino acid sequence
+# for disrupted proteins, use only the sequence receding the first internal stop codon
+#
+# original protein sequences are not modified
+# -------------------------------------------------------------------------------------
+
+echo
+echo "===== STEP 1: PREPARE PROTEINS ====="
+
+python - "$PEP" "$INPUT" "$METADATA" <<'PY'
+import sys
+import re
+import csv
+
+source, input_file, metadata_file = sys.argv[1:]
+
+genes = [
+    'SVSP-1',
+    'SVSP-16',
+    'Ficolin-4',
+    'PLA2-4',
+    'CTL-10',
+    'HYAL-4',
+    'CTL-15',
+    'CTL-16',
+    'CTL-17',
+    'CTL-18'
+]
+
+records = []
+header = None
+parts = []
+
+with open(source) as f:
+    for line in f:
+        line = line.strip()
+
+        if not line:
+            continue
+
+        if line.startswith('>'):
+            if header is not None:
+                records.append((header, ''.join(parts).upper()))
+
+            header = line[1:]
+            parts = []
+        else:
+            parts.append(line)
+
+if header is not None:
+    records.append((header, ''.join(parts).upper()))
+
+with open(input_file, 'w') as fasta, \
+     open(metadata_file, 'w', newline='') as meta:
+
+    writer = csv.writer(meta, delimiter='\t')
+
+    writer.writerow([
+        'SignalP_ID',
+        'Gene',
+        'Residues_aa',
+        'Internal_stops',
+        'First_stop_position',
+        'SignalP_input_length'
+    ])
+
+    for index, gene in enumerate(genes, 1):
+
+        pattern = re.compile(
+            r'(?<![A-Za-z0-9])' +
+            re.escape(gene) +
+            r'(?![A-Za-z0-9])'
+        )
+
+        matches = [
+            seq for name, seq in records
+            if pattern.search(name)
+        ]
+
+        if len(matches) != 1:
+            raise RuntimeError(
+                '{}: expected one sequence, found {}'.format(
+                    gene, len(matches)
+                )
+            )
+
+        seq = matches[0][:-1] if matches[0].endswith('*') else matches[0]
+
+        internal_stops = seq.count('*')
+        first_stop = seq.find('*')
+
+        if first_stop >= 0:
+            signal_seq = seq[:first_stop]
+        else:
+            signal_seq = seq
+
+        if not signal_seq:
+            raise RuntimeError(
+                'Empty SignalP sequence: ' + gene
+            )
+
+        # Use simple identifiers for SignalP compatibility.
+        signal_id = 'TOXIN{:02d}'.format(index)
+
+        fasta.write(
+            '>{}\n{}\n'.format(signal_id, signal_seq)
+        )
+
+        writer.writerow([
+            signal_id,
+            gene,
+            sum(aa != '*' for aa in seq),
+            internal_stops,
+            first_stop + 1 if first_stop >= 0 else 'NA',
+            len(signal_seq)
+        ])
+
+        print(
+            '{}\tinput_length={}\tinternal_stops={}'.format(
+                gene,
+                len(signal_seq),
+                internal_stops
+            )
+        )
+
+print('Prepared 10 protein sequences.')
+PY
+
+
+# ------------------------------------------------------------------------
+# STEP 2: run SignalP 6
+#
+# Eukaryotic proteins; fast prediction mode; no individual sequence plots
+# ------------------------------------------------------------------------
+
+echo
+echo "===== STEP 2: SIGNALP 6 ====="
+
+signalp6 \
+    --fastafile "$INPUT" \
+    --organism eukarya \
+    --output_dir "$SIGNAL_OUT" \
+    --format none \
+    --mode fast \
+    --write_procs 1 \
+    --torch_num_threads "${SLURM_CPUS_PER_TASK:-4}"
+
+RESULTS="${SIGNAL_OUT}/prediction_results.txt"
+
+if [[ ! -s "$RESULTS" ]]; then
+    echo "ERROR: SignalP prediction_results.txt missing." >&2
+    exit 1
+fi
+
+echo "SignalP 6 predictions completed."
+
+
+# ------------------------------------------------------------------------
+# STEP 3: generate final summary
+# ------------------------------------------------------------------------
+
+echo
+echo "===== STEP 3: GENERATE SUMMARY ====="
+
+python - "$METADATA" "$RESULTS" "$TMP_SUMMARY" <<'PY'
+import sys
+import csv
+
+metadata_file, signal_file, summary_file = sys.argv[1:]
+
+metadata = {}
+gene_order = []
+
+with open(metadata_file) as f:
+    for row in csv.DictReader(f, delimiter='\t'):
+        signal_id = row['SignalP_ID']
+        metadata[signal_id] = row
+        gene_order.append(signal_id)
+
+if len(metadata) != 10:
+    raise RuntimeError(
+        'Expected metadata for 10 proteins.'
+    )
+
+predictions = {}
+
+with open(signal_file) as f:
+    for line in f:
+
+        if not line.strip() or line.startswith('#'):
+            continue
+
+        fields = line.rstrip('\n').split('\t')
+
+        # Fallback for whitespace-separated output.
+        if len(fields) < 4:
+            fields = line.strip().split(None, 4)
+
+        if len(fields) < 4:
+            raise RuntimeError(
+                'Unexpected SignalP output row: ' + line.strip()
+            )
+
+        signal_id = fields[0].strip()
+
+        if signal_id not in metadata:
+            raise RuntimeError(
+                'Unexpected SignalP identifier: ' + signal_id
+            )
+
+        if signal_id in predictions:
+            raise RuntimeError(
+                'Duplicate prediction: ' + signal_id
+            )
+
+        prediction = fields[1].strip()
+        other_probability = float(fields[2])
+        sp_probability = float(fields[3])
+
+        cleavage = (
+            fields[4].strip()
+            if len(fields) > 4 and fields[4].strip()
+            else '.'
+        )
+
+        predictions[signal_id] = {
+            'prediction': prediction,
+            'other': other_probability,
+            'sp': sp_probability,
+            'cleavage': cleavage
+        }
+
+if set(predictions) != set(metadata):
+    missing = set(metadata) - set(predictions)
+    raise RuntimeError(
+        'Missing SignalP predictions: ' +
+        ','.join(sorted(missing))
+    )
+
+rows = []
+
+for signal_id in gene_order:
+
+    m = metadata[signal_id]
+    p = predictions[signal_id]
+
+    rows.append([
+        m['Gene'],
+        m['Residues_aa'],
+        m['Internal_stops'],
+        m['First_stop_position'],
+        m['SignalP_input_length'],
+        p['prediction'],
+        '{:.6f}'.format(p['other']),
+        '{:.6f}'.format(p['sp']),
+        p['cleavage']
+    ])
+
+with open(summary_file, 'w', newline='') as f:
+
+    writer = csv.writer(f, delimiter='\t')
+
+    writer.writerow([
+        'Gene',
+        'Residues_aa',
+        'Internal_stops',
+        'First_stop_position',
+        'SignalP_input_length',
+        'SignalP_prediction',
+        'OTHER_probability',
+        'SP_probability',
+        'Cleavage_site'
+    ])
+
+    writer.writerows(rows)
+
+print(
+    'Gene\tInternal_stops\tSignalP_prediction\t'
+    'SP_probability\tCleavage_site'
+)
+
+for row in rows:
+    print('{}\t{}\t{}\t{}\t{}'.format(
+        row[0],
+        row[2],
+        row[5],
+        row[7],
+        row[8]
+    ))
+
+print('\nValidated 10 protein predictions.')
+PY
+
+
+# ------------------------------------------------------------------------------------- 
+# STEP 4: validate and publish final output
+# -------------------------------------------------------------------------------------
+
+echo
+echo "===== STEP 4: OUTPUT VALIDATION ====="
+
+lines=$(wc -l < "$TMP_SUMMARY")
+
+if [[ "$lines" -ne 11 ]]; then
+    echo "ERROR: Expected 10 proteins plus header." >&2
+    exit 1
+fi
+
+mv -f "$TMP_SUMMARY" "$SUMMARY"
+
+echo
+echo "===== COMPLETED ====="
+echo "Proteins analyzed: 10"
+echo "SignalP output:   $SIGNAL_OUT"
+echo "Final summary:    $SUMMARY"
+echo "Status: PASS"
+```
+
+Inspect the results:
+```sh
+WORKDIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+
+column -t "$WORKDIR/protein_validation/toxin_signalp6_summary.tsv"
+```
+
+The SignalP results can be summarized like this:
+```sh
+Gene	  SignalP	SP probability	Predicted cleavage
+------------------------------------------------------
+SVSP-1	       SP	      0.999577	             20–21
+SVSP-16	    OTHER	      0.000001	                 —
+Ficolin-4	   SP	      0.999753	             19–20
+PLA2-4	       SP	      0.998972	             16–17
+CTL-10	       SP	      0.999749	             23–24
+HYAL-4	    OTHER	      0.004512	                 —
+CTL-15	    OTHER	      0.000000	                 —
+CTL-16	    OTHER	      0.000124	                 —
+CTL-17	       SP	      0.999795	             21–22
+CTL-18	    OTHER         0.000342	                 —
+```
+Here, SP indicates a predicted signal peptide, whereas OTHER indicates that SignalP did not identify one.
+
+Below is the interpretation integrating all the steps we finished thus far:
+```sh
+Gene	 Venom RNA coverage	RNA junctions	               Trinity evidence	    SignalP 6	 Internal stop status
+-----------------------------------------------------------------------------------------------------------------
+SVSP-1	              100%	          4/4	98.87% CDS; 0/4 exact junctions	   SP (0.9996)	Tandem terminal stops
+SVSP-16	              100%	          1/3	                  None detected	        OTHER	6 premature stops
+Ficolin-4	        60.29%	          0/8	       No same-strand alignment	   SP (0.9998)	2 premature stops
+PLA2-4	              100%	          3/3	       No same-strand alignment    SP (0.9990)	1 premature stop
+CTL-10	            32.39%	          1/3	                  None detected	   SP (0.9997)	1 premature stop
+HYAL-4	                0%	          0/4	                  None detected	         OTHER	1 premature stop
+CTL-15	              100%	          1/1	         100% CDS; 1/1 junction	         OTHER	None
+CTL-16	                0%	          0/4	      61.54% CDS; 1/4 junctions	         OTHER	2 premature stops
+CTL-17	            39.57%	          0/4	                  None detected	   SP (0.9998)	None
+CTL-18	            90.71%	          1/3	        100% CDS; 3/3 junctions	         OTHER	None
+```
+
+Next, we will validate the conserved protein-domains of the 10 flagged annotations. We will first obtain five relevant Pfam profile HMMs and run them against the 10 proteins using HMMER. We will examine the following proteins first:
+```sh
+Toxin family	Pfam accession	  Expected domain
+---------------------------------------------------------------
+SVSP	               PF00089	  Trypsin-like serine protease
+Ficolin	               PF00147	  Fibrinogen C-terminal domain
+PLA2	               PF00068	  Phospholipase A2
+CTL	                   PF00059	  C-type lectin
+HYAL	               PF01630	  Glycoside hydrolase family 56
+```
+
+Run the script below:
+```sh
+#!/bin/bash
+#SBATCH --job-name=toxin_domain_validation
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=02:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# activate conda environment
+source ~/.bash_profile
+conda activate funannotate
+
+set -euo pipefail
+
+# ------------------------------------------------------------
+# paths
+# ------------------------------------------------------------
+ROOT="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+WORKDIR="${ROOT}/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+OUTDIR="${WORKDIR}/protein_validation/pfam_targeted"
+PFAMDIR="${OUTDIR}/profiles"
+
+PEP="${WORKDIR}/toxin_annotation_pep.fasta"
+INPUT="${OUTDIR}/toxin_ORF_fragments.fasta"
+METADATA="${OUTDIR}/toxin_ORF_fragments.tsv"
+
+HMM="${OUTDIR}/toxin_families.hmm"
+DOMTBLOUT="${OUTDIR}/toxin_domains.domtblout"
+SUMMARY="${OUTDIR}/toxin_domain_validation_summary.tsv"
+DETAILS="${OUTDIR}/toxin_domain_validation_details.tsv"
+
+mkdir -p "$PFAMDIR"
+
+# verify tools
+for tool in python hmmscan hmmpress curl gzip; do
+    command -v "$tool" >/dev/null || {
+        echo "ERROR: Missing command: $tool" >&2
+        exit 1
+    }
+done
+
+# ------------------------------------------------------------
+# STEP 1: obtain five Pfam HMM profiles
+#
+# reuse cached profiles if present
+# only five small models are downloaded
+# ------------------------------------------------------------
+
+echo "===== STEP 1: PFAM PROFILES ====="
+
+PFAM_IDS=(
+    PF00089
+    PF00147
+    PF00068
+    PF00059
+    PF01630
+)
+
+for pfam in "${PFAM_IDS[@]}"; do
+
+    profile="${PFAMDIR}/${pfam}.hmm"
+
+    if [[ -s "$profile" ]] && grep -q '^HMMER3/' "$profile"; then
+        echo "Cached: $pfam"
+        continue
+    fi
+
+    echo "Downloading: $pfam"
+
+    url="https://www.ebi.ac.uk/interpro/api/entry/pfam/${pfam}?annotation=hmm"
+    tmp="${profile}.download"
+
+    rm -f "$tmp" "${profile}.tmp"
+
+    curl \
+        --fail \
+        --location \
+        --silent \
+        --show-error \
+        --retry 2 \
+        --connect-timeout 10 \
+        --max-time 60 \
+        "$url" \
+        -o "$tmp" || {
+            echo "ERROR: Could not download $pfam" >&2
+            echo "If compute-node internet is blocked, run this script with --download-only on the login node." >&2
+            exit 1
+        }
+
+    if gzip -t "$tmp" 2>/dev/null; then
+        gzip -dc "$tmp" > "${profile}.tmp"
+    else
+        cp "$tmp" "${profile}.tmp"
+    fi
+
+    if ! grep -q '^HMMER3/' "${profile}.tmp"; then
+        echo "ERROR: Downloaded file is not a valid HMM: $pfam" >&2
+        exit 1
+    fi
+
+    mv "${profile}.tmp" "$profile"
+    rm -f "$tmp"
+
+done
+
+# optional: download profiles from login node without running analyses
+if [[ "${1:-}" == '--download-only' ]]; then
+    echo "All five Pfam profiles cached."
+    exit 0
+fi
+
+# combine and index HMM profiles
+: > "$HMM"
+
+for pfam in "${PFAM_IDS[@]}"; do
+    cat "${PFAMDIR}/${pfam}.hmm" >> "$HMM"
+done
+
+hmmpress -f "$HMM" > "${OUTDIR}/hmmpress.log"
+
+
+# ------------------------------------------------------------
+# STEP 2: prepare all 10 protein models
+#
+# split sequences at stop codons
+# keep original amino-acid coordinates
+# no artificial concatenation across premature stops
+# ------------------------------------------------------------
+
+echo
+echo "===== STEP 2: PREPARE PROTEIN FRAGMENTS ====="
+
+python - "$PEP" "$INPUT" "$METADATA" <<'PY'
+import sys
+import re
+import csv
+
+source, output_fasta, output_metadata = sys.argv[1:]
+
+genes = [
+    'SVSP-1', 'SVSP-16', 'Ficolin-4',
+    'PLA2-4', 'CTL-10', 'HYAL-4',
+    'CTL-15', 'CTL-16', 'CTL-17', 'CTL-18'
+]
+
+records = []
+header = None
+parts = []
+
+with open(source) as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith('>'):
+            if header is not None:
+                records.append((header, ''.join(parts).upper()))
+            header = line[1:]
+            parts = []
+        else:
+            parts.append(line)
+
+if header is not None:
+    records.append((header, ''.join(parts).upper()))
+
+with open(output_fasta, 'w') as fasta, \
+     open(output_metadata, 'w', newline='') as meta:
+
+    writer = csv.writer(meta, delimiter='\t')
+
+    writer.writerow([
+        'Fragment_ID',
+        'Gene',
+        'Protein_start',
+        'Protein_end',
+        'Fragment_length',
+        'Internal_stops',
+        'First_stop_position'
+    ])
+
+    for gene_index, gene in enumerate(genes, 1):
+
+        pattern = re.compile(
+            r'(?<![A-Za-z0-9])' +
+            re.escape(gene) +
+            r'(?![A-Za-z0-9])'
+        )
+
+        matches = [
+            seq for name, seq in records
+            if pattern.search(name)
+        ]
+
+        if len(matches) != 1:
+            raise RuntimeError(
+                '{}: expected one protein, found {}'.format(
+                    gene, len(matches)
+                )
+            )
+
+        original = matches[0]
+
+        # Remove only the annotated final stop.
+        seq = (
+            original[:-1]
+            if original.endswith('*')
+            else original
+        )
+
+        stops = seq.count('*')
+        first_stop = (
+            seq.index('*') + 1
+            if stops else None
+        )
+
+        fragments = seq.split('*')
+        cursor = 1
+        fragment_count = 0
+
+        for fragment_index, fragment in enumerate(fragments, 1):
+
+            start = cursor
+            end = start + len(fragment) - 1
+
+            if fragment:
+                fragment_id = 'T{:02d}F{:02d}'.format(
+                    gene_index, fragment_index
+                )
+
+                fasta.write(
+                    '>{}\n{}\n'.format(fragment_id, fragment)
+                )
+
+                writer.writerow([
+                    fragment_id,
+                    gene,
+                    start,
+                    end,
+                    len(fragment),
+                    stops,
+                    first_stop if first_stop else 'NA'
+                ])
+
+                fragment_count += 1
+
+            cursor = end + 2
+
+        print(
+            '{}\tstops={}\tfragments={}'.format(
+                gene, stops, fragment_count
+            )
+        )
+
+print('Prepared all 10 toxin gene models.')
+PY
+
+
+# ------------------------------------------------------------
+# STEP 3: HMMER domain analysis
+# ------------------------------------------------------------
+
+echo
+echo "===== STEP 3: HMMER DOMAIN SEARCH ====="
+
+hmmscan \
+    --cpu "${SLURM_CPUS_PER_TASK:-4}" \
+    --noali \
+    -E 10 \
+    --domE 10 \
+    --incE 10 \
+    --incdomE 10 \
+    --domtblout "$DOMTBLOUT" \
+    "$HMM" \
+    "$INPUT" \
+    > "${OUTDIR}/hmmscan.log"
+
+[[ -s "$DOMTBLOUT" ]]
+
+
+# ------------------------------------------------------------
+# STEP 4: integrate protein-domain results
+# ------------------------------------------------------------
+
+echo
+echo "===== STEP 4: DOMAIN VALIDATION SUMMARY ====="
+
+python - "$METADATA" "$DOMTBLOUT" "$SUMMARY" "$DETAILS" <<'PY'
+import sys
+import csv
+from collections import defaultdict
+
+metadata_file, domtbl_file, summary_file, details_file = sys.argv[1:]
+
+genes = [
+    'SVSP-1', 'SVSP-16', 'Ficolin-4',
+    'PLA2-4', 'CTL-10', 'HYAL-4',
+    'CTL-15', 'CTL-16', 'CTL-17', 'CTL-18'
+]
+
+expected = {
+    'SVSP-1': 'PF00089',
+    'SVSP-16': 'PF00089',
+    'Ficolin-4': 'PF00147',
+    'PLA2-4': 'PF00068',
+    'CTL-10': 'PF00059',
+    'HYAL-4': 'PF01630',
+    'CTL-15': 'PF00059',
+    'CTL-16': 'PF00059',
+    'CTL-17': 'PF00059',
+    'CTL-18': 'PF00059'
+}
+
+metadata = {}
+gene_metadata = {}
+
+with open(metadata_file) as f:
+    for row in csv.DictReader(f, delimiter='\t'):
+        metadata[row['Fragment_ID']] = row
+        gene_metadata[row['Gene']] = row
+
+hits = defaultdict(list)
+details = []
+
+with open(domtbl_file) as f:
+    for line in f:
+
+        if line.startswith('#') or not line.strip():
+            continue
+
+        fields = line.rstrip('\n').split(None, 22)
+
+        if len(fields) < 22:
+            raise RuntimeError('Malformed HMMER domain table row')
+
+        # HMMER hmmscan domtblout format
+        pfam_name = fields[0]
+        pfam_id = fields[1].split('.')[0]
+        hmm_length = int(fields[2])
+
+        fragment_id = fields[3]
+
+        if fragment_id not in metadata:
+            raise RuntimeError(
+                'Unknown fragment: ' + fragment_id
+            )
+
+        m = metadata[fragment_id]
+        gene = m['Gene']
+
+        evalue = float(fields[12])
+
+        hmm_start = int(fields[15])
+        hmm_end = int(fields[16])
+        aa_start = int(fields[17])
+        aa_end = int(fields[18])
+
+        model_coverage = (
+            100.0 *
+            (hmm_end - hmm_start + 1) /
+            hmm_length
+        )
+
+        # Map fragment coordinates to original protein.
+        protein_start = (
+            int(m['Protein_start']) + aa_start - 1
+        )
+        protein_end = (
+            int(m['Protein_start']) + aa_end - 1
+        )
+
+        stop = m['First_stop_position']
+
+        if stop == 'NA':
+            stop_relation = 'no_internal_stop'
+        elif protein_end < int(stop):
+            stop_relation = 'before_first_stop'
+        else:
+            stop_relation = 'after_first_stop'
+
+        hit = {
+            'gene': gene,
+            'pfam': pfam_id,
+            'name': pfam_name,
+            'evalue': evalue,
+            'coverage': model_coverage,
+            'start': protein_start,
+            'end': protein_end,
+            'fragment': fragment_id,
+            'relation': stop_relation
+        }
+
+        hits[gene].append(hit)
+
+        details.append([
+            gene,
+            fragment_id,
+            pfam_id,
+            pfam_name,
+            '{:.3g}'.format(evalue),
+            round(model_coverage, 2),
+            protein_start,
+            protein_end,
+            stop_relation,
+            int(pfam_id == expected[gene]),
+            int(evalue <= 1e-3)
+        ])
+
+# Full domain-hit table
+with open(details_file, 'w', newline='') as f:
+    writer = csv.writer(f, delimiter='\t')
+
+    writer.writerow([
+        'Gene',
+        'Fragment_ID',
+        'Pfam_ID',
+        'Pfam_name',
+        'Domain_iEvalue',
+        'HMM_coverage_percent',
+        'Protein_start',
+        'Protein_end',
+        'Stop_relation',
+        'Expected_family',
+        'Evalue_le_1e-3'
+    ])
+
+    writer.writerows(details)
+
+# Gene-level summary
+summary = []
+
+for gene in genes:
+
+    gene_hits = [
+        hit for hit in hits[gene]
+        if hit['pfam'] == expected[gene]
+    ]
+
+    gene_hits.sort(key=lambda x: x['evalue'])
+
+    best = gene_hits[0] if gene_hits else None
+
+    metadata_row = gene_metadata[gene]
+
+    if best:
+        supported = (
+            'Yes' if best['evalue'] <= 1e-3 else 'No'
+        )
+    else:
+        supported = 'No'
+
+    summary.append([
+        gene,
+        expected[gene],
+        metadata_row['Internal_stops'],
+        metadata_row['First_stop_position'],
+        best['name'] if best else '.',
+        '{:.3g}'.format(best['evalue']) if best else '.',
+        round(best['coverage'], 2) if best else 0,
+        best['start'] if best else '.',
+        best['end'] if best else '.',
+        best['relation'] if best else '.',
+        supported
+    ])
+
+with open(summary_file, 'w', newline='') as f:
+    writer = csv.writer(f, delimiter='\t')
+
+    writer.writerow([
+        'Gene',
+        'Expected_Pfam',
+        'Internal_stops',
+        'First_stop_position',
+        'Best_domain',
+        'Best_domain_iEvalue',
+        'HMM_coverage_percent',
+        'Protein_start',
+        'Protein_end',
+        'Stop_relation',
+        'Expected_domain_supported'
+    ])
+
+    writer.writerows(summary)
+
+print(
+    'Gene\tExpected_domain\tEvalue\t'
+    'HMM_coverage_%\tStop_relation\tSupported'
+)
+
+for row in summary:
+    print('{}\t{}\t{}\t{}\t{}\t{}'.format(
+        row[0], row[4], row[5], row[6], row[9], row[10]
+    ))
+
+print('\nSummary:', summary_file)
+print('Details:', details_file)
+PY
+
+echo
+echo "===== COMPLETED ====="
+echo "Status: PASS"
+```
+
+... then inspect the output:
+```sh
+WORKDIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+
+echo "===== DOMAIN VALIDATION SUMMARY ====="
+column -t "$WORKDIR/protein_validation/pfam_targeted/toxin_domain_validation_summary.tsv"
+
+echo
+echo "===== DETAILED DOMAIN MATCHES ====="
+column -t "$WORKDIR/protein_validation/pfam_targeted/toxin_domain_validation_details.tsv"
+```
