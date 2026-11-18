@@ -7827,6 +7827,5 @@ The results can be summarized like so:
                    closer inspection
 - SVSP-4/SVSP-5: 98.53% of shorter CDS overlaps; 3 shared exons; nearly complete protein alignment. Very likely 
                  redundant or alternative models of one locus
-```
 
 Regarding SVMP-16 / SVMP-17, their coding regions overlap substantially, but they have different genomic boundaries. Their extensive exon sharing suggests overlapping gene predictions, potentially alternative transcripts, or incorrectly joined portions of neighboring genes.
