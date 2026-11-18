@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=toxin_all120_QC
+#SBATCH --job-name=toxin_all_QC
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4

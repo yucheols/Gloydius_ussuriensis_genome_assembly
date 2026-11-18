@@ -6474,7 +6474,7 @@ We will now finish the validation steps and move on to a systematic QC of all 12
 Run the script below:
 ```sh
 #!/bin/bash
-#SBATCH --job-name=toxin_all120_QC
+#SBATCH --job-name=toxin_all_QC
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -7394,3 +7394,439 @@ echo '===== ALL-TOXIN QC COMPLETED ====='
 echo "Main QC: $SUMMARY"
 echo "Flagged: $FLAGGED"
 ```
+
+Let's inspect the output:
+```sh
+WORKDIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+OUTDIR="$WORKDIR/all120_QC"
+
+echo "===== GENE COUNTS ====="
+echo -n "Total genes: "
+tail -n +2 "$OUTDIR/toxin_all120_QC.tsv" | wc -l
+
+echo -n "Structurally flagged genes: "
+tail -n +2 "$OUTDIR/toxin_all120_QC_flagged.tsv" | wc -l
+
+echo
+echo "===== STRUCTURAL QC FLAGS ====="
+awk -F '\t' 'NR==1 {print $1"\t"$35; next} {print $1"\t"$35}' \
+    "$OUTDIR/toxin_all120_QC_flagged.tsv" | column -t -s "$(printf '\t')"
+
+echo
+echo "===== SIGNALP / PFAM SUMMARY ====="
+awk -F '\t' 'NR==1 {print $1"\t"$25"\t"$28"\t"$29; next} {print $1"\t"$25"\t"$28"\t"$29}' \
+    "$OUTDIR/toxin_all120_QC.tsv" | column -t -s "$(printf '\t')"
+```
+
+This will show that 15 out of 120 toxin gene annotations are flagged for additional inspection. Breaking this down, 6 of them are internal stop codon flags that we already inspected. There are another 6 with overlapping CDS. These are SVMP-5/6, SVMP-16/17, and SVSP-4/5. There are two annotations flagged for identical proteins. These could represent genuine recent duplicates or redundant predictions. Finally, there is one annotation (PLA2-1) flagged for missing Pfam match. This will need protein-family and sequence-integrity verification.
+
+While these new flags are annoying, we need to investigate them. We will do so without rerunning RNA mapping, SignalP, or HMMER.
+
+Run the script below to decide on the priority of investigation per newly flagged gene:
+```sh
+WORKDIR="/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+
+python3 - "$WORKDIR/all120_QC/toxin_all120_QC.tsv" <<'PY'
+import csv
+import sys
+
+path = sys.argv[1]
+
+genes = [
+    'PLA2-1', 'PLA2-5', 'PLA2-6',
+    'SVMP-5', 'SVMP-6',
+    'SVMP-16', 'SVMP-17',
+    'SVSP-4', 'SVSP-5'
+]
+
+with open(path) as f:
+    data = {r['Gene']: r for r in csv.DictReader(f, delimiter='\t')}
+
+print('===== NEWLY FLAGGED MODELS =====')
+
+for gene in genes:
+    if gene not in data:
+        print('MISSING:', gene)
+        continue
+
+    r = data[gene]
+
+    print('\n' + gene)
+    print('  Location:          {} ({})'.format(
+        r['Chromosome'], r['Strand']))
+    print('  CDS length:        {} bp'.format(r['CDS_bp']))
+    print('  Protein length:    {} aa'.format(r['Protein_residues']))
+    print('  Stop class:        {}'.format(r['Stop_class']))
+    print('  Translation:       {}'.format(r['Translation_vs_protein']))
+    print('  Venom CDS covered: {}%'.format(
+        r['Venom_RNA_CDS_coverage_pct']))
+    print('  Venom mean depth:  {}'.format(
+        r['Venom_RNA_mean_CDS_depth']))
+    print('  RNA junctions:     {}/{}'.format(
+        r['RNA_junctions_supported_ge3'],
+        r['RNA_junctions_total']))
+    print('  SignalP:           {}'.format(
+        r['SignalP_prediction']))
+    print('  Pfam:              {}'.format(r['Pfam_status']))
+    print('  Identical to:      {}'.format(
+        r['Identical_protein_other_genes']))
+    print('  CDS overlap with:  {}'.format(
+        r['Same_strand_CDS_overlap_genes']))
+    print('  QC flag:           {}'.format(
+        r['Structural_review_flags']))
+PY
+```
+
+The results will show that all nine newly flagged predictions have coding sequences that translate correctly, with no internal premature stops. Their flags concern gene identity, redundancy, or protein-family assignment rather than obvious coding disruption.
+
+We can summarize the output like so:
+- PLA2-1: Has 100% RNA coverage and 143.65× mean depth, but there is no signal peptide or significant PF00068   
+          match. Need to check whether this is genuinely a PLA2-family protein.
+- PLA2-5/PLA2-6: Have identical 138-aa proteins, strong RNA and splice-junction support, and have separate CDS 
+                 regions. Need to check whether these are genuine duplicated genes or redundant annotations.
+- SVMP-5/SVMP-6: There is an extensive CDS overlap, both are highly expressed, and have 13/13 and 10/11 supported 
+                 junctions. Need to check whether these are alternative models of one gene
+- SVMP-16/SVMP-17: They have extensive CDS overlap, high expression, and strong junction support. Need to check  
+                   whether these are alternative models of one gene
+- SVSP-4/SVSP-5: They have overlapping CDS, both have SignalP and Pfam support, and all annotated junctions are 
+                 supported. Need to check whether these are distinct genes or alternative transcript models.
+
+There are two thing worth clarifying: __First, identical proteins do not necessarily mean duplicate annotations.__ PLA2-5 and PLA2-6 could be genuine recent paralogs encoding identical amino acid sequences. We should examine their physical separation and nucleotide sequences before considering merging them. __Second, splice-junction support does not independently validate overlapping gene models.__ If two predicted genes share exons and splice junctions, the same RNA reads can support both models. This is especially relevant to the SVMP and SVSP pairs.
+
+We will move on to resolve the overlapping and identical gene models by quantifying their exact genomic relationships. We will use the existing GTF, protein FASTA, and CDS FASTA.
+```sh
+
+source ~/.bash_profile
+conda activate funannotate
+
+python - <<'PY'
+import os
+import re
+import csv
+import warnings
+from collections import defaultdict
+
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    from Bio import pairwise2
+
+ROOT = '/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo'
+WORKDIR = ROOT + '/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome'
+OUTDIR = WORKDIR + '/all120_QC'
+
+GTF = WORKDIR + '/toxin_annotation.gtf'
+PEP = WORKDIR + '/toxin_annotation_pep.fasta'
+CDS = WORKDIR + '/toxin_annotation_cds.fasta'
+
+PAIRS = [
+    ('PLA2-5', 'PLA2-6'),
+    ('SVMP-5', 'SVMP-6'),
+    ('SVMP-16', 'SVMP-17'),
+    ('SVSP-4', 'SVSP-5')
+]
+
+GENES = sorted(set(
+    [g for pair in PAIRS for g in pair] +
+    ['PLA2-1', 'PLA2-2', 'PLA2-3', 'PLA2-4', 'PLA2-7']
+))
+
+def read_fasta(path):
+    records = []
+    header = None
+    parts = []
+
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            if line.startswith('>'):
+                if header is not None:
+                    records.append((header, ''.join(parts).upper()))
+                header = line[1:]
+                parts = []
+            else:
+                parts.append(line)
+
+    if header is not None:
+        records.append((header, ''.join(parts).upper()))
+
+    result = {}
+
+    for gene in GENES:
+        pattern = re.compile(
+            r'(?<![A-Za-z0-9])' +
+            re.escape(gene) +
+            r'(?![A-Za-z0-9])'
+        )
+
+        matches = [
+            seq for name, seq in records
+            if pattern.search(name)
+        ]
+
+        if len(matches) != 1:
+            raise RuntimeError(
+                '{}: expected one FASTA record in {}, found {}'.format(
+                    gene, path, len(matches)
+                )
+            )
+
+        result[gene] = matches[0].rstrip('*')
+
+    return result
+
+proteins = read_fasta(PEP)
+cds_sequences = read_fasta(CDS)
+
+# Read genomic CDS structures.
+models = defaultdict(list)
+
+with open(GTF) as f:
+    for line in f:
+        if not line.strip() or line.startswith('#'):
+            continue
+
+        fields = line.rstrip('\n').split('\t')
+
+        if len(fields) < 9 or fields[2] != 'CDS':
+            continue
+
+        match = re.search(
+            r'gene_id "([^"]+)"', fields[8]
+        )
+
+        if match and match.group(1) in GENES:
+            gene = match.group(1)
+
+            models[gene].append((
+                fields[0],
+                int(fields[3]),
+                int(fields[4]),
+                fields[6]
+            ))
+
+def intervals(gene):
+    return sorted(set(
+        (x[1], x[2]) for x in models[gene]
+    ))
+
+def span(gene):
+    exons = intervals(gene)
+    return min(x[0] for x in exons), max(x[1] for x in exons)
+
+def overlap_bp(a, b):
+    return sum(
+        max(0, min(x2, y2) - max(x1, y1) + 1)
+        for x1, x2 in a
+        for y1, y2 in b
+    )
+
+def junctions(exons):
+    return set(
+        (exons[i][1], exons[i+1][0])
+        for i in range(len(exons)-1)
+    )
+
+def local_similarity(a, b):
+    if not a or not b:
+        return 0.0, 0.0
+
+    aln = pairwise2.align.localms(
+        a, b, 2, -1, -8, -0.5,
+        one_alignment_only=True
+    )[0]
+
+    aa = aln.seqA[aln.start:aln.end]
+    bb = aln.seqB[aln.start:aln.end]
+
+    aligned = [
+        (x, y) for x, y in zip(aa, bb)
+        if x != '-' and y != '-'
+    ]
+
+    if not aligned:
+        return 0.0, 0.0
+
+    identical = sum(x == y for x, y in aligned)
+
+    return (
+        100.0 * identical / len(aligned),
+        100.0 * len(aligned) / min(len(a), len(b))
+    )
+
+# ------------------------------------------------------------
+# Pairwise gene-model comparison
+# ------------------------------------------------------------
+
+print('\n===== OVERLAPPING / IDENTICAL GENE PAIRS =====')
+
+rows = []
+
+for gene1, gene2 in PAIRS:
+    exons1 = intervals(gene1)
+    exons2 = intervals(gene2)
+
+    a1, a2 = span(gene1)
+    b1, b2 = span(gene2)
+
+    chrom1 = models[gene1][0][0]
+    chrom2 = models[gene2][0][0]
+
+    strand1 = models[gene1][0][3]
+    strand2 = models[gene2][0][3]
+
+    overlap = overlap_bp(exons1, exons2)
+
+    length1 = sum(b-a+1 for a,b in exons1)
+    length2 = sum(b-a+1 for a,b in exons2)
+
+    pct = 100.0 * overlap / min(length1, length2)
+
+    shared_exons = len(set(exons1) & set(exons2))
+    shared_junctions = len(
+        junctions(exons1) & junctions(exons2)
+    )
+
+    if chrom1 != chrom2:
+        gap = 'DIFFERENT_CHROMOSOMES'
+    elif a2 >= b1 and b2 >= a1:
+        gap = 'GENOMIC_SPANS_OVERLAP'
+    else:
+        gap = str(max(a1-b2-1, b1-a2-1))
+
+    p1 = proteins[gene1]
+    p2 = proteins[gene2]
+
+    identity, protein_coverage = local_similarity(p1, p2)
+
+    d1 = cds_sequences[gene1]
+    d2 = cds_sequences[gene2]
+
+    nucleotide_differences = (
+        sum(x != y for x,y in zip(d1, d2))
+        if len(d1) == len(d2) else 'NA'
+    )
+
+    rows.append([
+        gene1, gene2,
+        chrom1, strand1,
+        '{}-{}'.format(a1, a2),
+        '{}-{}'.format(b1, b2),
+        gap,
+        length1, length2,
+        overlap, round(pct, 2),
+        shared_exons,
+        shared_junctions,
+        len(junctions(exons1)),
+        len(junctions(exons2)),
+        len(p1), len(p2),
+        round(identity, 2),
+        round(protein_coverage, 2),
+        int(p1 == p2),
+        int(d1 == d2),
+        nucleotide_differences
+    ])
+
+    print('\n{} vs {}'.format(gene1, gene2))
+    print('  Coordinates:       {}:{} vs {}'.format(
+        chrom1, '{}-{}'.format(a1,a2), '{}-{}'.format(b1,b2)))
+    print('  Genomic gap:       {}'.format(gap))
+    print('  CDS overlap:       {} bp ({:.2f}% of shorter CDS)'.format(
+        overlap, pct))
+    print('  Shared exons:      {}'.format(shared_exons))
+    print('  Shared junctions:  {}'.format(shared_junctions))
+    print('  Protein identity:  {:.2f}%'.format(identity))
+    print('  Protein coverage:  {:.2f}% of shorter sequence'.format(
+        protein_coverage))
+    print('  Identical protein: {}'.format(p1 == p2))
+    print('  Identical CDS:     {}'.format(d1 == d2))
+
+pair_output = OUTDIR + '/new_flagged_gene_pair_comparison.tsv'
+
+with open(pair_output, 'w', newline='') as f:
+    w = csv.writer(f, delimiter='\t')
+
+    w.writerow([
+        'Gene_1', 'Gene_2', 'Chromosome', 'Strand',
+        'Gene_1_span', 'Gene_2_span',
+        'Genomic_gap_bp',
+        'CDS_bp_1', 'CDS_bp_2',
+        'CDS_overlap_bp',
+        'Overlap_percent_of_shorter_CDS',
+        'Identical_exon_intervals',
+        'Shared_junctions',
+        'Junctions_1', 'Junctions_2',
+        'Protein_length_1', 'Protein_length_2',
+        'Local_protein_identity_percent',
+        'Local_alignment_coverage_shorter_percent',
+        'Identical_protein',
+        'Identical_CDS_nucleotide_sequence',
+        'CDS_nucleotide_differences_if_equal_length'
+    ])
+
+    w.writerows(rows)
+
+# Save exon coordinates for subsequent manual inspection.
+exon_output = OUTDIR + '/new_flagged_gene_exons.tsv'
+
+with open(exon_output, 'w', newline='') as f:
+    w = csv.writer(f, delimiter='\t')
+    w.writerow(['Gene', 'Chromosome', 'Strand', 'CDS_start', 'CDS_end'])
+
+    for gene in sorted(set(g for pair in PAIRS for g in pair)):
+        for chrom, a, b, strand in sorted(set(models[gene])):
+            w.writerow([gene, chrom, strand, a, b])
+
+# ------------------------------------------------------------
+# PLA2-1 similarity to other annotated PLA2s
+# ------------------------------------------------------------
+
+print('\n===== PLA2-1 SEQUENCE COMPARISON =====')
+
+query = proteins['PLA2-1']
+
+print('PLA2-1 length:', len(query))
+print('PLA2-1 N-terminal 40 aa:', query[:40])
+
+similarities = []
+
+for gene in [
+    'PLA2-2', 'PLA2-3', 'PLA2-4',
+    'PLA2-5', 'PLA2-6', 'PLA2-7'
+]:
+    identity, coverage = local_similarity(
+        query, proteins[gene]
+    )
+
+    similarities.append((gene, identity, coverage))
+
+for gene, identity, coverage in sorted(
+    similarities,
+    key=lambda x: (x[2], x[1]),
+    reverse=True
+):
+    print('{}\tidentity={:.2f}%\taligned_shorter={:.2f}%'.format(
+        gene, identity, coverage
+    ))
+
+print('\n===== OUTPUT FILES =====')
+print(pair_output)
+print(exon_output)
+PY
+```
+
+The results can be summarized like so:
+- PLA2-5/PLA2-6: Separate loci, 7,074 bp apart; identical CDS and protein sequences. Possible recent tandem  
+                 duplication
+- SVMP-5/SVMP-6: 100% of shorter CDS overlaps; 10 shared exons; 100% local protein identity. Very likely 
+                 redundant or alternative models of one locus
+- SVMP-16/SVMP-17: 80.28% CDS overlap; 7 shared exons; 8 shared junctions. Complex overlapping models requiring 
+                   closer inspection
+- SVSP-4/SVSP-5: 98.53% of shorter CDS overlaps; 3 shared exons; nearly complete protein alignment. Very likely 
+                 redundant or alternative models of one locus
+```
+
+Regarding SVMP-16 / SVMP-17, their coding regions overlap substantially, but they have different genomic boundaries. Their extensive exon sharing suggests overlapping gene predictions, potentially alternative transcripts, or incorrectly joined portions of neighboring genes.
