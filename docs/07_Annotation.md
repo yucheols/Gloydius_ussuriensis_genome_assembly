@@ -7828,4 +7828,736 @@ The results can be summarized like so:
 - SVSP-4/SVSP-5: 98.53% of shorter CDS overlaps; 3 shared exons; nearly complete protein alignment. Very likely 
                  redundant or alternative models of one locus
 
-Regarding SVMP-16 / SVMP-17, their coding regions overlap substantially, but they have different genomic boundaries. Their extensive exon sharing suggests overlapping gene predictions, potentially alternative transcripts, or incorrectly joined portions of neighboring genes.
+For SVMP-5 / SVMP-6, there is strong evidence that ToxCodAn may have annotated the same genomic locus twice. SVMP-6 is shorter (430 aa versus 487 aa), and its entire 1,293-bp CDS overlaps SVMP-5. The two models share 10 exons and 10 splice junctions.
+
+SVSP-4 / SVSP-5 are also strong candidates for redundant annotation, for similar reasons. 
+
+The situation with SVMP-16 / SVMP-17 is more complicated. Their coding regions overlap substantially, but they have different genomic boundaries. Their extensive exon sharing suggests overlapping gene predictions, potentially alternative transcripts, or incorrectly joined portions of neighboring genes. For these, we need to review exon structures before merging or deleting either annotation. Both could be affected by gene-model boundary errors.
+
+The PLA2-5 / PLA2-6 pair is fundamentally different. These have distinct, non-overlapping genomic coordinates but exactly identical nucleotide coding sequences and proteins. This is consistent with a recent tandem duplication, but we need to verify the genomic context using HiFi reads and unique flanking sequences. Identical coding sequences can complicate read assignment, especially in highly expressed toxin families.
+
+For PLA2-1, the toxin family assignment is questionable because its predicted protein lacks the sequence characteristics that we would ordinarily expect from the other PLA2 genes annotated in our genome. The strongest concern is that PLA2-1 has a missing expected Pfam domain; there is no statistically significant match to PF00068 (Phospholip_A2_1). All six other PLA2 predictions have this domain. This suggests that PLA2-1 may not belong to the same secretory PLA2 family as the other annotations. Also, there is no predicted signal peptide. Unlike most of your other annotated PLA2 proteins, SignalP 6 classified PLA2-1 as `OTHER`. This is unusual for a conventional secreted venom PLA2, which typically contains an N-terminal signal peptide. Also, there is no convincing similarity to the other PLA2 predictions. The initial pairwise sequence comparisons returned extremely short alignments, covering only about 2–6% of the shorter sequence. So they provide no meaningful evidence of PLA2-family homology.
+
+There are several possible explanations for this locus. First, this could be a divergent PLA2-family protein. It may belong to a different PLA2 subfamily that is not adequately represented by our targeted PF00068 model. Second, this could be an incorrectly classified protein, which ToxCodAn may have assigned a PLA2 label based on limited sequence similarity or another annotation criterion. Third, this could be an incorrect or incomplete gene model. The predicted sequence could omit important regions necessary for identifying its protein family. For this locus, we will performi a targeted BLASTp search of the complete PLA2-1 protein against a broad, curated protein database, followed by examination of the best matches and their alignment coverage.
+
+We will work through this additional validation locus by locus.
+
+#### PLA2-1
+We will first examine the original ToxCodAn evidence for assigning this to PLA2 family. ToxCodAn-Genome initially identifies candidate toxin loci through sequence similarity to its toxin reference database, and its `matched_regions.gtf` records those genomic matches. This is useful for investigating questionable family assignments. 
+
+Run the script below:
+```sh
+
+WORKDIR='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome'
+
+python3 - "$WORKDIR" <<'PY'
+import os
+import sys
+import re
+
+workdir = sys.argv[1]
+gene = 'PLA2-1'
+
+gtf = os.path.join(workdir, 'toxin_annotation.gtf')
+pep = os.path.join(workdir, 'toxin_annotation_pep.fasta')
+matched = os.path.join(workdir, 'matched_regions.gtf')
+matched_dir = os.path.join(workdir, 'matched_GTFs')
+
+# Read PLA2-1 genomic coordinates.
+features = []
+
+with open(gtf) as f:
+    for line in f:
+        if line.startswith('#'):
+            continue
+
+        fields = line.rstrip('\n').split('\t')
+
+        if len(fields) < 9:
+            continue
+
+        match = re.search(r'gene_id "([^"]+)"', fields[8])
+
+        if match and match.group(1) == gene:
+            features.append(fields)
+
+if not features:
+    raise RuntimeError('PLA2-1 not found in GTF')
+
+chrom = features[0][0]
+strand = features[0][6]
+start = min(int(f[3]) for f in features)
+end = max(int(f[4]) for f in features)
+
+print('===== PLA2-1 LOCATION =====')
+print('Chromosome:', chrom)
+print('Strand:', strand)
+print('Start:', start)
+print('End:', end)
+
+print('\n===== ORIGINAL GTF ANNOTATION =====')
+
+for f in features[:12]:
+    print('\t'.join(f))
+
+# Extract the complete protein sequence.
+print('\n===== PLA2-1 PROTEIN FASTA =====')
+
+records = []
+header = None
+parts = []
+
+with open(pep) as f:
+    for line in f:
+        line = line.strip()
+
+        if line.startswith('>'):
+            if header is not None:
+                records.append((header, ''.join(parts)))
+            header = line[1:]
+            parts = []
+        elif line:
+            parts.append(line)
+
+if header is not None:
+    records.append((header, ''.join(parts)))
+
+pattern = re.compile(r'(?<![A-Za-z0-9])PLA2-1(?![A-Za-z0-9])')
+hits = [(h, s) for h, s in records if pattern.search(h)]
+
+if len(hits) != 1:
+    raise RuntimeError('Expected exactly one PLA2-1 protein')
+
+print('>' + hits[0][0])
+print(hits[0][1])
+
+# Check original ToxCodAn matching regions.
+print('\n===== ORIGINAL MATCHED REGIONS =====')
+
+matches = []
+
+if os.path.isfile(matched):
+    with open(matched) as f:
+        for line in f:
+            if line.startswith('#'):
+                continue
+
+            fields = line.rstrip('\n').split('\t')
+
+            if len(fields) < 9 or fields[0] != chrom:
+                continue
+
+            a, b = int(fields[3]), int(fields[4])
+
+            if a <= end and b >= start:
+                matches.append(line.rstrip('\n'))
+
+print('Overlapping records:', len(matches))
+
+for line in matches[:12]:
+    print(line)
+
+if len(matches) > 12:
+    print('Additional records omitted:', len(matches) - 12)
+
+# Check matching ToxCodAn region files.
+print('\n===== MATCHED GTF FILES =====')
+
+found = 0
+
+if os.path.isdir(matched_dir):
+    for filename in sorted(os.listdir(matched_dir)):
+        m = re.match(r'^(.*)--(\d+)-(\d+)\.gtf$', filename)
+
+        if not m:
+            continue
+
+        file_chrom = m.group(1)
+        a, b = int(m.group(2)), int(m.group(3))
+
+        if file_chrom == chrom and a <= end and b >= start:
+            print(filename)
+            found += 1
+
+print('Matching files:', found)
+PY
+```
+
+The output will print out:
+```sh
+===== ORIGINAL MATCHED REGIONS =====
+Overlapping records: 1
+G_ussuri_chr10  
+TG:FL_hit 
+ID=TRINITY_GG_4386_c0_g1_i1||Toxin30839_PLA2
+```
+This indicates that ToxCodAn identified the region using a full-length toxin-reference match associated with `Toxin30839_PLA2` and the Trinity transcript `TRINITY_GG_4386_c0_g1_i1`. This explains the origin of the PLA2 label, but does not independently validate the protein family assignment.
+
+Next, run the script below to recover the original PLA2 reference from the `toxin_database.fasta` file:
+```sh
+
+WORKDIR='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome'
+
+python3 - "$WORKDIR/toxin_database.fasta" <<'PY'
+import sys
+
+fasta = sys.argv[1]
+target = 'Toxin30839'
+
+records = []
+header = None
+parts = []
+
+with open(fasta) as f:
+    for line in f:
+        line = line.strip()
+
+        if not line:
+            continue
+
+        if line.startswith('>'):
+            if header is not None and target.lower() in header.lower():
+                records.append((header, ''.join(parts).upper()))
+            header = line[1:]
+            parts = []
+        else:
+            parts.append(line)
+
+if header is not None and target.lower() in header.lower():
+    records.append((header, ''.join(parts).upper()))
+
+print('===== ORIGINAL TOXCODAN REFERENCE =====')
+print('Matching sequences:', len(records))
+
+for header, seq in records:
+    alphabet = set(seq)
+    nucleotide = alphabet <= set('ACGTUNRYKMSWBDHV-')
+
+    print('\nHeader:', header)
+    print('Sequence length:', len(seq))
+    print('Sequence type:', 'Nucleotide' if nucleotide else 'Protein')
+    print('Sequence:')
+    print(seq)
+
+if not records:
+    print('Toxin30839 was not found in toxin_database.fasta')
+PY
+```
+
+The sequence labeled `Toxin30839_PLA2` is a 462-bp nucleotide sequence associated with a genome-guided Trinity transcript, `TRINITY_GG_4386_c0_g1_i1`. This means that we recovered the sequence used as evidence for the gene model, but this does not provide an independent characterization of PLA2 protein.
+
+Next, run protein BLAST (blastp; https://blast.ncbi.nlm.nih.gov/Blast.cgi?PAGE=Proteins) with the following complete sequence:
+```sh
+>G_ussuriensis_PLA2-1
+MACIATSLCTKQFIELSYEKGVYVRVQYDCCNTDGCTPPSTKMPALNTTINKKYCPVCSLETGTCSDDATLECTGSATHCFASSILKDGAKRPVKGCTTEAVCTILRTYKGPLVGNSPLQDVTCKEATSDSSCSSLEVFLLALLPIKLLFFSAY
+```
+Select the non-redundant protein database (nr) initially, without restricting the organism to snakes. The blastp result will spit out the following:
+![alt text](/docs/etc/blastp.png)
+
+The blastp results provide strong evidence that PLA2-1 is not a PLA2 enzyme, but instead belongs to the PLA2 inhibitor / Ly6-PLAUR protein family. Therefore, PLA2-1 should not be counted alongside PLA2-2 through PLA2-7 as a PLA2-family gene.
+
+#### PLA2-5 / PLA2-6
+These genes are separated by 7,074 bp of intervening sequence. The objective here is to distinguish a genuine tandem duplication from an assembly or annotation artifact. First, we will examine the genomic structure and flanking sequences by comparing exon structures, introns, and flanking sequences. This matters because two copies can have identical coding sequences while occupying genuinely distinct genomic contexts.
+
+Run the script below:
+```sh
+
+source ~/.bash_profile
+conda activate funannotate
+
+python3 - <<'PY'
+import os
+import re
+import subprocess
+import hashlib
+from collections import defaultdict
+
+ROOT = '/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo'
+WORKDIR = ROOT + '/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome'
+
+REF = ROOT + '/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta'
+GTF = WORKDIR + '/toxin_annotation.gtf'
+
+GENES = ['PLA2-5', 'PLA2-6']
+FLANK = 2000
+K = 31
+
+if not os.path.isfile(REF + '.fai'):
+    subprocess.check_call(['samtools', 'faidx', REF])
+
+def fetch(chrom, start, end):
+    if start < 1 or end < start:
+        raise RuntimeError('Invalid reference interval')
+
+    region = '{}:{}-{}'.format(chrom, start, end)
+
+    output = subprocess.check_output(
+        ['samtools', 'faidx', REF, region],
+        universal_newlines=True
+    )
+
+    return ''.join(
+        x.strip() for x in output.splitlines()
+        if not x.startswith('>')
+    ).upper()
+
+def kmers(sequence, k=31):
+    return set(
+        sequence[i:i+k]
+        for i in range(len(sequence)-k+1)
+        if set(sequence[i:i+k]) <= set('ACGT')
+    )
+
+def compare(a, b):
+    ka = kmers(a, K)
+    kb = kmers(b, K)
+
+    shared = len(ka & kb)
+
+    return (
+        len(ka),
+        len(kb),
+        shared,
+        len(ka-kb),
+        len(kb-ka)
+    )
+
+models = defaultdict(list)
+
+with open(GTF) as f:
+    for line in f:
+        if line.startswith('#'):
+            continue
+
+        fields = line.rstrip('\n').split('\t')
+
+        if len(fields) < 9 or fields[2] != 'CDS':
+            continue
+
+        match = re.search(
+            r'gene_id "([^"]+)"', fields[8]
+        )
+
+        if match and match.group(1) in GENES:
+            models[match.group(1)].append({
+                'chrom': fields[0],
+                'start': int(fields[3]),
+                'end': int(fields[4]),
+                'strand': fields[6]
+            })
+
+results = {}
+
+print('===== PLA2 TANDEM DUPLICATION STRUCTURE =====')
+
+for gene in GENES:
+    records = sorted(
+        models[gene],
+        key=lambda x: x['start']
+    )
+
+    if not records:
+        raise RuntimeError('Missing GTF model: ' + gene)
+
+    chrom = records[0]['chrom']
+    strand = records[0]['strand']
+
+    if strand != '+':
+        raise RuntimeError('Unexpected gene strand')
+
+    start = min(x['start'] for x in records)
+    end = max(x['end'] for x in records)
+
+    cds = ''.join(
+        fetch(chrom, x['start'], x['end'])
+        for x in records
+    )
+
+    upstream = fetch(chrom, start-FLANK, start-1)
+    downstream = fetch(chrom, end+1, end+FLANK)
+
+    introns = []
+
+    for i in range(len(records)-1):
+        a = records[i]['end']+1
+        b = records[i+1]['start']-1
+
+        if a <= b:
+            introns.append(fetch(chrom, a, b))
+
+    intron_sequence = ''.join(introns)
+
+    results[gene] = {
+        'start': start,
+        'end': end,
+        'cds': cds,
+        'upstream': upstream,
+        'downstream': downstream,
+        'introns': intron_sequence
+    }
+
+    print('\n' + gene)
+    print('  Location: {}:{}-{}'.format(
+        chrom, start, end
+    ))
+    print('  CDS segments:', len(records))
+    print('  CDS length:', len(cds))
+    print('  Intron length:', len(intron_sequence))
+    print('  Upstream flank:', len(upstream))
+    print('  Downstream flank:', len(downstream))
+    print('  Reference N bases:', (
+        upstream + cds + intron_sequence + downstream
+    ).count('N'))
+
+    print('  Exon coordinates:')
+    for x in records:
+        print('    {}-{}'.format(x['start'], x['end']))
+
+a = results['PLA2-5']
+b = results['PLA2-6']
+
+print('\n===== COPY COMPARISON =====')
+
+gap = b['start']-a['end']-1
+
+print('Intervening distance:', gap, 'bp')
+print('Genomic CDS identical:', a['cds'] == b['cds'])
+print('Genomic introns identical:', a['introns'] == b['introns'])
+print('Intron lengths:', len(a['introns']), len(b['introns']))
+
+for label in ['upstream', 'downstream', 'introns']:
+    x, y, shared, unique_a, unique_b = compare(
+        a[label], b[label]
+    )
+
+    print('\n{} 31-mer comparison:'.format(label))
+    print('  PLA2-5 distinct 31-mers:', x)
+    print('  PLA2-6 distinct 31-mers:', y)
+    print('  Shared:', shared)
+    print('  Specific to PLA2-5:', unique_a)
+    print('  Specific to PLA2-6:', unique_b)
+
+print('\n===== ANALYSIS COMPLETED =====')
+PY
+```
+
+The output can be summarized like this:
+```sh
+Feature	                                 PLA2-5	             PLA2-6
+-------------------------------------------------------------------
+Genomic span	                293,721–295,345	    302,420–304,043
+CDS length	                             417 bp	             417 bp
+Exons	                                      4	                  4
+Total intron length	                   1,208 bp	           1,207 bp
+Protein length	                         138 aa	             138 aa
+CDS sequences identical	                    Yes	                Yes
+Introns identical	                         No	                 No
+Flanking sequences identical	             No	                 No
+```
+These results provide strong evidence that PLA2-5 and PLA2-6 are two highly similar tandemly arranged gene models, rather than redundant annotations of the same genomic coordinates.
+
+As a final validation, we will check whether there are HiFi reads that continuously align across both annotated genes and the intervening sequence. We'll align the original HiFi reads against only a 21-kb reference interval on chromosome 16, rather than remapping the reads to the entire genome.
+
+Run this script:
+```sh
+#!/bin/bash
+#SBATCH --job-name=PLA2_HiFi_validation
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=20G
+#SBATCH --time=06:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# activate conda environment
+source ~/.bash_profile
+conda activate funannotate
+
+set -euo pipefail
+
+# set paths
+ROOT='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo'
+
+REF="${ROOT}/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
+HIFI="${ROOT}/PacBio_Revio/FASTQ/AMNH_21010_HiFi.fastq.gz"
+
+OUTDIR="${ROOT}/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/all120_QC/PLA2_HiFi_validation"
+
+mkdir -p "$OUTDIR"
+
+REGION="${OUTDIR}/PLA2_chr16_region.fasta"
+PAF="${OUTDIR}/PLA2_HiFi_alignments.paf"
+SUMMARY="${OUTDIR}/PLA2_HiFi_support_summary.tsv"
+BRIDGES="${OUTDIR}/PLA2_HiFi_bridging_reads.tsv"
+
+# validate required tools
+for tool in samtools minimap2 python; do
+    command -v "$tool" >/dev/null || {
+        echo "ERROR: Missing $tool" >&2
+        exit 1
+    }
+done
+
+[[ -s "$REF" && -s "$HIFI" ]] || {
+    echo 'ERROR: Missing reference or HiFi FASTQ.' >&2
+    exit 1
+}
+
+# ------------------------------------------------------------
+# STEP 1: extract the genomic interval
+# ------------------------------------------------------------
+
+echo '===== STEP 1: EXTRACT REFERENCE REGION ====='
+
+# grab the chr16 region spanning PLA2-5, PLA2-6, and flanking sequence
+samtools faidx "$REF" 'G_ussuri_chr16:289000-310000' > "$REGION"
+
+echo "Reference: $REGION"
+
+# ------------------------------------------------------------
+# STEP 2: align original HiFi reads
+# ------------------------------------------------------------
+
+echo
+echo '===== STEP 2: TARGETED HIFI ALIGNMENT ====='
+
+minimap2 \
+    -x map-hifi \
+    -c \
+    --secondary=no \
+    -t "${SLURM_CPUS_PER_TASK:-8}" \
+    "$REGION" \
+    "$HIFI" \
+    > "$PAF" \
+    2> "${OUTDIR}/minimap2.log"
+
+echo "PAF file: $PAF"
+
+# ------------------------------------------------------------
+# STEP 3: evaluate spanning HiFi reads
+# ------------------------------------------------------------
+
+echo
+echo '===== STEP 3: TEST TANDEM DUPLICATION SUPPORT ====='
+
+python - "$PAF" "$SUMMARY" "$BRIDGES" <<'PY'
+import sys
+import csv
+import re
+from collections import defaultdict
+
+paf_file, summary_file, bridges_file = sys.argv[1:]
+
+# Original genomic coordinates (1-based inclusive)
+region_start = 289000
+
+pla2_5 = (293721, 295345)
+pla2_6 = (302420, 304043)
+
+# Require alignment 250 bp beyond both genes.
+flank = 250
+
+bridge_left = pla2_5[0] - flank
+bridge_right = pla2_6[1] + flank
+
+# Minimum alignment identity.
+min_identity = 0.97
+
+# Maximum single deletion allowed within a bridging alignment.
+max_deletion = 100
+
+aligned = set()
+span_5 = set()
+span_6 = set()
+bridge_any = set()
+bridge_high_quality = {}
+
+def parse_cigar(text):
+    operations = re.findall(r'(\d+)([MIDNSHP=X])', text)
+
+    if ''.join(n + op for n, op in operations) != text:
+        return None
+
+    return [(int(n), op) for n, op in operations]
+
+with open(paf_file) as f:
+
+    for line in f:
+        if not line.strip():
+            continue
+
+        fields = line.rstrip('\n').split('\t')
+
+        if len(fields) < 12:
+            continue
+
+        qname = fields[0]
+
+        try:
+            qlength = int(fields[1])
+            qstart = int(fields[2])
+            qend = int(fields[3])
+            tstart = int(fields[7])
+            tend = int(fields[8])
+            matches = int(fields[9])
+            alignment_length = int(fields[10])
+            mapq = int(fields[11])
+        except ValueError:
+            continue
+
+        if alignment_length == 0:
+            continue
+
+        tags = {}
+
+        for tag in fields[12:]:
+            parts = tag.split(':', 2)
+            if len(parts) == 3:
+                tags[parts[0]] = parts[2]
+
+        # Exclude non-primary PAF alignments.
+        if tags.get('tp', 'P') != 'P':
+            continue
+
+        aligned.add(qname)
+
+        # Convert target-local PAF coordinates to genome coordinates.
+        # PAF target start is 0-based; target end is exclusive.
+        genome_start = region_start + tstart
+        genome_end = region_start + tend - 1
+
+        identity = matches / alignment_length
+
+        if (
+            genome_start <= pla2_5[0]
+            and genome_end >= pla2_5[1]
+        ):
+            span_5.add(qname)
+
+        if (
+            genome_start <= pla2_6[0]
+            and genome_end >= pla2_6[1]
+        ):
+            span_6.add(qname)
+
+        if not (
+            genome_start <= bridge_left
+            and genome_end >= bridge_right
+        ):
+            continue
+
+        bridge_any.add(qname)
+
+        cigar_text = tags.get('cg')
+
+        if not cigar_text:
+            continue
+
+        operations = parse_cigar(cigar_text)
+
+        if operations is None:
+            continue
+
+        # Reject alignments with large reference gaps.
+        large_gap = any(
+            op == 'N' or (op == 'D' and n > max_deletion)
+            for n, op in operations
+        )
+
+        if large_gap or identity < min_identity:
+            continue
+
+        record = {
+            'read': qname,
+            'read_length': qlength,
+            'query_start': qstart,
+            'query_end': qend,
+            'genome_start': genome_start,
+            'genome_end': genome_end,
+            'identity': identity,
+            'mapq': mapq,
+            'cigar': cigar_text
+        }
+
+        previous = bridge_high_quality.get(qname)
+
+        if previous is None or identity > previous['identity']:
+            bridge_high_quality[qname] = record
+
+# ------------------------------------------------------------
+# Save summary
+# ------------------------------------------------------------
+
+statistics = [
+    ('Distinct_HiFi_reads_aligned_to_target', len(aligned)),
+    ('Reads_spanning_PLA2_5', len(span_5)),
+    ('Reads_spanning_PLA2_6', len(span_6)),
+    ('Reads_spanning_both_plus_250bp', len(bridge_any)),
+    ('High_identity_continuous_bridging_reads', len(bridge_high_quality))
+]
+
+with open(summary_file, 'w', newline='') as f:
+    writer = csv.writer(f, delimiter='\t')
+    writer.writerow(['Metric', 'Count'])
+    writer.writerows(statistics)
+
+with open(bridges_file, 'w', newline='') as f:
+    writer = csv.writer(f, delimiter='\t')
+
+    writer.writerow([
+        'Read_ID',
+        'Read_length',
+        'Query_start_0based',
+        'Query_end_exclusive',
+        'Alignment_start',
+        'Alignment_end',
+        'Alignment_identity_percent',
+        'MAPQ_local_reference',
+        'CIGAR'
+    ])
+
+    for read in sorted(bridge_high_quality):
+        r = bridge_high_quality[read]
+
+        writer.writerow([
+            r['read'],
+            r['read_length'],
+            r['query_start'],
+            r['query_end'],
+            r['genome_start'],
+            r['genome_end'],
+            round(100*r['identity'], 3),
+            r['mapq'],
+            r['cigar']
+        ])
+
+print('\n===== PLA2 TANDEM DUPLICATION HIFI SUPPORT =====')
+
+for name, value in statistics:
+    print('{}\t{}'.format(name, value))
+
+print('\n===== BRIDGING READS (FIRST 20) =====')
+print('Read_ID\tAlignment_start\tAlignment_end\tIdentity_%')
+
+for read in sorted(bridge_high_quality)[:20]:
+    r = bridge_high_quality[read]
+
+    print('{}\t{}\t{}\t{:.3f}'.format(
+        read,
+        r['genome_start'],
+        r['genome_end'],
+        100*r['identity']
+    ))
+
+print('\nSummary:', summary_file)
+print('Bridging reads:', bridges_file)
+PY
+
+echo
+echo '===== COMPLETED ====='
+echo 'Status: PASS'
+```
