@@ -1,4 +1,6 @@
 ### (Post-Hi-C) Finalizing toxin gene annotation
+I think this section deserves a fair warning: this is a pretty intensive process!!
+
 First check the basic toxin annotation outputs form ToxCodAn-Genome:
 ```sh
 #cd into output dir
@@ -8208,7 +8210,6 @@ For PLA2-4, CTL-10, CTL-16, Ficolin-4, HYAL-4, SVSP-16, we won't automatically c
 
 Run the script below to create this manifest. It creates a TSV without altering the original GTF, CDS, or protein FASTA files.
 ```sh
-
 WORKDIR='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome'
 
 python3 - "$WORKDIR" <<'PY'
@@ -8978,4 +8979,712 @@ PY
 ```
 The `curated_nonredundant` files are the comprehensive working annotation, retaining flagged predictions for transparency. The `core_candidates` files provide a more conservative set for downstream protein analyses.
 
-As a final step
+As a final step, we will run a final integrity check and generate publication-ready annotation statistics. We'll use the files already generated. The final integrity check will verify that:
+1) All GTF, CDS FASTA, and protein FASTA exports contain exactly the expected genes.
+2) Exported sequences and original genomic annotations remain unchanged, apart from curation metadata.
+3) CDS and protein translations are consistent, with any discrepancies reported.
+4) The final toxin-family counts agree with the curation manifest.
+
+We'll generate two reporting tables: a gene-level check for all 120 predictions and a family-level summary suitable for publication. This check will also distinguish export integrity from biological annotation confidence, since a correctly exported protein sequence is not necessarily a verified venom toxin.
+```sh
+
+WORKDIR='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome'
+
+python3 - "$WORKDIR" <<'PY'
+import os
+import re
+import sys
+import csv
+from collections import Counter, defaultdict
+
+workdir = sys.argv[1]
+curdir = os.path.join(workdir, 'all120_QC', 'curation')
+outdir = os.path.join(curdir, 'exports')
+
+manifest_path = os.path.join(
+    curdir, 'provisional_curation_manifest.tsv'
+)
+
+original_files = {
+    'gtf': os.path.join(workdir, 'toxin_annotation.gtf'),
+    'cds': os.path.join(workdir, 'toxin_annotation_cds.fasta'),
+    'pep': os.path.join(workdir, 'toxin_annotation_pep.fasta')
+}
+
+check_file = os.path.join(
+    outdir, 'final_gene_integrity_check.tsv'
+)
+
+family_file = os.path.join(
+    outdir, 'final_family_reporting_summary.tsv'
+)
+
+report_file = os.path.join(
+    outdir, 'final_integrity_report.txt'
+)
+
+# ------------------------------------------------------------
+# 1. Load manifest
+# ------------------------------------------------------------
+
+manifest = {}
+
+with open(manifest_path) as f:
+    for row in csv.DictReader(f, delimiter='\t'):
+        gene = row['Original_ID']
+
+        if gene in manifest:
+            raise RuntimeError(
+                'Duplicate manifest ID: ' + gene
+            )
+
+        manifest[gene] = row
+
+all_ids = set(manifest)
+
+if len(all_ids) != 120:
+    raise RuntimeError(
+        'Expected 120 predictions; found {}'.format(
+            len(all_ids)
+        )
+    )
+
+nonredundant = {
+    g for g in all_ids
+    if manifest[g]['Curation_status'] != 'exclude_redundant'
+}
+
+core_statuses = {
+    'retain',
+    'retain_provisional',
+    'reclassify_provisional'
+}
+
+core = {
+    g for g in all_ids
+    if manifest[g]['Curation_status'] in core_statuses
+}
+
+excluded = all_ids - nonredundant
+
+datasets = {
+    'curated_nonredundant': nonredundant,
+    'core_candidates': core,
+    'excluded_redundant': excluded
+}
+
+expected_counts = {
+    'curated_nonredundant': 118,
+    'core_candidates': 110,
+    'excluded_redundant': 2
+}
+
+for name, selected in datasets.items():
+    if len(selected) != expected_counts[name]:
+        raise RuntimeError(
+            'Unexpected count for ' + name
+        )
+
+# ------------------------------------------------------------
+# 2. Functions for reading annotation records
+# ------------------------------------------------------------
+
+def gene_from_attributes(attrs):
+    m = re.search(
+        r'\bgene_id\s+"([^"]+)"',
+        attrs
+    )
+    if not m:
+        raise RuntimeError('Missing gene_id: ' + attrs)
+    return m.group(1)
+
+def attribute_value(attrs, key):
+    m = re.search(
+        r'\b' + re.escape(key) + r'\s+"([^"]*)"',
+        attrs
+    )
+    return m.group(1) if m else None
+
+def original_attributes(attrs):
+    ignore = {
+        'curation_status',
+        'locus_group',
+        'curated_name'
+    }
+
+    items = [
+        x.strip() for x in attrs.split(';')
+        if x.strip()
+    ]
+
+    return [
+        x for x in items
+        if x.split(None, 1)[0] not in ignore
+    ]
+
+def read_gtf(path):
+    records = defaultdict(list)
+
+    with open(path) as f:
+        for line in f:
+            if not line.strip() or line.startswith('#'):
+                continue
+
+            fields = line.rstrip('\n').split('\t')
+
+            if len(fields) != 9:
+                raise RuntimeError(
+                    'Invalid GTF record: ' + path
+                )
+
+            gene = gene_from_attributes(fields[8])
+            records[gene].append(fields)
+
+    return records
+
+def read_fasta(path):
+    raw = []
+    header = None
+    chunks = []
+
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            if line.startswith('>'):
+                if header is not None:
+                    raw.append((header, ''.join(chunks)))
+
+                header = line[1:]
+                chunks = []
+            else:
+                if header is None:
+                    raise RuntimeError(
+                        'FASTA sequence before header: ' + path
+                    )
+                chunks.append(line)
+
+    if header is not None:
+        raw.append((header, ''.join(chunks)))
+
+    records = {}
+
+    for header, sequence in raw:
+        matches = [
+            gene for gene in all_ids
+            if re.search(
+                r'(?<![A-Za-z0-9])' +
+                re.escape(gene) +
+                r'(?![A-Za-z0-9])',
+                header
+            )
+        ]
+
+        if len(matches) != 1:
+            raise RuntimeError(
+                'Ambiguous FASTA header: ' + header
+            )
+
+        gene = matches[0]
+
+        if gene in records:
+            raise RuntimeError(
+                'Duplicate FASTA gene: ' + gene
+            )
+
+        if not sequence:
+            raise RuntimeError(
+                'Empty FASTA sequence: ' + gene
+            )
+
+        records[gene] = (header, sequence)
+
+    return records
+
+# ------------------------------------------------------------
+# 3. Load original annotations
+# ------------------------------------------------------------
+
+original_gtf = read_gtf(original_files['gtf'])
+original_cds = read_fasta(original_files['cds'])
+original_pep = read_fasta(original_files['pep'])
+
+for label, records in [
+    ('Original GTF', original_gtf),
+    ('Original CDS', original_cds),
+    ('Original protein', original_pep)
+]:
+    if set(records) != all_ids:
+        raise RuntimeError(
+            '{} does not match manifest IDs'.format(label)
+        )
+
+print('===== ORIGINAL INPUT VALIDATION =====')
+print('Manifest:', len(manifest))
+print('Original GTF genes:', len(original_gtf))
+print('Original CDS records:', len(original_cds))
+print('Original protein records:', len(original_pep))
+
+# ------------------------------------------------------------
+# 4. Verify all exported datasets
+# ------------------------------------------------------------
+
+export_results = {}
+
+for name, expected_ids in datasets.items():
+
+    paths = {
+        'gtf': os.path.join(outdir, name + '.gtf'),
+        'cds': os.path.join(outdir, name + '.cds.fasta'),
+        'pep': os.path.join(outdir, name + '.pep.fasta')
+    }
+
+    for path in paths.values():
+        if not os.path.isfile(path):
+            raise RuntimeError('Missing export: ' + path)
+
+    gtf = read_gtf(paths['gtf'])
+    cds = read_fasta(paths['cds'])
+    pep = read_fasta(paths['pep'])
+
+    for label, records in [
+        ('GTF', gtf), ('CDS', cds), ('Protein', pep)
+    ]:
+        if set(records) != expected_ids:
+            missing = sorted(expected_ids - set(records))
+            extra = sorted(set(records) - expected_ids)
+
+            raise RuntimeError(
+                '{} {} IDs differ: missing={} extra={}'.format(
+                    name, label, missing, extra
+                )
+            )
+
+    for gene in expected_ids:
+
+        # Compare GTF features and original attributes.
+        old_features = original_gtf[gene]
+        new_features = gtf[gene]
+
+        if len(old_features) != len(new_features):
+            raise RuntimeError(
+                'GTF feature count changed: ' + gene
+            )
+
+        for old, new in zip(old_features, new_features):
+
+            if old[:8] != new[:8]:
+                raise RuntimeError(
+                    'GTF coordinates/features changed: ' + gene
+                )
+
+            if original_attributes(old[8]) != original_attributes(new[8]):
+                raise RuntimeError(
+                    'Original GTF attributes changed: ' + gene
+                )
+
+            expected_status = manifest[gene]['Curation_status']
+            expected_group = manifest[gene]['Locus_group']
+
+            if attribute_value(new[8], 'curation_status') != expected_status:
+                raise RuntimeError(
+                    'Incorrect curation status: ' + gene
+                )
+
+            if attribute_value(new[8], 'locus_group') != expected_group:
+                raise RuntimeError(
+                    'Incorrect locus group: ' + gene
+                )
+
+            proposed = manifest[gene]['Proposed_ID']
+            curated_name = attribute_value(
+                new[8], 'curated_name'
+            )
+
+            expected_name = (
+                proposed if proposed != gene else None
+            )
+
+            if curated_name != expected_name:
+                raise RuntimeError(
+                    'Incorrect curated name: ' + gene
+                )
+
+        # Compare CDS and protein sequences exactly.
+        for label, original, exported in [
+            ('CDS', original_cds, cds),
+            ('Protein', original_pep, pep)
+        ]:
+            old_header, old_sequence = original[gene]
+            new_header, new_sequence = exported[gene]
+
+            if old_sequence != new_sequence:
+                raise RuntimeError(
+                    '{} sequence changed: {}'.format(
+                        label, gene
+                    )
+                )
+
+            proposed = manifest[gene]['Proposed_ID']
+
+            expected_header = old_header
+
+            if proposed != gene:
+                expected_header += ' curated_name=' + proposed
+
+            if new_header != expected_header:
+                raise RuntimeError(
+                    '{} header changed unexpectedly: {}'.format(
+                        label, gene
+                    )
+                )
+
+    export_results[name] = {
+        'gtf': len(gtf),
+        'cds': len(cds),
+        'pep': len(pep),
+        'loci': len({
+            manifest[g]['Locus_group']
+            for g in expected_ids
+        })
+    }
+
+print('\n===== EXPORT INTEGRITY =====')
+
+for name, result in export_results.items():
+    print(
+        '{}: GTF={}, CDS={}, protein={}, locus_groups={}'.format(
+            name,
+            result['gtf'],
+            result['cds'],
+            result['pep'],
+            result['loci']
+        )
+    )
+
+print('Exported records and sequences: PASS')
+
+# ------------------------------------------------------------
+# 5. Check CDS-to-protein translation
+# ------------------------------------------------------------
+
+bases = 'TCAG'
+
+amino_acids = (
+    'FFLLSSSSYY**CC*W'
+    'LLLLPPPPHHQQRRRR'
+    'IIIMTTTTNNKKSSRR'
+    'VVVVAAAADDEEGGGG'
+)
+
+codon_table = dict(zip(
+    (a+b+c for a in bases for b in bases for c in bases),
+    amino_acids
+))
+
+def translate(seq):
+    seq = seq.upper()
+
+    return ''.join(
+        codon_table.get(seq[i:i+3], 'X')
+        for i in range(0, len(seq)-2, 3)
+    )
+
+def curated_family(gene):
+    proposed = manifest[gene]['Proposed_ID']
+    return proposed.rsplit('-', 1)[0]
+
+gene_rows = []
+sequence_warnings = []
+
+for gene in sorted(all_ids):
+
+    cds = original_cds[gene][1].upper()
+    peptide = original_pep[gene][1].upper()
+
+    translation = translate(cds)
+
+    # Ignore differences only in trailing stop symbols.
+    translated_body = translation.rstrip('*')
+    peptide_body = peptide.rstrip('*')
+
+    translation_matches = translated_body == peptide_body
+    frame_valid = len(cds) % 3 == 0
+
+    internal_stops = peptide_body.count('*')
+    translated_internal_stops = translated_body.count('*')
+
+    core_member = gene in core
+    nonredundant_member = gene in nonredundant
+
+    if not translation_matches:
+        sequence_warnings.append(
+            '{}: CDS/protein translation mismatch'.format(gene)
+        )
+
+    if not frame_valid:
+        sequence_warnings.append(
+            '{}: CDS length not divisible by 3'.format(gene)
+        )
+
+    if core_member and internal_stops:
+        sequence_warnings.append(
+            '{}: core candidate has internal stops'.format(gene)
+        )
+
+    gene_rows.append({
+        'Original_ID': gene,
+        'Curated_name': manifest[gene]['Proposed_ID'],
+        'Curated_family': curated_family(gene),
+        'Status': manifest[gene]['Curation_status'],
+        'Locus_group': manifest[gene]['Locus_group'],
+        'In_nonredundant': nonredundant_member,
+        'In_core': core_member,
+        'CDS_length_bp': len(cds),
+        'Protein_length_aa': len(peptide.rstrip('*')),
+        'CDS_in_frame': frame_valid,
+        'CDS_protein_match': translation_matches,
+        'Protein_internal_stops': internal_stops,
+        'Translated_internal_stops': translated_internal_stops,
+        'Terminal_stop_symbols': len(peptide)-len(peptide.rstrip('*')),
+        'Rationale': manifest[gene]['Rationale']
+    })
+
+# ------------------------------------------------------------
+# 6. Export gene-level check
+# ------------------------------------------------------------
+
+gene_columns = [
+    'Original_ID',
+    'Curated_name',
+    'Curated_family',
+    'Status',
+    'Locus_group',
+    'In_nonredundant',
+    'In_core',
+    'CDS_length_bp',
+    'Protein_length_aa',
+    'CDS_in_frame',
+    'CDS_protein_match',
+    'Protein_internal_stops',
+    'Translated_internal_stops',
+    'Terminal_stop_symbols',
+    'Rationale'
+]
+
+with open(check_file, 'w', newline='') as f:
+    writer = csv.DictWriter(
+        f, fieldnames=gene_columns, delimiter='\t'
+    )
+    writer.writeheader()
+    writer.writerows(gene_rows)
+
+# ------------------------------------------------------------
+# 7. Publication-ready family summary
+# ------------------------------------------------------------
+
+family_groups = defaultdict(list)
+
+for row in gene_rows:
+    family_groups[row['Curated_family']].append(row)
+
+family_rows = []
+
+for family, rows in family_groups.items():
+
+    family_rows.append({
+        'Family': family,
+        'Original_predictions': len(rows),
+        'Nonredundant': sum(
+            r['In_nonredundant'] for r in rows
+        ),
+        'Core_candidates': sum(
+            r['In_core'] for r in rows
+        ),
+        'Excluded_redundant': sum(
+            r['Status'] == 'exclude_redundant'
+            for r in rows
+        ),
+        'Disrupted_CDS': sum(
+            r['Status'] == 'flag_disrupted_cds'
+            for r in rows
+        ),
+        'Unresolved_models': sum(
+            r['Status'] == 'unresolved_overlap'
+            for r in rows
+        )
+    })
+
+family_rows.sort(
+    key=lambda r: (-r['Core_candidates'], r['Family'])
+)
+
+family_columns = [
+    'Family',
+    'Original_predictions',
+    'Nonredundant',
+    'Core_candidates',
+    'Excluded_redundant',
+    'Disrupted_CDS',
+    'Unresolved_models'
+]
+
+with open(family_file, 'w', newline='') as f:
+    writer = csv.DictWriter(
+        f, fieldnames=family_columns, delimiter='\t'
+    )
+    writer.writeheader()
+    writer.writerows(family_rows)
+
+# ------------------------------------------------------------
+# 8. Final report
+# ------------------------------------------------------------
+
+counts = Counter(
+    manifest[g]['Curation_status']
+    for g in all_ids
+)
+
+report = []
+
+report.append('GLOYDIUS USSURIENSIS TOXIN ANNOTATION')
+report.append('FINAL EXPORT INTEGRITY CHECK')
+report.append('')
+
+report.append('Original predictions: {}'.format(len(all_ids)))
+report.append('Nonredundant predictions: {}'.format(len(nonredundant)))
+report.append('Core coding candidates: {}'.format(len(core)))
+report.append('Curated families: {}'.format(len(family_rows)))
+
+report.append('')
+report.append('CURATION STATUS COUNTS')
+
+for status, count in sorted(counts.items()):
+    report.append('{}: {}'.format(status, count))
+
+report.append('')
+report.append('EXPORT INTEGRITY: PASS')
+report.append('GTF annotations and FASTA sequences are preserved.')
+report.append('')
+
+report.append('SEQUENCE CONSISTENCY')
+
+report.append(
+    'CDS/protein matches: {} / 120'.format(
+        sum(r['CDS_protein_match'] for r in gene_rows)
+    )
+)
+
+report.append(
+    'CDS divisible by three: {} / 120'.format(
+        sum(r['CDS_in_frame'] for r in gene_rows)
+    )
+)
+
+report.append(
+    'Original proteins with internal stops: {}'.format(
+        sum(r['Protein_internal_stops'] > 0 for r in gene_rows)
+    )
+)
+
+report.append('')
+report.append('SEQUENCE WARNINGS: {}'.format(
+    len(sequence_warnings)
+))
+
+for warning in sequence_warnings:
+    report.append('- ' + warning)
+
+report.append('')
+report.append('INTERPRETATION')
+report.append(
+    'Core candidates are computationally curated protein models,'
+)
+report.append(
+    'not experimentally confirmed venom toxin genes.'
+)
+report.append(
+    'PLA2I-like-1 is not counted as an enzymatic PLA2.'
+)
+report.append(
+    'SVMP-16 and SVMP-17 remain an unresolved overlapping locus.'
+)
+report.append(
+    'Internal-stop models are not automatically classified as pseudogenes.'
+)
+
+with open(report_file, 'w') as f:
+    f.write('\n'.join(report) + '\n')
+
+# ------------------------------------------------------------
+# 9. Print concise output
+# ------------------------------------------------------------
+
+print('\n===== FINAL ANNOTATION SUMMARY =====')
+print('Original predictions:', len(all_ids))
+print('Nonredundant predictions:', len(nonredundant))
+print('Core coding candidates:', len(core))
+print('Curated family labels:', len(family_rows))
+
+print('\n===== SEQUENCE CONSISTENCY =====')
+print(
+    'CDS/protein matches:',
+    sum(r['CDS_protein_match'] for r in gene_rows),
+    '/ 120'
+)
+
+print(
+    'CDS lengths divisible by 3:',
+    sum(r['CDS_in_frame'] for r in gene_rows),
+    '/ 120'
+)
+
+print(
+    'Proteins with internal stops:',
+    sum(r['Protein_internal_stops'] > 0 for r in gene_rows)
+)
+
+print('Sequence warnings:', len(sequence_warnings))
+
+for warning in sequence_warnings:
+    print('WARNING:', warning)
+
+print('\n===== FAMILY SUMMARY =====')
+
+for row in family_rows:
+    print(
+        '{}\tOriginal={}\tNonredundant={}\tCore={}'.format(
+            row['Family'],
+            row['Original_predictions'],
+            row['Nonredundant'],
+            row['Core_candidates']
+        )
+    )
+
+print('\n===== OUTPUT FILES =====')
+print(check_file)
+print(family_file)
+print(report_file)
+
+print('\n===== CHECK COMPLETED =====')
+PY
+```
+This will show that the export integrity is fully validated. However, we should be precise about the biological interpretation. The 110 core models represent computationally curated candidate venom toxin coding sequences, not 110 experimentally confirmed venom toxins. In the manuscript, they should therefore be described as a curated repertoire of toxin-related gene candidates, rather than a definitive count of functional venom toxin genes. A definitive count of functional venom toxin genes would require experimental validation.
+
+The major gene family counts are as follows:
+```sh
+Family	|  Nonredundant	 |  Core candidates
+-------------------------------------------
+SVSP	|            21  |	             20
+SVMP	|            19	 |               17
+CTL	    |            18	 |               16
+LAO	    |            10  |               10
+PLA2	|             6	 |                5
+3FTx	|             5  |   	          5
+CRISP	|             4	 |                4
+KUN	    |             4	 |                4
+```
+The most abundant annotated families are SVSPs, SVMPs, and CTLs, broadly comparable to other viperid toxin gene annotations.
