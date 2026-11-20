@@ -8561,3 +8561,928 @@ echo
 echo '===== COMPLETED ====='
 echo 'Status: PASS'
 ```
+
+Once this finishes running, examine whether individual HiFi reads span both PLA2 copies and the intervening 7,074-bp region.
+```sh
+ROOT='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo'
+OUTDIR="$ROOT/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/all120_QC/PLA2_HiFi_validation"
+
+echo '===== HIFI VALIDATION SUMMARY ====='
+column -t "$OUTDIR/PLA2_HiFi_support_summary.tsv"
+
+echo
+echo '===== BRIDGING READS (FIRST 15) ====='
+head -n 16 "$OUTDIR/PLA2_HiFi_bridging_reads.tsv" | cut -f 1-8 | column -t
+
+echo
+echo '===== TOTAL HIGH-QUALITY BRIDGING READS ====='
+tail -n +2 "$OUTDIR/PLA2_HiFi_bridging_reads.tsv" | wc -l
+```
+This will show that the HiFi results provide strong evidence that PLA2-5 and PLA2-6 are two genuine tandemly arranged gene copies, rather than redundant annotations or an obvious assembly artifact. There are 35 distinct HiFi reads that align continuously across both PLA2 copies, the 7,074-bp intervening region, and at least 250 bp beyond each gene. There are a total of 107 reads spanning PLA2-5 and 99 reads spanning PLA2-6. 
+
+#### SVMP-5 / SVMP-6
+Our previous comparison showed that the entire SVMP-6 CDS overlaps SVMP-5, with 10 shared exons and 10 shared splice junctions. Unlike PLA2-5/6, these predictions occupy the same genomic locus. They may be alternative gene models rather than separate genes.
+
+An important point is that SVMP-5 has support for all 13 expected junctions, whereas SVMP-6 has support for 10 of 11. We need to identify which junctions distinguish the two models. Let's check exon differences and model-specific splice support:
+```sh
+
+WORKDIR='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome'
+
+python3 - "$WORKDIR" <<'PY'
+import os
+import re
+import sys
+import csv
+from collections import defaultdict
+
+workdir = sys.argv[1]
+
+gtf = os.path.join(workdir, 'toxin_annotation.gtf')
+pep = os.path.join(workdir, 'toxin_annotation_pep.fasta')
+junction_file = os.path.join(
+    workdir, 'all120_QC', 'toxin_all120_RNA_junctions.tsv'
+)
+
+genes = ['SVMP-5', 'SVMP-6']
+exons = defaultdict(set)
+junction_support = defaultdict(dict)
+
+with open(gtf) as f:
+    for line in f:
+        if line.startswith('#'):
+            continue
+        fields = line.rstrip('\n').split('\t')
+        if len(fields) < 9 or fields[2] != 'CDS':
+            continue
+        m = re.search(r'gene_id "([^"]+)"', fields[8])
+        if m and m.group(1) in genes:
+            exons[m.group(1)].add(
+                (int(fields[3]), int(fields[4]))
+            )
+
+with open(junction_file) as f:
+    for r in csv.DictReader(f, delimiter='\t'):
+        if r['Gene'] in genes:
+            key = (
+                int(r['Left_exon_end']),
+                int(r['Right_exon_start'])
+            )
+            junction_support[r['Gene']][key] = int(
+                r['Supporting_alignments_MAPQ20_anchor8']
+            )
+
+def read_protein(path, gene):
+    header, parts = None, []
+    matches = []
+    pattern = re.compile(
+        r'(?<![A-Za-z0-9])' + re.escape(gene) +
+        r'(?![A-Za-z0-9])'
+    )
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith('>'):
+                if header and pattern.search(header):
+                    matches.append(''.join(parts).rstrip('*'))
+                header, parts = line[1:], []
+            elif line:
+                parts.append(line)
+    if header and pattern.search(header):
+        matches.append(''.join(parts).rstrip('*'))
+    if len(matches) != 1:
+        raise RuntimeError('Expected one protein for ' + gene)
+    return matches[0]
+
+a, b = genes
+
+print('===== EXON STRUCTURE =====')
+for gene in genes:
+    print('\n' + gene)
+    for start, end in sorted(exons[gene]):
+        status = (
+            'SHARED' if (start, end) in exons[
+                b if gene == a else a
+            ] else 'MODEL_SPECIFIC'
+        )
+        print('{}-{}\t{}'.format(start, end, status))
+
+print('\n===== MODEL-SPECIFIC JUNCTIONS =====')
+
+for gene in genes:
+    other = b if gene == a else a
+    own = junction_support[gene]
+    other_set = set(junction_support[other])
+
+    print('\n' + gene)
+    unique = sorted(set(own) - other_set)
+
+    if not unique:
+        print('No model-specific junctions')
+
+    for left, right in unique:
+        n = own[(left, right)]
+        print('{}-{}\t{} supporting alignments\t{}'.format(
+            left, right, n,
+            'SUPPORTED' if n >= 3 else 'WEAK_OR_UNSUPPORTED'
+        ))
+
+print('\n===== PROTEIN COMPARISON =====')
+p1 = read_protein(pep, a)
+p2 = read_protein(pep, b)
+
+print('{} length: {} aa'.format(a, len(p1)))
+print('{} length: {} aa'.format(b, len(p2)))
+print('SVMP-6 contained within SVMP-5:', p2 in p1)
+
+if p2 in p1:
+    position = p1.find(p2)
+    print('SVMP-6 maps to SVMP-5 residues {}-{}'.format(
+        position + 1, position + len(p2)
+    ))
+
+print('\nSVMP-5 N-terminal 80 aa:', p1[:80])
+print('SVMP-6 N-terminal 80 aa:', p2[:80])
+print('\nSVMP-5 C-terminal 60 aa:', p1[-60:])
+print('SVMP-6 C-terminal 60 aa:', p2[-60:])
+PY
+```
+The output will support retaining SVMP-5 and excluding SVMP-6 as a redundant, likely truncated gene prediction. First, there is evidence from gene structure. 
+- SVMP-5 has two additional upstream exons, with splice junctions supported by 15,888 and 16,942 alignments. 
+- Its splice acceptor at position 5,588,773 is supported by 46,528 alignments.
+- SVMP-6 instead predicts an alternative acceptor at position 5,588,782, just 9 bp downstream, with zero supporting alignments under our RNA-junction filtering criteria.
+- SVMP-6 lacks the N-terminal portion of SVMP-5, including its putative secretion signal.
+
+Based on this evidence, we will exclude SVMP-6. As with PLA2-1, we will record this decision now and modify the final GTF, CDS, and protein FASTA files together during the final curation step.
+
+#### SVMP-16 / SVMP-17
+This pair is more complicated because its gene models overlap only partially, and their genomic boundaries differ substantially. Let's examine their model-specific exon structures and splice junctions using the same criteria.
+```sh
+WORKDIR='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome'
+
+python3 - "$WORKDIR" <<'PY'
+import os
+import re
+import sys
+import csv
+from collections import defaultdict
+
+workdir = sys.argv[1]
+gtf = os.path.join(workdir, 'toxin_annotation.gtf')
+junction_file = os.path.join(workdir, 'all120_QC', 'toxin_all120_RNA_junctions.tsv')
+
+genes = ['SVMP-16', 'SVMP-17']
+exons = defaultdict(set)
+junctions = defaultdict(dict)
+
+with open(gtf) as f:
+    for line in f:
+        if line.startswith('#'):
+            continue
+        fields = line.rstrip('\n').split('\t')
+        if len(fields) < 9 or fields[2] != 'CDS':
+            continue
+        m = re.search(r'gene_id "([^"]+)"', fields[8])
+        if m and m.group(1) in genes:
+            exons[m.group(1)].add((int(fields[3]), int(fields[4])))
+
+with open(junction_file) as f:
+    for row in csv.DictReader(f, delimiter='\t'):
+        if row['Gene'] in genes:
+            key = (int(row['Left_exon_end']), int(row['Right_exon_start']))
+            junctions[row['Gene']][key] = int(row['Supporting_alignments_MAPQ20_anchor8'])
+
+print('===== EXON STRUCTURE =====')
+
+for gene in genes:
+    other = next(g for g in genes if g != gene)
+    print('\n' + gene)
+    print('CDS segments:', len(exons[gene]))
+    print('Total CDS bp:', sum(b-a+1 for a,b in exons[gene]))
+
+    for start, end in sorted(exons[gene]):
+        status = 'SHARED' if (start, end) in exons[other] else 'MODEL_SPECIFIC'
+        print('{}-{}\t{}'.format(start, end, status))
+
+print('\n===== MODEL-SPECIFIC SPLICE JUNCTIONS =====')
+
+for gene in genes:
+    other = next(g for g in genes if g != gene)
+    unique = sorted(set(junctions[gene]) - set(junctions[other]))
+
+    print('\n' + gene)
+    print('Total junctions:', len(junctions[gene]))
+    print('Model-specific junctions:', len(unique))
+
+    if not unique:
+        print('None')
+
+    for left, right in unique:
+        n = junctions[gene][(left, right)]
+        print('{}-{}\t{} alignments\t{}'.format(
+            left, right, n,
+            'SUPPORTED' if n >= 3 else 'WEAK_OR_UNSUPPORTED'
+        ))
+
+print('\n===== SHARED JUNCTION SUPPORT =====')
+
+shared = sorted(set(junctions[genes[0]]) & set(junctions[genes[1]]))
+
+for left, right in shared:
+    print('{}-{}\tSVMP-16: {}\tSVMP-17: {}'.format(
+        left, right,
+        junctions['SVMP-16'][(left, right)],
+        junctions['SVMP-17'][(left, right)]
+    ))
+PY
+```
+
+The output will suggest that these two gene are actually two partially overlapping, incomplete predictions of a single SVMP gene. Unlike SVMP-5/6, both SVMP-16 and SVMP-17 have strongly supported, model-specific splice junctions, but they share the same central coding region. Therefore, removing either model without additional investigation could discard genuinely supported coding regions. Also, we should not simply concatenate the models and assume the resulting protein is valid.
+
+Next, we will attempt to reconstruct a candidate complete SVMP coding sequence. This check will combine the upstream CDS structure of SVMP-16 with the downstream CDS structure of SVMP-17, retaining their shared central exons only once.We will test whether this candidate has an intact reading frame, an appropriate termination codon, and sequence continuity with the original proteins. 
+```sh
+# make sure to activate the funannotate conda env prior to running this
+
+ROOT='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo'
+WORKDIR="$ROOT/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+REF="$ROOT/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
+
+python3 - "$WORKDIR/toxin_annotation.gtf" "$REF" "$WORKDIR/toxin_annotation_pep.fasta" <<'PY'
+import sys
+import re
+import subprocess
+from collections import defaultdict
+
+gtf, reference, protein_fasta = sys.argv[1:]
+genes = ('SVMP-16', 'SVMP-17')
+
+models = defaultdict(list)
+chromosomes = {}
+strands = {}
+
+# ------------------------------------------------------------
+# 1. Read original CDS models
+# ------------------------------------------------------------
+
+with open(gtf) as f:
+    for line in f:
+        if line.startswith('#'):
+            continue
+
+        fields = line.rstrip('\n').split('\t')
+
+        if len(fields) < 9 or fields[2] != 'CDS':
+            continue
+
+        match = re.search(r'gene_id "([^"]+)"', fields[8])
+
+        if not match or match.group(1) not in genes:
+            continue
+
+        gene = match.group(1)
+
+        chromosomes[gene] = fields[0]
+        strands[gene] = fields[6]
+
+        models[gene].append((
+            int(fields[3]),
+            int(fields[4])
+        ))
+
+for gene in genes:
+    models[gene].sort()
+
+    if not models[gene]:
+        raise RuntimeError('Missing gene: ' + gene)
+
+if len(set(chromosomes.values())) != 1:
+    raise RuntimeError('Genes are on different chromosomes')
+
+if len(set(strands.values())) != 1:
+    raise RuntimeError('Genes have different strands')
+
+chrom = chromosomes['SVMP-16']
+strand = strands['SVMP-16']
+
+# ------------------------------------------------------------
+# 2. Construct hypothetical merged CDS structure
+# ------------------------------------------------------------
+
+# Keep SVMP-16 upstream and shared CDS segments.
+# Replace its final CDS segment with the corresponding
+# SVMP-17 segment, followed by SVMP-17 downstream exons.
+
+left = models['SVMP-16'][:-1]
+
+right = [
+    exon for exon in models['SVMP-17']
+    if exon[0] >= 5997667
+]
+
+if (
+    models['SVMP-16'][-1] != (5997667, 5997909)
+    or not right
+    or right[0] != (5997667, 5997862)
+):
+    raise RuntimeError(
+        'Unexpected GTF structure: inspect manually'
+    )
+
+merged = left + right
+
+if merged != sorted(merged):
+    raise RuntimeError(
+        'Merged exons are not in genomic order'
+    )
+
+for a, b in zip(merged[:-1], merged[1:]):
+    if a[1] >= b[0]:
+        raise RuntimeError(
+            'Overlapping merged CDS intervals'
+        )
+
+start = merged[0][0]
+end = merged[-1][1]
+
+# ------------------------------------------------------------
+# 3. Extract genomic reference sequence
+# ------------------------------------------------------------
+
+region = '{}:{}-{}'.format(chrom, start, end)
+
+# Python 3.6 compatible
+result = subprocess.check_output(
+    ['samtools', 'faidx', reference, region],
+    universal_newlines=True
+)
+
+genome = ''.join(
+    line.strip()
+    for line in result.splitlines()
+    if not line.startswith('>')
+).upper()
+
+expected_length = end - start + 1
+
+if len(genome) != expected_length:
+    raise RuntimeError(
+        'Reference extraction length mismatch'
+    )
+
+def reverse_complement(seq):
+    return seq.translate(
+        str.maketrans('ACGT', 'TGCA')
+    )[::-1]
+
+# ------------------------------------------------------------
+# 4. Reconstruct candidate CDS
+# ------------------------------------------------------------
+
+cds = ''.join(
+    genome[a-start:b-start+1]
+    for a, b in merged
+)
+
+if strand == '-':
+    cds = reverse_complement(cds)
+
+# ------------------------------------------------------------
+# 5. Translate candidate CDS
+# ------------------------------------------------------------
+
+bases = 'TCAG'
+
+amino_acids = (
+    'FFLLSSSSYY**CC*W'
+    'LLLLPPPPHHQQRRRR'
+    'IIIMTTTTNNKKSSRR'
+    'VVVVAAAADDEEGGGG'
+)
+
+codon_table = dict(zip(
+    (
+        a+b+c
+        for a in bases
+        for b in bases
+        for c in bases
+    ),
+    amino_acids
+))
+
+protein = ''.join(
+    codon_table.get(cds[i:i+3], 'X')
+    for i in range(0, len(cds)-2, 3)
+)
+
+# ------------------------------------------------------------
+# 6. Read original predicted proteins
+# ------------------------------------------------------------
+
+records = {}
+header = None
+parts = []
+
+with open(protein_fasta) as f:
+    for line in f:
+        line = line.strip()
+
+        if line.startswith('>'):
+            if header is not None:
+                records[header] = ''.join(parts).rstrip('*')
+
+            header = line[1:]
+            parts = []
+
+        elif line:
+            parts.append(line)
+
+if header is not None:
+    records[header] = ''.join(parts).rstrip('*')
+
+originals = {}
+
+for gene in genes:
+    pattern = re.compile(
+        r'(?<![A-Za-z0-9])' +
+        re.escape(gene) +
+        r'(?![A-Za-z0-9])'
+    )
+
+    matches = [
+        sequence
+        for header, sequence in records.items()
+        if pattern.search(header)
+    ]
+
+    if len(matches) != 1:
+        raise RuntimeError(
+            'Expected exactly one protein for ' + gene
+        )
+
+    originals[gene] = matches[0]
+
+# ------------------------------------------------------------
+# 7. Compare predicted protein sequences
+# ------------------------------------------------------------
+
+def matching_prefix(a, b):
+    n = 0
+
+    for x, y in zip(a, b):
+        if x != y:
+            break
+        n += 1
+
+    return n
+
+def matching_suffix(a, b):
+    return matching_prefix(a[::-1], b[::-1])
+
+stop_positions = [
+    i+1
+    for i, aa in enumerate(protein)
+    if aa == '*'
+]
+
+internal_stops = [
+    pos
+    for pos in stop_positions
+    if pos != len(protein)
+]
+
+merged_protein = protein.rstrip('*')
+
+# ------------------------------------------------------------
+# 8. Report results
+# ------------------------------------------------------------
+
+print('===== ORIGINAL MODELS =====')
+print('Chromosome:', chrom)
+print('Strand:', strand)
+
+for gene in genes:
+    print(
+        '{}: {} CDS segments, {} aa'.format(
+            gene,
+            len(models[gene]),
+            len(originals[gene])
+        )
+    )
+
+print('\n===== HYPOTHETICAL MERGED MODEL =====')
+print('Genomic span:', region)
+print('CDS segments:', len(merged))
+print('CDS length:', len(cds), 'bp')
+print('Predicted protein:', len(merged_protein), 'aa')
+print('CDS length divisible by 3:', len(cds) % 3 == 0)
+print('Start codon:', cds[:3])
+print('Terminal codon:', cds[-3:])
+print('Stop positions:', stop_positions)
+print('Internal stop count:', len(internal_stops))
+print('Internal stop positions:', internal_stops)
+print('Ambiguous amino acids:', protein.count('X'))
+
+print('\n===== MERGED EXON COORDINATES =====')
+
+for i, (a, b) in enumerate(merged, 1):
+    print('{}\t{}-{}\t{} bp'.format(
+        i, a, b, b-a+1
+    ))
+
+print('\n===== COMPARISON TO ORIGINAL PROTEINS =====')
+
+for gene in genes:
+    original = originals[gene]
+
+    print('\n' + gene)
+    print(
+        'Matching N-terminal residues:',
+        matching_prefix(merged_protein, original)
+    )
+    print(
+        'Matching C-terminal residues:',
+        matching_suffix(merged_protein, original)
+    )
+
+print('\n===== CANDIDATE PROTEIN ENDS =====')
+print('First 100 aa:', merged_protein[:100])
+print('Last 100 aa:', merged_protein[-100:])
+
+print('\n===== STRUCTURAL TEST COMPLETED =====')
+PY
+```
+This will show that combining the upstream region of SVMP-16 with the downstream region of SVMP-17 yields an intact 611-amino-acid open reading frame. This suggests that the two ToxCodAn predictions likely represent overlapping portions of a single SVMP gene. 
+
+However, there is an issue. Recall that SVMP-16 contain the predicted splice junction `5981095–5982064`. Our previous analysis reported zero supporting RNA alignments for that junction, although its neighboring junctions had substantial support. This matters because a perfectly intact ORF does not necessarily establish that every proposed exon is correctly joined in an expressed transcript.
+
+Let's verify this unsupported splice junction directly:
+```sh
+ROOT='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo'
+BAM="$ROOT/annotation/toxin_gene_annotation_RNAdata_added/venom_RNA_mapping/venom_genome.sorted.bam"
+
+python3 - "$BAM" <<'PY'
+import sys
+import os
+import re
+import subprocess
+from collections import Counter
+
+bam = sys.argv[1]
+
+if not os.path.isfile(bam):
+    raise RuntimeError('BAM not found: ' + bam)
+
+chrom = 'G_ussuri_chr9'
+region = chrom + ':5980500-5984300'
+
+target = (5981095, 5982064)
+
+junctions_all = Counter()
+junctions_hq = Counter()
+
+cmd = [
+    'samtools', 'view',
+    '-F', '0x904',
+    bam, region
+]
+
+process = subprocess.Popen(
+    cmd,
+    stdout=subprocess.PIPE,
+    universal_newlines=True
+)
+
+for line in process.stdout:
+    f = line.rstrip('\n').split('\t')
+
+    pos = int(f[3])
+    mapq = int(f[4])
+    cigar = f[5]
+
+    ops = [
+        (int(n), op)
+        for n, op in re.findall(
+            r'(\d+)([MIDNSHP=X])', cigar
+        )
+    ]
+
+    refpos = pos
+
+    for i, (n, op) in enumerate(ops):
+
+        if op == 'N':
+            left = refpos - 1
+            right = refpos + n
+
+            key = (left, right)
+            junctions_all[key] += 1
+
+            left_anchor = (
+                ops[i-1][0]
+                if i > 0 and ops[i-1][1] in 'M=X'
+                else 0
+            )
+            right_anchor = (
+                ops[i+1][0]
+                if i+1 < len(ops)
+                and ops[i+1][1] in 'M=X'
+                else 0
+            )
+
+            if (
+                mapq >= 20
+                and left_anchor >= 8
+                and right_anchor >= 8
+            ):
+                junctions_hq[key] += 1
+
+            refpos += n
+
+        elif op in 'MD=X':
+            refpos += n
+
+if process.wait() != 0:
+    raise RuntimeError('samtools failed')
+
+print('===== EXPECTED SVMP-16 JUNCTIONS =====')
+
+expected = [
+    (5979179, 5981017),
+    (5981095, 5982064),
+    (5982140, 5983885)
+]
+
+for key in expected:
+    print(
+        '{}-{}\tAll: {}\tHQ: {}'.format(
+            key[0],
+            key[1],
+            junctions_all[key],
+            junctions_hq[key]
+        )
+    )
+
+print('\n===== ALTERNATIVE DONORS NEAR 5981095 =====')
+
+near_donor = [
+    (key, n)
+    for key, n in junctions_all.items()
+    if abs(key[0] - 5981095) <= 200
+]
+
+for key, n in sorted(
+    near_donor,
+    key=lambda x: -x[1]
+)[:15]:
+    print(
+        '{}-{}\tAll: {}\tHQ: {}'.format(
+            key[0], key[1],
+            n, junctions_hq[key]
+        )
+    )
+
+print('\n===== ALTERNATIVE ACCEPTORS NEAR 5982064 =====')
+
+near_acceptor = [
+    (key, n)
+    for key, n in junctions_all.items()
+    if abs(key[1] - 5982064) <= 200
+]
+
+for key, n in sorted(
+    near_acceptor,
+    key=lambda x: -x[1]
+)[:15]:
+    print(
+        '{}-{}\tAll: {}\tHQ: {}'.format(
+            key[0], key[1],
+            n, junctions_hq[key]
+        )
+    )
+
+print('\n===== COMPLETED =====')
+PY
+```
+This RNA evidence will reveal a problem with mergeing the two genes. Although the hypothetical merged model produces an intact 611-aa protein, the RNA-seq evidence does not currently support one of the connections required for that model. For now, we will retain both original models provisionally and flag them for structural correction.
+
+Next, we will examine the splice sites and downstream annotation. 
+```sh
+
+ROOT='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo'
+WORKDIR="$ROOT/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+REF="$ROOT/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
+
+python3 - "$REF" "$WORKDIR/toxin_annotation.gtf" <<'PY'
+import sys
+import re
+import subprocess
+
+reference, gtf = sys.argv[1:]
+chrom = 'G_ussuri_chr9'
+
+junctions = [
+    ('SVMP16_predicted', 5981095, 5982064),
+    ('Short_alternative', 5981095, 5981987),
+    ('Long_alternative', 5981095, 6022054),
+    ('SVMP16_upstream', 5979179, 5981017),
+    ('SVMP16_downstream', 5982140, 5983885)
+]
+
+def fetch(start, end):
+    region = '{}:{}-{}'.format(chrom, start, end)
+
+    result = subprocess.check_output(
+        ['samtools', 'faidx', reference, region],
+        universal_newlines=True
+    )
+
+    return ''.join(
+        line.strip()
+        for line in result.splitlines()
+        if not line.startswith('>')
+    ).upper()
+
+print('===== SPLICE SITE MOTIFS =====')
+
+for name, left, right in junctions:
+
+    # Plus-strand splice donor and acceptor.
+    donor = fetch(left+1, left+2)
+    acceptor = fetch(right-2, right-1)
+
+    canonical = (
+        donor == 'GT' and acceptor == 'AG'
+    )
+
+    print('\n' + name)
+    print('Junction: {}-{}'.format(left, right))
+    print('Intron length:', right-left-1)
+    print('Donor:', donor)
+    print('Acceptor:', acceptor)
+    print('Canonical GT-AG:', canonical)
+
+print('\n===== TOXCODAN CDS NEAR 6022054 =====')
+
+target = 6022054
+window = 10000
+
+matches = []
+
+with open(gtf) as f:
+    for line in f:
+        if line.startswith('#'):
+            continue
+
+        fields = line.rstrip('\n').split('\t')
+
+        if len(fields) < 9:
+            continue
+
+        if fields[0] != chrom or fields[2] != 'CDS':
+            continue
+
+        start = int(fields[3])
+        end = int(fields[4])
+
+        if end < target-window or start > target+window:
+            continue
+
+        m = re.search(
+            r'gene_id "([^"]+)"',
+            fields[8]
+        )
+
+        gene = m.group(1) if m else 'Unknown'
+
+        matches.append((gene, start, end, fields[6]))
+
+if matches:
+    for gene, start, end, strand in sorted(
+        matches, key=lambda x: x[1]
+    ):
+        print(
+            '{}\t{}-{}\t{}'.format(
+                gene, start, end, strand
+            )
+        )
+else:
+    print(
+        'No ToxCodAn CDS within 10 kb '
+        'of position 6022054'
+    )
+
+print('\n===== COMPLETED =====')
+PY
+```
+The strongest alternative junction connects to another nearby SVMP paralog, SVMP-18.
+
+Next, we will compare the 79-bp exons from SVMP-16 and SVMP-18 and retrieve the existing RNA-junction support for the expected SVMP-18 splice junction. If the SVMP-16 and SVMP-18 exons are nearly identical and the normal SVMP-18 junction is well supported, the apparent long-distance splice junction becomes less convincing as evidence of a genuinely connected transcript.
+```sh
+
+ROOT='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo'
+
+REF="$ROOT/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
+
+JUNCTIONS="$ROOT/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/all120_QC/toxin_all120_RNA_junctions.tsv"
+
+python3 - "$REF" "$JUNCTIONS" <<'PY'
+import sys
+import subprocess
+import csv
+
+reference, junction_file = sys.argv[1:]
+
+chrom = 'G_ussuri_chr9'
+
+exons = {
+    'SVMP-16': (5981017, 5981095),
+    'SVMP-18': (6021018, 6021096)
+}
+
+def fetch(start, end):
+    region = '{}:{}-{}'.format(chrom, start, end)
+
+    result = subprocess.check_output(
+        ['samtools', 'faidx', reference, region],
+        universal_newlines=True
+    )
+
+    return ''.join(
+        line.strip()
+        for line in result.splitlines()
+        if not line.startswith('>')
+    ).upper()
+
+sequences = {}
+
+print('===== HOMOLOGOUS EXON SEQUENCES =====')
+
+for gene, (start, end) in exons.items():
+    seq = fetch(start, end)
+    sequences[gene] = seq
+
+    print('\n{}: {}-{}'.format(gene, start, end))
+    print('Length:', len(seq))
+    print('Sequence:', seq)
+
+a = sequences['SVMP-16']
+b = sequences['SVMP-18']
+
+matches = sum(x == y for x, y in zip(a, b))
+identity = 100.0 * matches / max(len(a), len(b))
+
+print('\n===== EXON COMPARISON =====')
+print('Identical:', a == b)
+print('Matching positions:', matches)
+print('Sequence identity: {:.2f}%'.format(identity))
+
+print('\nDifferences:')
+found = False
+
+for i, (x, y) in enumerate(zip(a, b), 1):
+    if x != y:
+        print('Position {}: {} vs {}'.format(i, x, y))
+        found = True
+
+if not found:
+    print('None')
+
+print('\n===== EXPECTED SVMP-18 JUNCTION =====')
+
+target = (6021096, 6022054)
+found = False
+
+with open(junction_file) as f:
+    reader = csv.DictReader(f, delimiter='\t')
+
+    for row in reader:
+        if row['Gene'] != 'SVMP-18':
+            continue
+
+        junction = (
+            int(row['Left_exon_end']),
+            int(row['Right_exon_start'])
+        )
+
+        if junction == target:
+            print('Junction: {}-{}'.format(*junction))
+            print(
+                'Supporting alignments (MAPQ20, anchor8):',
+                row['Supporting_alignments_MAPQ20_anchor8']
+            )
+            found = True
+
+if not found:
+    print('Expected junction not found in TSV')
+
+print('\n===== COMPLETED =====')
+PY
+```
+The outputs strongly suggest that the apparent splice junction connecting SVMP-16 to SVMP-18 may be a mapping artifact caused by highly similar duplicated exons. Both exons share the same sequence except for a single nucleotide. 
+
+As a last check, we will examine the original Trinity transcript evidence for SVMP-16/17, then make a curation decision and move on.
+```sh
+
+```
+This final check did not establish that the two predictions form one complete transcript, but it reinforced that they should not automatically be counted as two independent toxin genes. At this point, we will flag SVMP-16/17 as one unresolved overlapping locus, rather than two confidently independent SVMP genes.
+
+#### SVSP-4 / SVSP-5
