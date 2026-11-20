@@ -1,0 +1,27 @@
+{
+    "id": "30D1E914",
+    "path": "//wsl.localhost/Ubuntu/home/yshin/Gloydius_ussuriensis_genome_assembly/R/Rscripts/repeat_landscape.R",
+    "project_path": "Rscripts/repeat_landscape.R",
+    "type": "r_source",
+    "hash": "3134753716",
+    "contents": "",
+    "dirty": false,
+    "created": 1795147097367.0,
+    "source_on_save": false,
+    "relative_order": 8,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "208,0",
+        "scrollLine": "196"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1795154436,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1795154436786,
+    "read_only": false,
+    "read_only_alternatives": []
+}
