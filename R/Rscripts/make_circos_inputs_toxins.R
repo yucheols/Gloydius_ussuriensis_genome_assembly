@@ -1,0 +1,224 @@
+# ============================================================
+#
+# generate G. ussuriensis toxin gene coordinates for circos
+#
+# ============================================================
+
+# clean workspace
+rm(list = ls(all.names = T))
+gc()
+
+# load packages
+library(dplyr)
+library(stringr)
+
+
+# ------------------------------------------------------------
+# 1. directories and input files
+# ------------------------------------------------------------
+
+root <- '/home/yshin/Gloydius_ussuriensis_genome_assembly/R/Rdata/circos'
+
+gtf_file <- file.path(root, 'toxin_annotation.gtf')
+outdir <- root
+
+dir.create(outdir, recursive = T, showWarnings = F)
+if (!file.exists(gtf_file)) stop(paste('GTF not found:', gtf_file))
+
+
+# ------------------------------------------------------------
+# 2. define major toxin gene families
+# ------------------------------------------------------------
+
+families <- c('SVSP', 'SVMP', 'CTL', 'LAO', 'PLA2', '3FTx', 'CRISP', 'KUN')
+
+# expected nonredundant gene counts
+expected_counts <- c(SVSP = 21, SVMP = 19, CTL = 18, LAO = 10, PLA2 = 6, '3FTx' = 5, CRISP = 4, KUN = 4)
+
+# expected core candidate counts
+expected_core_counts <- c(SVSP = 20, SVMP = 17, CTL = 16, LAO = 10, PLA2 = 5, '3FTx' = 5, CRISP = 4, KUN = 4)
+
+# chromosome order
+chr_order <- paste0('G_ussuri_chr', c(1:7, 'Z', 'W', 9:18))
+
+
+# ------------------------------------------------------------
+# 3. define manual toxin annotation curation
+# ------------------------------------------------------------
+
+# exclusions based on manual inspection
+# SVSP-5 exclusion is provisional pending final confirmation
+
+curation <- data.frame(gene_id = c('SVMP-6', 'SVSP-5', 'PLA2-1'), action = c('exclude', 'exclude', 'exclude'), reason = c('Redundant with SVMP-5', 'Provisional redundant SVSP model', 'PLA2 inhibitor-like annotation'), stringsAsFactors = F)
+
+# additional candidates omitted from the core annotation set
+# confirm these gene IDs against the final manually curated core list
+noncore_curation <- data.frame(gene_id = c('SVSP-16', 'SVMP-16', 'SVMP-17', 'CTL-10', 'CTL-16', 'PLA2-4'), action = rep('noncore', 6), reason = c('Flagged internal stop', 'Flagged overlapping prediction', 'Flagged overlapping prediction', 'Flagged internal stop', 'Flagged internal stop', 'Flagged internal stop'), stringsAsFactors = F)
+
+# export curation decisions
+curation_file <- file.path(outdir, 'toxin_curation_major_families.tsv')
+write.table(bind_rows(curation, noncore_curation), curation_file, sep = '\t', quote = F, row.names = F)
+
+# ------------------------------------------------------------
+# 4. read ToxCodAn GTF
+# ------------------------------------------------------------
+
+gtf <- read.delim(gtf_file, header = F, sep = '\t', quote = '', comment.char = '#', stringsAsFactors = F)
+if (ncol(gtf) != 9) stop('GTF must contain 9 columns.')
+
+colnames(gtf) <- c('chr', 'source', 'feature', 'start', 'end', 'score', 'strand', 'frame', 'attributes')
+
+# retain CDS features and extract gene IDs
+gtf <- gtf %>%
+  filter(feature == 'CDS') %>%
+  mutate(gene_id = str_match(attributes, 'gene_id "([^"]+)"')[, 2], start = as.numeric(start), end = as.numeric(end))
+
+if (nrow(gtf) == 0) stop('No CDS features found.')
+if (any(is.na(gtf$gene_id))) stop('Missing gene IDs in GTF.')
+if (any(!is.finite(gtf$start) | !is.finite(gtf$end) | gtf$start < 1 | gtf$end < gtf$start)) stop('Invalid CDS coordinates.')
+
+# ------------------------------------------------------------
+# 5. collapse CDS features into gene-level coordinates
+# ------------------------------------------------------------
+
+# calculate genomic span of each gene
+loci <- gtf %>%
+  group_by(gene_id) %>%
+  summarise(chr = first(chr), start = min(start), end = max(end), strand = first(strand), n_chr = n_distinct(chr), n_strand = n_distinct(strand), .groups = 'drop')
+
+# validate gene coordinates
+if (any(loci$n_chr != 1)) stop('Some genes occur on multiple chromosomes.')
+if (any(loci$n_strand != 1)) stop('Some genes have conflicting strands.')
+
+# assign toxin families
+loci <- loci %>%
+  mutate(family = sub('-.*$', '', gene_id)) %>%
+  select(chr, start, end, family, gene_id, strand)
+
+# ------------------------------------------------------------
+# 6. retain major toxin families
+# ------------------------------------------------------------
+
+raw <- loci %>%
+  filter(family %in% families) %>%
+  arrange(match(chr, chr_order), start, end, gene_id) %>%
+  mutate(midpoint = (start + end) / 2)
+
+if (nrow(raw) == 0) stop('No genes found in selected toxin families.')
+if (any(!raw$chr %in% chr_order)) stop('Unrecognized chromosome names in GTF.')
+
+# ------------------------------------------------------------
+# 7. apply manual curation decisions
+# ------------------------------------------------------------
+
+# validate curation entries
+if (anyDuplicated(curation$gene_id)) stop('Duplicated gene IDs in curation table.')
+if (any(!curation$gene_id %in% raw$gene_id)) stop('Curated gene IDs not found in selected toxin annotations.')
+if (any(!curation$action %in% c('keep', 'exclude'))) stop('Invalid curation action.')
+if (anyDuplicated(noncore_curation$gene_id)) stop('Duplicated gene IDs in non-core curation table.')
+if (any(!noncore_curation$gene_id %in% raw$gene_id)) stop('Non-core gene IDs not found in selected toxin annotations.')
+if (any(noncore_curation$gene_id %in% curation$gene_id)) stop('Gene cannot be both nonredundant exclusion and non-core candidate.')
+
+# assign default keep status and apply exclusions
+raw <- raw %>%
+  left_join(curation, by = 'gene_id') %>%
+  mutate(action = coalesce(action, 'keep'), reason = coalesce(reason, ''))
+
+# retain nonredundant toxin genes
+retained <- raw %>%
+  filter(action == 'keep') %>%
+  arrange(match(chr, chr_order), start, end, gene_id)
+
+# retain core toxin candidates
+core <- retained %>%
+  filter(!gene_id %in% noncore_curation$gene_id) %>%
+  arrange(match(chr, chr_order), start, end, gene_id)
+
+
+# ------------------------------------------------------------
+# 8. summarize toxin gene family counts
+# ------------------------------------------------------------
+
+count_family <- function(x) sapply(families, function(f) sum(x$family == f))
+
+raw_counts <- count_family(raw)
+retained_counts <- count_family(retained)
+core_counts <- count_family(core)
+
+# exclude Z-linked CTLs from Circos counts
+circos_counts <- count_family(core %>% filter(!(chr == 'G_ussuri_chrZ' & family == 'CTL')))
+
+family_summary <- data.frame(family = families, raw_GTF = unname(raw_counts), excluded = unname(raw_counts - retained_counts), nonredundant = unname(retained_counts), expected = unname(expected_counts[families]))
+
+family_summary <- family_summary %>%
+  mutate(matches_expected = nonredundant == expected, core = unname(core_counts), expected_core = unname(expected_core_counts[families]), matches_expected_core = core == expected_core, circos_nonZ = unname(circos_counts))
+
+print(family_summary, row.names = F)
+
+cat('\nRaw toxin predictions:', nrow(raw), '\n')
+cat('Nonredundant toxin genes:', nrow(retained), '\n')
+
+
+# ------------------------------------------------------------
+# 9. define output files
+# ------------------------------------------------------------
+
+raw_out <- file.path(outdir, 'G_ussuriensis.toxin_gene_locations_raw.tsv')
+summary_out <- file.path(outdir, 'G_ussuriensis.toxin_family_summary.tsv')
+final_out <- file.path(outdir, 'G_ussuriensis.toxin_gene_locations.tsv')
+
+# ------------------------------------------------------------
+# 10. export raw annotations and summary
+# ------------------------------------------------------------
+
+write.table(raw, raw_out, sep = '\t', quote = F, row.names = F)
+write.table(family_summary, summary_out, sep = '\t', quote = F, row.names = F)
+
+# ------------------------------------------------------------
+# 11. validate nonredundant gene counts
+# ------------------------------------------------------------
+
+if (!all(family_summary$matches_expected)) {
+  if (file.exists(final_out)) unlink(final_out)
+  stop('Nonredundant counts do not match expected values. Check manual curation decisions.')
+}
+
+if (!all(family_summary$matches_expected_core) | nrow(core) != 81) {
+  if (file.exists(final_out)) unlink(final_out)
+  stop('Core candidate counts do not match expected values. Check the non-core gene IDs.')
+}
+
+if (sum(core$family == 'CTL' & core$chr == 'G_ussuri_chrZ') != 3 | sum(family_summary$circos_nonZ) != 78) {
+  if (file.exists(final_out)) unlink(final_out)
+  stop('Expected 3 core CTLs on Z and 78 loci in the final plot. Check the curated annotations.')
+}
+
+# ------------------------------------------------------------
+# 12. generate final Circos input
+# ------------------------------------------------------------
+
+circos_input <- core %>%
+  select(chr, start, end, family, gene_id, strand, midpoint)
+
+write.table(circos_input, final_out, sep = '\t', quote = F, row.names = F)
+
+# ------------------------------------------------------------
+# 13. final report
+# ------------------------------------------------------------
+
+cat('\n')
+cat('============================================================\n')
+cat('G. ussuriensis toxin gene Circos input completed\n')
+cat('============================================================\n\n')
+
+cat('Raw toxin predictions:', nrow(raw), '\n')
+cat('Nonredundant toxin genes:', nrow(retained), '\n\n')
+cat('Core toxin candidates:', nrow(core), '\n')
+cat('Core CTLs on Z (excluded by plotting script):', sum(core$family == 'CTL' & core$chr == 'G_ussuri_chrZ'), '\n')
+cat('Expected plotted loci:', sum(family_summary$circos_nonZ), '\n\n')
+
+cat('Curation decisions:', curation_file, '\n')
+cat('Raw annotations:', raw_out, '\n')
+cat('Family summary:', summary_out, '\n')
+cat('Circos input:', final_out, '\n\n')
+

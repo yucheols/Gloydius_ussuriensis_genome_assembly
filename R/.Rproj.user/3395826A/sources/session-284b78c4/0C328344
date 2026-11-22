@@ -1,27 +1,27 @@
 {
-    "id": "32620686",
-    "path": "//wsl.localhost/Ubuntu/home/yshin/Gloydius_ussuriensis_genome_assembly/R/Rscripts/smc_curve_plot.R",
-    "project_path": "Rscripts/smc_curve_plot.R",
+    "id": "0C328344",
+    "path": "//wsl.localhost/Ubuntu/home/yshin/Gloydius_ussuriensis_genome_assembly/R/Rscripts/make_circos_inputs_toxins.R",
+    "project_path": "Rscripts/make_circos_inputs_toxins.R",
     "type": "r_source",
-    "hash": "0",
+    "hash": "3061645957",
     "contents": "",
     "dirty": false,
-    "created": 1787635274339.0,
+    "created": 1795296483541.0,
     "source_on_save": false,
-    "relative_order": 3,
+    "relative_order": 9,
     "properties": {
         "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
         "cursorPosition": "223,0",
-        "scrollLine": "0"
+        "scrollLine": "204"
     },
     "folds": "",
-    "lastKnownWriteTime": 1789413928,
+    "lastKnownWriteTime": 1795330125,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1789413928170,
+    "last_content_update": 1795330125708,
     "read_only": false,
     "read_only_alternatives": []
 }
