@@ -1,4 +1,4 @@
-## 12) Circos plot
+## 14) Circos plot
 Circos plots provide a useful way to visualize chromosome lengths, gene density, GC content, repeat content, etc. 
 
 ### Version 1: Chromosomes, gene density, GC density, and repeat content

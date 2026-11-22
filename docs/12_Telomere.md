@@ -1,4 +1,4 @@
-## 10) Telomere identification
+## 12) Telomere identification
 ```sh
 conda create -n tidk
 conda activate tidk

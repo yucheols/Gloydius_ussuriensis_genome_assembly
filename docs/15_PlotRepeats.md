@@ -1,4 +1,4 @@
-## 13) Plotting the repeat landscape
+## 15) Plotting the repeat landscape
 We already ran Earl Grey prior to annotation and this process annotated the repeat and TE elements in our genome assembly. This process also generated some useful plots as pdf files. Let's scp these files and have a look:
 ```sh
 # first make a directory to put these files in

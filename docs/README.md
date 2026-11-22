@@ -13,8 +13,8 @@ __Note:__ I created this documentation in the hopes that my friends and future R
 5. __[Draft assembly evaluation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/05_DraftEval.md#5-draft-assembly-evaluation)__ 
 6. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/06_Scaffolding.md#6-scaffolding-through-hi-c-data-incorporation)__
 7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/07_Annotation.md#7-genome-annotation)__
-8. __[Toxin gene annotation]()__
-9. __[Curation of annotated venom toxin genes]()__
+8. __[Curation of annotated toxin genes](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/08_ToxinAnnotationEval.md#8-post-hi-c-finalizing-toxin-gene-annotation)__
+9. __[Toxin gene evolution](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/09_ToxinGeneAnalyses.md#9-toxin-gene-evolution)__
 10. __[Chromosomal synteny]()__ 
 11. __[Mitogenome assembly]()__
 12. __[Telomere detection]()__

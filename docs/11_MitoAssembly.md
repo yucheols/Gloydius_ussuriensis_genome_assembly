@@ -1,4 +1,4 @@
-## 9) Mitogenome assembly
+## 11) Mitogenome assembly
 ### "Manual" annotation with MITOS2
 Running mitofifi will automatically give you the annotated mitogenome. This is an alternative method for annotating the mitogenome that is more time consuming (but I guess it is still valuabe for the purpose of learning). 
 
