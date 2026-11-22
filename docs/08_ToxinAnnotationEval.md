@@ -1,4 +1,4 @@
-### 8) (Post-Hi-C) Finalizing toxin gene annotation
+### 8) Curation of annotated venom toxin genes
 I think this section deserves a fair warning: this is a pretty intensive process!!
 
 First check the basic toxin annotation outputs form ToxCodAn-Genome:
