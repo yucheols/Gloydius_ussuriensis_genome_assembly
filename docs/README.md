@@ -15,11 +15,11 @@ __Note:__ I created this documentation in the hopes that my friends and future R
 7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/07_Annotation.md#7-genome-annotation)__
 8. __[Curation of annotated toxin genes](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/08_ToxinAnnotationEval.md#8-post-hi-c-finalizing-toxin-gene-annotation)__
 9. __[Toxin gene evolution](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/09_ToxinGeneAnalyses.md#9-toxin-gene-evolution)__
-10. __[Chromosomal synteny]()__ 
-11. __[Mitogenome assembly]()__
-12. __[Telomere detection]()__
-13. __[Historical demography]()__
-14. __[Circos plot]()__
-15. __[Repeat landscape plot]()__
+10. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/10_Synteny.md#10-chromosomal-synteny)__ 
+11. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/11_MitoAssembly.md#11-mitogenome-assembly)__
+12. __[Telomere identification](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/12_Telomere.md#12-telomere-identification)__
+13. __[Historical demography](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/13_Demography.md#13-demographic-history-using-psmc)__
+14. __[Circos plot](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/14_CircosPlot.md#14-circos-plot)__
+15. __[Repeat landscape plot](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/15_PlotRepeats.md#15-plotting-the-repeat-landscape)__
 
 
