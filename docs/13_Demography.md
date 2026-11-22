@@ -333,14 +333,14 @@ samtools quickcheck -v "${BAM}"
 
 
 # ------------------------------------------------------------
-# preflight test
+# pre-run test
 #
 # vcfutils.pl vcf2fq was written around the original bcftools
 # consensus-caller annotations. test a small autosomal region
 # before processing the complete 1.38-Gb autosomal genome.
 # ------------------------------------------------------------
 echo
-echo "Running preflight test on ${TEST_REGION} ..."
+echo "Running pre-run test on ${TEST_REGION} ..."
 echo
 
 bcftools mpileup \
@@ -396,12 +396,12 @@ vcfutils.pl vcf2fq \
     > "${TEST_FQ}"
 
 if [[ ! -s "${TEST_FQ}" ]]; then
-    echo "ERROR: preflight diploid FASTQ is empty" >&2
+    echo "ERROR: pre-run diploid FASTQ is empty" >&2
     exit 1
 fi
 
 echo
-echo "Preflight test passed."
+echo "Pre-run test passed."
 echo
 
 
