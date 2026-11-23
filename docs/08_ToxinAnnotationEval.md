@@ -8190,6 +8190,1477 @@ PY
 ```
 The results strongly support retaining SVSP-4 and excluding SVSP-5 as a redundant gene prediction with a truncated C-terminus. The critical evidence is the additional 174 bp long exon in SVSP-4 spanning genomic positions 17,933,543–17,933,716. The splice junction connecting this exon to the preceding exon has 9,137 supporting RNA alignments. Because both models are on the negative strand, this additional exon contributes to the C-terminal region of SVSP-4.
 
+#### Check the regions matched to full-length CDSs with no toxins annotated in the final output
+Next, we will check the `matched_regions.gtf` file to identify genomic regions that matched full-length toxin CDSs but had no toxin annotations in the final output (`toxin_annotation.gtf`). Let's run the script below. This will directly read `matched_regions.gtf` and `toxin_annotation.gtf` files and produce a set of output files. For downstream checks, we will use the `no_coordinate_overlap_loci.tsv` file.
+```sh
+
+WORKDIR='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome'
+
+python3 - "$WORKDIR" <<'PY'
+import os
+import sys
+import re
+import csv
+from collections import defaultdict, Counter
+
+workdir = sys.argv[1]
+
+matched_file = os.path.join(
+    workdir, 'matched_regions.gtf'
+)
+
+annotation_file = os.path.join(
+    workdir, 'toxin_annotation.gtf'
+)
+
+outdir = os.path.join(
+    workdir, 'all120_QC', 'unannotated_matches'
+)
+
+os.makedirs(outdir, exist_ok=True)
+
+# Preserve all existing output filenames.
+all_file = os.path.join(
+    outdir, 'all_match_classifications.tsv'
+)
+
+missing_file = os.path.join(
+    outdir, 'unannotated_candidate_loci.tsv'
+)
+
+classified_file = os.path.join(
+    outdir, 'strand_aware_match_check.tsv'
+)
+
+corrected_missing_file = os.path.join(
+    outdir, 'no_coordinate_overlap_loci.tsv'
+)
+
+for path in [matched_file, annotation_file]:
+    if not os.path.isfile(path):
+        raise RuntimeError('Missing input: ' + path)
+
+# ============================================================
+# 1. Read final toxin annotations
+# ============================================================
+
+genes = {}
+
+with open(annotation_file) as f:
+    for line in f:
+        if not line.strip() or line.startswith('#'):
+            continue
+
+        fields = line.rstrip('\n').split('\t')
+
+        if len(fields) < 9 or fields[2] != 'CDS':
+            continue
+
+        m = re.search(
+            r'\bgene_id\s+"([^"]+)"',
+            fields[8]
+        )
+
+        if not m:
+            continue
+
+        gene = m.group(1)
+        chrom = fields[0]
+        strand = fields[6]
+
+        start = int(fields[3])
+        end = int(fields[4])
+
+        if gene not in genes:
+            genes[gene] = {
+                'chrom': chrom,
+                'strand': strand,
+                'exons': []
+            }
+
+        if (
+            genes[gene]['chrom'] != chrom or
+            genes[gene]['strand'] != strand
+        ):
+            raise RuntimeError(
+                'Inconsistent coordinates for ' + gene
+            )
+
+        genes[gene]['exons'].append((start, end))
+
+by_chrom = defaultdict(list)
+
+for gene, data in genes.items():
+    exons = sorted(set(data['exons']))
+
+    by_chrom[data['chrom']].append({
+        'gene': gene,
+        'strand': data['strand'],
+        'start': min(a for a, b in exons),
+        'end': max(b for a, b in exons),
+        'exons': exons
+    })
+
+print('===== FINAL TOXIN ANNOTATIONS =====')
+print('Annotated gene predictions:', len(genes))
+
+# ============================================================
+# 2. Functions
+# ============================================================
+
+def overlaps(a, b, c, d):
+    return a <= d and c <= b
+
+
+def same_strand(a, b):
+    # Unspecified strand cannot establish opposition.
+    return a == b or a == '.' or b == '.'
+
+
+def extract_match_id(attributes):
+    m = re.search(
+        r'(?:^|;)\s*ID=([^;]+)',
+        attributes
+    )
+
+    return m.group(1).strip() if m else attributes
+
+
+def group_regions(rows):
+    """
+    Merge overlapping match intervals on the same
+    chromosome and strand.
+
+    This generates candidate genomic regions,
+    not validated gene models.
+    """
+
+    rows = sorted(
+        rows,
+        key=lambda r: (
+            r['Chromosome'],
+            r['Strand'],
+            int(r['Start']),
+            int(r['End'])
+        )
+    )
+
+    groups = []
+
+    for row in rows:
+        chrom = row['Chromosome']
+        strand = row['Strand']
+        start = int(row['Start'])
+        end = int(row['End'])
+
+        if (
+            groups
+            and groups[-1]['chrom'] == chrom
+            and groups[-1]['strand'] == strand
+            and start <= groups[-1]['end']
+        ):
+            group = groups[-1]
+
+            group['end'] = max(
+                group['end'], end
+            )
+
+            group['hits'].append(row)
+
+        else:
+            groups.append({
+                'chrom': chrom,
+                'strand': strand,
+                'start': start,
+                'end': end,
+                'hits': [row]
+            })
+
+    return groups
+
+
+def write_loci(path, groups):
+    with open(path, 'w', newline='') as f:
+        writer = csv.writer(
+            f, delimiter='\t'
+        )
+
+        writer.writerow([
+            'Locus_ID',
+            'Chromosome',
+            'Strand',
+            'Start',
+            'End',
+            'Match_count',
+            'Match_IDs'
+        ])
+
+        for i, group in enumerate(groups, 1):
+            ids = sorted(set(
+                row['Match_ID']
+                for row in group['hits']
+            ))
+
+            writer.writerow([
+                'Unannotated_{:03d}'.format(i),
+                group['chrom'],
+                group['strand'],
+                group['start'],
+                group['end'],
+                len(group['hits']),
+                ';'.join(ids)
+            ])
+
+
+# ============================================================
+# 3. Read and classify all toxin matches
+# ============================================================
+
+results = []
+feature_counts = Counter()
+
+with open(matched_file) as f:
+    for line in f:
+        if not line.strip() or line.startswith('#'):
+            continue
+
+        fields = line.rstrip('\n').split('\t')
+
+        if len(fields) < 9:
+            continue
+
+        feature_counts[fields[2]] += 1
+
+        if fields[2] != 'match':
+            continue
+
+        chrom = fields[0]
+        source = fields[1]
+        start = int(fields[3])
+        end = int(fields[4])
+        strand = fields[6]
+
+        match_id = extract_match_id(fields[8])
+
+        same_span = set()
+        same_cds = set()
+
+        opposite_span = set()
+        opposite_cds = set()
+
+        for gene in by_chrom.get(chrom, []):
+
+            # Skip nonoverlapping gene spans.
+            if not overlaps(
+                start, end,
+                gene['start'], gene['end']
+            ):
+                continue
+
+            same = same_strand(
+                strand, gene['strand']
+            )
+
+            cds_overlap = any(
+                overlaps(start, end, a, b)
+                for a, b in gene['exons']
+            )
+
+            if same:
+                same_span.add(gene['gene'])
+
+                if cds_overlap:
+                    same_cds.add(gene['gene'])
+
+            else:
+                opposite_span.add(gene['gene'])
+
+                if cds_overlap:
+                    opposite_cds.add(gene['gene'])
+
+        # ----------------------------------------------------
+        # Original classification: same-strand only
+        # ----------------------------------------------------
+
+        if same_cds:
+            original_category = (
+                'overlaps_annotated_CDS'
+            )
+
+        elif same_span:
+            original_category = (
+                'gene_span_only'
+            )
+
+        else:
+            original_category = (
+                'no_annotated_locus_overlap'
+            )
+
+        # ----------------------------------------------------
+        # Corrected classification: both strands
+        # ----------------------------------------------------
+
+        if same_cds:
+            corrected_status = 'same_strand_CDS'
+
+        elif opposite_cds:
+            corrected_status = 'opposite_strand_CDS'
+
+        elif same_span:
+            corrected_status = 'same_strand_gene_span'
+
+        elif opposite_span:
+            corrected_status = 'opposite_strand_gene_span'
+
+        else:
+            corrected_status = 'no_coordinate_overlap'
+
+        results.append({
+            'Chromosome': chrom,
+            'Strand': strand,
+            'Start': start,
+            'End': end,
+            'Source': source,
+            'Match_ID': match_id,
+
+            # Original output fields
+            'Category': original_category,
+            'Overlapping_gene_spans': ','.join(
+                sorted(same_span)
+            ),
+            'Overlapping_CDS_genes': ','.join(
+                sorted(same_cds)
+            ),
+
+            # Corrected output fields
+            'Corrected_status': corrected_status,
+            'Same_strand_genes': ','.join(
+                sorted(same_span)
+            ),
+            'Opposite_strand_genes': ','.join(
+                sorted(opposite_span)
+            )
+        })
+
+# ============================================================
+# 4. Export original match classification
+# ============================================================
+
+original_columns = [
+    'Chromosome',
+    'Strand',
+    'Start',
+    'End',
+    'Source',
+    'Match_ID',
+    'Category',
+    'Overlapping_gene_spans',
+    'Overlapping_CDS_genes'
+]
+
+with open(all_file, 'w', newline='') as f:
+    writer = csv.DictWriter(
+        f,
+        fieldnames=original_columns,
+        extrasaction='ignore',
+        delimiter='\t'
+    )
+
+    writer.writeheader()
+    writer.writerows(results)
+
+# Original candidate loci:
+# no overlap with annotations on the same strand.
+
+original_missing = [
+    row for row in results
+    if row['Category'] == 'no_annotated_locus_overlap'
+]
+
+original_groups = group_regions(
+    original_missing
+)
+
+write_loci(
+    missing_file,
+    original_groups
+)
+
+# ============================================================
+# 5. Export corrected strand-aware classification
+# ============================================================
+
+corrected_columns = [
+    'Chromosome',
+    'Strand',
+    'Start',
+    'End',
+    'Source',
+    'Match_ID',
+    'Category',
+    'Corrected_status',
+    'Same_strand_genes',
+    'Opposite_strand_genes'
+]
+
+with open(classified_file, 'w', newline='') as f:
+    writer = csv.DictWriter(
+        f,
+        fieldnames=corrected_columns,
+        extrasaction='ignore',
+        delimiter='\t'
+    )
+
+    writer.writeheader()
+    writer.writerows(results)
+
+# Corrected candidate loci:
+# no coordinate overlap with annotated genes
+# on either strand.
+
+corrected_missing = [
+    row for row in results
+    if row['Corrected_status'] == 'no_coordinate_overlap'
+]
+
+corrected_groups = group_regions(
+    corrected_missing
+)
+
+write_loci(
+    corrected_missing_file,
+    corrected_groups
+)
+
+# ============================================================
+# 6. Summarize original classification
+# ============================================================
+
+original_counts = Counter(
+    row['Category'] for row in results
+)
+
+print('\n===== ORIGINAL MATCH CLASSIFICATION =====')
+print('Total matching records:', len(results))
+print('Feature types:', dict(feature_counts))
+
+for category in [
+    'overlaps_annotated_CDS',
+    'gene_span_only',
+    'no_annotated_locus_overlap'
+]:
+    print('{}: {}'.format(
+        category,
+        original_counts[category]
+    ))
+
+print('\nOriginal unmatched records:',
+      len(original_missing))
+
+print('Original candidate regions:',
+      len(original_groups))
+
+# ============================================================
+# 7. Summarize corrected classification
+# ============================================================
+
+corrected_counts = Counter(
+    row['Corrected_status']
+    for row in results
+)
+
+print('\n===== CORRECTED MATCH CLASSIFICATION =====')
+
+for category in [
+    'same_strand_CDS',
+    'opposite_strand_CDS',
+    'same_strand_gene_span',
+    'opposite_strand_gene_span',
+    'no_coordinate_overlap'
+]:
+    print('{}: {}'.format(
+        category,
+        corrected_counts[category]
+    ))
+
+print('\n===== REMAINING UNANNOTATED REGIONS =====')
+print('Nonoverlapping match records:',
+      len(corrected_missing))
+
+print('Merged candidate regions:',
+      len(corrected_groups))
+
+# ============================================================
+# 8. Print candidate regions by match count
+# ============================================================
+
+print('\n===== TOP REGIONS BY MATCH COUNT =====')
+
+top_groups = sorted(
+    corrected_groups,
+    key=lambda x: len(x['hits']),
+    reverse=True
+)
+
+for group in top_groups[:20]:
+    print(
+        '{}:{}-{}\t{}\t{} hits'.format(
+            group['chrom'],
+            group['start'],
+            group['end'],
+            group['strand'],
+            len(group['hits'])
+        )
+    )
+
+if len(top_groups) > 20:
+    print(
+        '{} additional regions in TSV'.format(
+            len(top_groups) - 20
+        )
+    )
+
+# ============================================================
+# 9. Output files
+# ============================================================
+
+print('\n===== OUTPUT FILES =====')
+
+print(all_file)
+print(missing_file)
+print(classified_file)
+print(corrected_missing_file)
+
+print('\n===== CHECK COMPLETED =====')
+PY
+```
+
+This check will print out the following:
+```sh
+===== REMAINING UNANNOTATED REGIONS =====
+Nonoverlapping match records: 309
+Merged candidate regions: 8
+```
+So there are 309 hits spread across 8 candidate regions that have matches to complete toxin CDS but had no toxin annotations in the final output. The distribution of these regions are:
+```sh
+Chromosome	           Coordinates	  Matching records
+------------------------------------------------------
+chr10	       18,078,497–18,087,329        	   156
+chr10	       17,962,611–17,970,840	            92
+chr1	       58,611,616–58,613,750	            29
+chr9	         5,536,800–5,566,822	            14
+chr1	     107,536,581–107,546,768	            10
+chr1	     188,914,662–188,915,114	             4
+chr2	     109,718,891–109,728,897	             3
+chrZ	     119,540,150–119,546,154	             1
+```
+We can see that 248 out of 309 unmatched hits are concentrated on chromosome 10. Next, let's determine what these eight regions actually match. The script below will do the following:
+ - Reads the actual CDS coordinates in every file under matched_GTFs/.
+ - Distinguishes genuine CDS overlaps from filename-only associations.
+ - Evaluates coding-frame integrity, start/stop codons, internal stops, and overlap with existing toxin annotations.
+```sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo'
+WORKDIR="$ROOT/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+REF="$ROOT/annotation/soft_masked/Gloydius_ussuriensis_EarlGrey/Gloydius_ussuriensis_summaryFiles/Gloydius_ussuriensis.softmasked.fasta"
+
+python3 - "$WORKDIR" "$REF" <<'PY'
+import csv
+import os
+import re
+import subprocess
+import sys
+from collections import Counter, defaultdict
+
+workdir, reference = sys.argv[1:]
+
+outdir = os.path.join(
+    workdir, 'all120_QC', 'unannotated_matches'
+)
+
+matched_dir = os.path.join(workdir, 'matched_GTFs')
+annotation_file = os.path.join(workdir, 'toxin_annotation.gtf')
+
+loci_file = os.path.join(
+    outdir, 'no_coordinate_overlap_loci.tsv'
+)
+
+matches_file = os.path.join(
+    outdir, 'strand_aware_match_check.tsv'
+)
+
+evidence_out = os.path.join(
+    outdir, 'unannotated_locus_evidence_summary.tsv'
+)
+
+structure_out = os.path.join(
+    outdir, 'unannotated_model_structure_check.tsv'
+)
+
+for path in (reference, annotation_file, loci_file, matches_file):
+    if not os.path.isfile(path):
+        sys.exit('Missing input: ' + path)
+
+if not os.path.isdir(matched_dir):
+    sys.exit('Missing GTF directory: ' + matched_dir)
+
+# ============================================================
+# 1. Helper functions
+# ============================================================
+
+def read_tsv(path):
+    with open(path) as f:
+        return list(csv.DictReader(f, delimiter='\t'))
+
+
+def attr(text, name):
+    m = re.search(
+        r'(?:^|;)\s*' + re.escape(name) + r'\s+"([^"]+)"',
+        text
+    )
+    return m.group(1) if m else None
+
+
+def overlap(a, b, c, d):
+    return max(0, min(b, d) - max(a, c) + 1)
+
+
+def distance(a, b, c, d):
+    return max(c - b - 1, a - d - 1, 0)
+
+
+def fasta_region(chrom, start, end):
+    result = subprocess.check_output(
+        [
+            'samtools', 'faidx', reference,
+            '{}:{}-{}'.format(chrom, start, end)
+        ],
+        universal_newlines=True
+    )
+    return ''.join(
+        s.strip()
+        for s in result.splitlines()
+        if not s.startswith('>')
+    ).upper()
+
+
+def reverse_complement(seq):
+    return seq.translate(
+        str.maketrans('ACGTN', 'TGCAN')
+    )[::-1]
+
+
+bases = 'TCAG'
+amino_acids = (
+    'FFLLSSSSYY**CC*W'
+    'LLLLPPPPHHQQRRRR'
+    'IIIMTTTTNNKKSSRR'
+    'VVVVAAAADDEEGGGG'
+)
+
+codon_table = dict(zip(
+    (a+b+c for a in bases for b in bases for c in bases),
+    amino_acids
+))
+
+
+def translate(seq):
+    return ''.join(
+        codon_table.get(seq[i:i+3], 'X')
+        for i in range(0, len(seq)-2, 3)
+    )
+
+# ============================================================
+# 2. Read existing toxin annotations
+# ============================================================
+
+annotated = defaultdict(list)
+
+with open(annotation_file) as f:
+    for line in f:
+        if line.startswith('#') or not line.strip():
+            continue
+
+        x = line.rstrip('\n').split('\t')
+
+        if len(x) >= 9 and x[2] == 'CDS':
+            gene = attr(x[8], 'gene_id')
+
+            if gene:
+                annotated[(x[0], gene)].append(
+                    (int(x[3]), int(x[4]))
+                )
+
+by_chrom = defaultdict(list)
+
+for (chrom, gene), segments in annotated.items():
+    segments = sorted(set(segments))
+
+    by_chrom[chrom].append((
+        gene,
+        min(a for a, b in segments),
+        max(b for a, b in segments),
+        segments
+    ))
+
+# ============================================================
+# 3. Read candidate regions and matching records
+# ============================================================
+
+loci = read_tsv(loci_file)
+all_matches = read_tsv(matches_file)
+
+missing_matches = [
+    m for m in all_matches
+    if m['Corrected_status'] == 'no_coordinate_overlap'
+]
+
+# ============================================================
+# 4. Index actual CDS models in matched_GTFs
+#
+# IMPORTANT:
+# Examine every GTF's actual CDS features.
+# Do not assume its filename coordinates correspond
+# to the CDS coordinates inside the file.
+# ============================================================
+
+models = defaultdict(list)
+filename_ranges = defaultdict(list)
+
+for filename in sorted(os.listdir(matched_dir)):
+    if not filename.endswith('.gtf'):
+        continue
+
+    path = os.path.join(matched_dir, filename)
+
+    if not os.path.isfile(path):
+        continue
+
+    fm = re.match(
+        r'^(.+?)--(\d+)-(\d+)\.gtf$',
+        filename
+    )
+
+    if fm:
+        filename_ranges[fm.group(1)].append((
+            int(fm.group(2)),
+            int(fm.group(3)),
+            filename
+        ))
+
+    group = defaultdict(list)
+
+    with open(path) as f:
+        for line in f:
+            if line.startswith('#') or not line.strip():
+                continue
+
+            x = line.rstrip('\n').split('\t')
+
+            if len(x) < 9 or x[2] != 'CDS':
+                continue
+
+            tx = (
+                attr(x[8], 'transcript_id')
+                or attr(x[8], 'gene_id')
+                or 'Unknown'
+            )
+
+            group[(x[0], x[6], tx)].append((
+                int(x[3]),
+                int(x[4]),
+                x[7]
+            ))
+
+    for (chrom, strand, tx), parts in group.items():
+        parts = sorted(set(parts))
+
+        models[chrom].append((
+            filename,
+            tx,
+            strand,
+            parts
+        ))
+
+# ============================================================
+# 5. Summarize each unannotated candidate region
+# ============================================================
+
+summary_rows = []
+structure_rows = []
+
+for loc in loci:
+    locus_id = loc['Locus_ID']
+    chrom = loc['Chromosome']
+    start = int(loc['Start'])
+    end = int(loc['End'])
+    strand = loc['Strand']
+
+    hits = [
+        h for h in missing_matches
+        if h['Chromosome'] == chrom
+        and h['Strand'] == strand
+        and overlap(
+            start, end,
+            int(h['Start']), int(h['End'])
+        )
+    ]
+
+    ids = sorted(set(h['Match_ID'] for h in hits))
+
+    families = Counter(
+        i.rsplit('_', 1)[-1]
+        for i in (h['Match_ID'] for h in hits)
+    )
+
+    sources = Counter(
+        h['Source'] for h in hits
+    )
+
+    nearest = sorted(
+        (
+            distance(start, end, a, b),
+            gene
+        )
+        for gene, a, b, segments
+        in by_chrom.get(chrom, [])
+    )
+
+    nearest_text = '; '.join(
+        '{}:{}bp'.format(g, d)
+        for d, g in nearest[:3]
+    )
+
+    # Files whose filenames overlap the region.
+    filename_hits = sorted(set(
+        name
+        for a, b, name in filename_ranges.get(chrom, [])
+        if overlap(start, end, a, b)
+    ))
+
+    # CORRECTED:
+    # Require actual CDS features to overlap the region.
+    overlapping_models = []
+
+    for filename, tx, model_strand, parts in models.get(chrom, []):
+        shared = sum(
+            overlap(start, end, a, b)
+            for a, b, phase in parts
+        )
+
+        if shared > 0:
+            overlapping_models.append((
+                filename,
+                tx,
+                model_strand,
+                parts,
+                shared
+            ))
+
+    actual_files = sorted(set(
+        m[0] for m in overlapping_models
+    ))
+
+    filename_only = sorted(
+        set(filename_hits) - set(actual_files)
+    )
+
+    families_text = '; '.join(
+        '{}:{}'.format(k, v)
+        for k, v in families.most_common()
+    )
+
+    sources_text = '; '.join(
+        '{}:{}'.format(k, v)
+        for k, v in sources.most_common()
+    )
+
+    summary_rows.append({
+        'Locus_ID': locus_id,
+        'Chromosome': chrom,
+        'Start': start,
+        'End': end,
+        'Strand': strand,
+        'Match_count': len(hits),
+        'Unique_match_IDs': len(ids),
+        'Match_sources': sources_text,
+        'Matched_families': families_text,
+        'Nearby_annotated_genes': nearest_text,
+        'Transcript_GTF_count': len(actual_files),
+        'Transcript_GTF_files': '; '.join(actual_files),
+        'Example_match_IDs': '; '.join(ids[:5]),
+        'Actual_CDS_models': len(overlapping_models),
+        'Filename_only_GTF_files': '; '.join(filename_only)
+    })
+
+    print('\n===== {} ====='.format(locus_id))
+
+    print('{}:{}-{} ({}) | {} hits | {}'.format(
+        chrom, start, end, strand,
+        len(hits), families_text
+    ))
+
+    print(
+        'Closest annotated genes:',
+        nearest_text or 'None'
+    )
+
+    print(
+        'GTF files with actual CDS overlap:',
+        len(actual_files)
+    )
+
+    print(
+        'Filename-only GTF associations:',
+        len(filename_only)
+    )
+
+    # ========================================================
+    # 6. Report regions without overlapping CDS models
+    # ========================================================
+
+    if not overlapping_models:
+        status = (
+            'filename_only_no_CDS_overlap'
+            if filename_only
+            else 'no_CDS_model_found'
+        )
+
+        structure_rows.append({
+            'Locus_ID': locus_id,
+            'Model_file': 'NA',
+            'Transcript_ID': 'NA',
+            'Strand': 'NA',
+            'Model_start': 'NA',
+            'Model_end': 'NA',
+            'CDS_segments': 0,
+            'CDS_bp': 0,
+            'Frame_valid': 'NA',
+            'Start_codon': 'NA',
+            'Terminal_codon': 'NA',
+            'Internal_stops': 'NA',
+            'Predicted_aa': 'NA',
+            'Overlapping_annotated_genes': 'NA',
+            'Annotated_CDS_overlap_bp': 'NA',
+            'Candidate_CDS_overlap_bp': 0,
+            'CDS_phases': 'NA',
+            'Model_status': status
+        })
+
+        print('Status:', status)
+        continue
+
+    # ========================================================
+    # 7. Validate actual overlapping CDS models
+    # ========================================================
+
+    for filename, tx, model_strand, parts, shared in overlapping_models:
+
+        segments = [
+            (a, b)
+            for a, b, phase in parts
+        ]
+
+        model_start = min(a for a, b in segments)
+        model_end = max(b for a, b in segments)
+
+        cds = ''.join(
+            fasta_region(chrom, a, b)
+            for a, b in segments
+        )
+
+        if model_strand == '-':
+            cds = reverse_complement(cds)
+
+        protein = translate(cds)
+
+        coding_overlap_genes = []
+        annotated_overlap_bp = 0
+
+        for gene, gs, ge, gene_parts in by_chrom.get(chrom, []):
+            bp = sum(
+                overlap(a, b, c, d)
+                for a, b in segments
+                for c, d in gene_parts
+            )
+
+            if bp:
+                coding_overlap_genes.append(gene)
+                annotated_overlap_bp += bp
+
+        row = {
+            'Locus_ID': locus_id,
+            'Model_file': filename,
+            'Transcript_ID': tx,
+            'Strand': model_strand,
+            'Model_start': model_start,
+            'Model_end': model_end,
+            'CDS_segments': len(segments),
+            'CDS_bp': len(cds),
+            'Frame_valid': len(cds) % 3 == 0,
+            'Start_codon': cds[:3],
+            'Terminal_codon': cds[-3:],
+            'Internal_stops': protein[:-1].count('*'),
+            'Predicted_aa': len(protein.rstrip('*')),
+            'Overlapping_annotated_genes': (
+                ','.join(sorted(set(coding_overlap_genes)))
+                or 'None'
+            ),
+            'Annotated_CDS_overlap_bp': annotated_overlap_bp,
+            'Candidate_CDS_overlap_bp': shared,
+            'CDS_phases': ','.join(
+                p for a, b, p in parts
+            ),
+            'Model_status': 'actual_CDS_overlap'
+        }
+
+        structure_rows.append(row)
+
+        print(
+            'Model: {} | {} | strand {}'.format(
+                filename, tx, model_strand
+            )
+        )
+
+        print(
+            'CDS {} bp, {} segments, candidate overlap {} bp, '
+            'internal stops {}, annotated overlap {} bp'.format(
+                len(cds),
+                len(segments),
+                shared,
+                row['Internal_stops'],
+                annotated_overlap_bp
+            )
+        )
+
+# ============================================================
+# 8. Export evidence summary — original filename retained
+# ============================================================
+
+summary_columns = [
+    'Locus_ID',
+    'Chromosome',
+    'Start',
+    'End',
+    'Strand',
+    'Match_count',
+    'Unique_match_IDs',
+    'Match_sources',
+    'Matched_families',
+    'Nearby_annotated_genes',
+    'Transcript_GTF_count',
+    'Transcript_GTF_files',
+    'Example_match_IDs',
+    'Actual_CDS_models',
+    'Filename_only_GTF_files'
+]
+
+# ============================================================
+# 9. Export structural validation — original filename retained
+# ============================================================
+
+structure_columns = [
+    'Locus_ID',
+    'Model_file',
+    'Transcript_ID',
+    'Strand',
+    'Model_start',
+    'Model_end',
+    'CDS_segments',
+    'CDS_bp',
+    'Frame_valid',
+    'Start_codon',
+    'Terminal_codon',
+    'Internal_stops',
+    'Predicted_aa',
+    'Overlapping_annotated_genes',
+    'Annotated_CDS_overlap_bp',
+    'Candidate_CDS_overlap_bp',
+    'CDS_phases',
+    'Model_status'
+]
+
+for path, columns, rows in (
+    (evidence_out, summary_columns, summary_rows),
+    (structure_out, structure_columns, structure_rows)
+):
+    with open(path, 'w', newline='') as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=columns,
+            delimiter='\t'
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+# ============================================================
+# 10. Final summary
+# ============================================================
+
+print('\n===== FINAL SUMMARY =====')
+
+print('Candidate regions:', len(loci))
+
+print(
+    'Candidate regions with actual CDS models:',
+    sum(
+        r['Actual_CDS_models'] > 0
+        for r in summary_rows
+    )
+)
+
+print(
+    'Candidate regions with filename-only associations:',
+    sum(
+        bool(r['Filename_only_GTF_files'])
+        for r in summary_rows
+    )
+)
+
+print(
+    'Actual overlapping CDS models checked:',
+    sum(
+        r['Model_status'] == 'actual_CDS_overlap'
+        for r in structure_rows
+    )
+)
+
+print(
+    'Models passing basic ORF screen '
+    '(frame, start, stop, no internal stops):',
+    sum(
+        r['Model_status'] == 'actual_CDS_overlap'
+        and r['Frame_valid']
+        and r['Start_codon'] == 'ATG'
+        and r['Terminal_codon'] in ('TAA', 'TAG', 'TGA')
+        and r['Internal_stops'] == 0
+        for r in structure_rows
+    )
+)
+
+print('Updated:', evidence_out)
+print('Updated:', structure_out)
+print('Other existing TSVs and original annotations unchanged.')
+PY
+```
+The output will print:
+```sh
+===== FINAL SUMMARY =====
+Candidate regions: 8
+Candidate regions with actual CDS models: 3
+Candidate regions with filename-only associations: 2
+Actual overlapping CDS models checked: 3
+Models passing basic ORF screen (frame, start, stop, no internal stops): 0
+```
+So, after structural validation, none of the eight candidate regions has sufficient evidence to be added to our annotated toxin gene set. These loci either have no overlapping CDS models or have internal stop codons that disrupt ORFs. 
+
+Before closing this validation step, let's cross-reference these eight regions against `annotation_removed.txt` file and check whether these reions were explicitly removed by the pipeline:
+```sh
+WORKDIR='/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome'
+
+python3 - "$WORKDIR" <<'PY'
+import os
+import sys
+import csv
+import re
+
+workdir = sys.argv[1]
+outdir = os.path.join(workdir, 'all120_QC', 'unannotated_matches')
+
+removed_file = os.path.join(workdir, 'annotation_removed.txt')
+loci_file = os.path.join(outdir, 'no_coordinate_overlap_loci.tsv')
+summary_file = os.path.join(outdir, 'unannotated_locus_evidence_summary.tsv')
+output_file = os.path.join(outdir, 'unannotated_locus_removal_crossreference.tsv')
+
+for path in [removed_file, loci_file]:
+    if not os.path.isfile(path):
+        sys.exit('Missing input: ' + path)
+
+# ============================================================
+# 1. Helper functions
+# ============================================================
+
+def overlap(a, b, c, d):
+    return max(0, min(b, d) - max(a, c) + 1)
+
+def distance(a, b, c, d):
+    if b < c:
+        return c - b - 1
+    if d < a:
+        return a - d - 1
+    return 0
+
+def parse_gene(attrs):
+    m = re.search(r'gene_id\s+"([^"]+)"', attrs)
+    return m.group(1) if m else 'Unknown'
+
+# ============================================================
+# 2. Parse ToxCodAn removed annotation records
+# ============================================================
+
+removed = []
+block = {'header': '', 'cds': []}
+
+def finish_block(block):
+    if not block['cds']:
+        return
+
+    parts = sorted(set(block['cds']))
+    chroms = set(p[0] for p in parts)
+
+    if len(chroms) != 1:
+        raise ValueError('Removed model spans multiple chromosomes')
+
+    header = block['header']
+    model_id = header.split(' -> ')[0].lstrip('#').strip()
+
+    if not model_id:
+        model_id = ','.join(sorted(set(p[4] for p in parts)))
+
+    intervals = sorted(set(
+        (p[1], p[2]) for p in parts
+    ))
+
+    removed.append({
+        'id': model_id,
+        'chrom': parts[0][0],
+        'strand': ','.join(sorted(set(p[3] for p in parts))),
+        'start': min(a for a, b in intervals),
+        'end': max(b for a, b in intervals),
+        'cds': intervals,
+        'comment': header
+    })
+
+with open(removed_file) as f:
+    for line in f:
+        entry = line.strip()
+
+        if not entry:
+            finish_block(block)
+            block = {'header': '', 'cds': []}
+            continue
+
+        if entry.startswith('#'):
+            if block['cds']:
+                finish_block(block)
+                block = {'header': '', 'cds': []}
+
+            block['header'] = entry
+            continue
+
+        fields = line.rstrip('\n').split('\t')
+
+        if len(fields) >= 9 and fields[2] == 'CDS':
+            block['cds'].append((
+                fields[0],
+                int(fields[3]),
+                int(fields[4]),
+                fields[6],
+                parse_gene(fields[8])
+            ))
+
+finish_block(block)
+
+# ============================================================
+# 3. Load eight unannotated candidate regions
+# ============================================================
+
+with open(loci_file) as f:
+    loci = list(csv.DictReader(f, delimiter='\t'))
+
+families = {}
+
+if os.path.isfile(summary_file):
+    with open(summary_file) as f:
+        for row in csv.DictReader(f, delimiter='\t'):
+            families[row['Locus_ID']] = row.get(
+                'Matched_families', ''
+            )
+
+# ============================================================
+# 4. Cross-reference removed models with candidate regions
+# ============================================================
+
+rows = []
+
+print('===== TOXCODAN REMOVAL CROSS-REFERENCE =====')
+print('Removed CDS models parsed:', len(removed))
+print('Candidate regions:', len(loci))
+
+for locus in loci:
+    locus_id = locus['Locus_ID']
+    chrom = locus['Chromosome']
+    start = int(locus['Start'])
+    end = int(locus['End'])
+
+    comparisons = []
+
+    for model in removed:
+        if model['chrom'] != chrom:
+            continue
+
+        cds_bp = sum(
+            overlap(start, end, a, b)
+            for a, b in model['cds']
+        )
+
+        span_bp = overlap(
+            start, end,
+            model['start'], model['end']
+        )
+
+        gap = distance(
+            start, end,
+            model['start'], model['end']
+        )
+
+        comparisons.append((
+            model, cds_bp, span_bp, gap
+        ))
+
+    cds_hits = [
+        x for x in comparisons
+        if x[1] > 0
+    ]
+
+    span_hits = [
+        x for x in comparisons
+        if x[1] == 0 and x[2] > 0
+    ]
+
+    nearby = sorted(
+        [x for x in comparisons if x[2] == 0],
+        key=lambda x: (x[3], x[0]['id'])
+    )
+
+    if cds_hits:
+        status = 'DIRECT_REMOVED_CDS_OVERLAP'
+    elif span_hits:
+        status = 'REMOVED_GENE_SPAN_ONLY'
+    elif nearby and nearby[0][3] <= 20000:
+        status = 'NEARBY_REMOVAL_ONLY_NOT_DIRECT'
+    else:
+        status = 'NO_REMOVAL_RECORD_AT_LOCUS'
+
+    direct = cds_hits + span_hits
+
+    direct_details = '; '.join(
+        '{}[{}:{}-{};strand={};CDS_overlap={}bp]'.format(
+            model['id'],
+            model['chrom'],
+            model['start'],
+            model['end'],
+            model['strand'],
+            cds_bp
+        )
+        for model, cds_bp, span_bp, gap in direct
+    )
+
+    reasons = '; '.join(sorted(set(
+        model['comment']
+        for model, cds_bp, span_bp, gap in direct
+    )))
+
+    nearest_details = '; '.join(
+        '{}[{}:{}-{};distance={}bp]'.format(
+            model['id'],
+            model['chrom'],
+            model['start'],
+            model['end'],
+            gap
+        )
+        for model, cds_bp, span_bp, gap in nearby[:3]
+    )
+
+    rows.append({
+        'Locus_ID': locus_id,
+        'Chromosome': chrom,
+        'Start': start,
+        'End': end,
+        'Putative_families': families.get(locus_id, ''),
+        'Match_count': locus.get('Match_count', ''),
+        'Removal_status': status,
+        'Direct_CDS_removed_models': len(cds_hits),
+        'Span_only_removed_models': len(span_hits),
+        'Direct_removed_model_details': direct_details,
+        'Direct_removal_comments': reasons,
+        'Nearest_removed_models': nearest_details,
+        'Nearest_removed_distance_bp': (
+            nearby[0][3] if nearby else 'NA'
+        )
+    })
+
+    print('\n{} | {}:{}-{}'.format(
+        locus_id, chrom, start, end
+    ))
+
+    print('Status:', status)
+
+    if direct_details:
+        print('Removed annotation:', direct_details)
+        print('ToxCodAn removal comment:', reasons)
+    elif nearby:
+        print('Nearest removed annotation (not a direct match):')
+        print(' ', nearest_details.split('; ')[0])
+    else:
+        print('No removed model on this chromosome')
+
+# ============================================================
+# 5. Save cross-reference results
+# ============================================================
+
+columns = [
+    'Locus_ID',
+    'Chromosome',
+    'Start',
+    'End',
+    'Putative_families',
+    'Match_count',
+    'Removal_status',
+    'Direct_CDS_removed_models',
+    'Span_only_removed_models',
+    'Direct_removed_model_details',
+    'Direct_removal_comments',
+    'Nearest_removed_models',
+    'Nearest_removed_distance_bp'
+]
+
+with open(output_file, 'w', newline='') as f:
+    writer = csv.DictWriter(
+        f,
+        fieldnames=columns,
+        delimiter='\t'
+    )
+    writer.writeheader()
+    writer.writerows(rows)
+
+# ============================================================
+# 6. Final summary
+# ============================================================
+
+print('\n===== SUMMARY =====')
+
+for status in [
+    'DIRECT_REMOVED_CDS_OVERLAP',
+    'REMOVED_GENE_SPAN_ONLY',
+    'NEARBY_REMOVAL_ONLY_NOT_DIRECT',
+    'NO_REMOVAL_RECORD_AT_LOCUS'
+]:
+    print('{}: {}'.format(
+        status,
+        sum(r['Removal_status'] == status for r in rows)
+    ))
+
+print('\nOutput:', output_file)
+print('Original annotation and previous QC files unchanged.')
+print('===== CHECK COMPLETED =====')
+PY
+```
+The output will show that the 3 of 8 regions that have internal stop codons were explicitly removed by the pipeline. The remaining 5 remain unresolved and the pipeline did not recover a valid CDS annotation. These could be genomic regions homologous to putative toxin gene families.
+
 #### Final toxin annotation curation
 We will first create a provisional curation manifest. This will have one row per original gene, documenting whether to retain, rename, exclude, or flag it. We'll use that manifest to generate the final GTF and FASTA files consistently. Below is the decisions we established so far:
 ```sh
