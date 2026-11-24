@@ -211,5 +211,11 @@ print("\npreliminary protein QC completed.")
 
 PY
 ```
+The output will show that there are a total of 120 protein records, 20 of which are SVMPs and 7 are PLA2s. 
+
+During our curation step to generate a "core set" of annotated toxins, we excluded SVMP-6 because it was a redundant annotation with respect to SVMP-5, which had a longer amino acid sequence (487 aa vs. 430 aa of SVMP-6) and had stronger RNA transcript evidence. We further excluded SVMP-16 and SVMP-17 because these were either overlapping or uncertain gene models.  
+
+Regarding PLA2s, we excluded PLA2-1 because a BLASTp run suggested that this is a PLA2 inhibitor-like protein rather than an enzymatic PLA2. In addtion, we excluded  
+
 
 ### Toxin gene microsynteny with *Crotalus adamanteus* assembly
