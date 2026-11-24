@@ -1,4 +1,4 @@
-## 7) Genome annotation
+## 8) Genome annotation
 ### Setup
 Let's create new conda environments for packages to be used in genome annotation. Trimmomatic will be used for trimming Illumina adaptera. The funannotation package provides an automated pipeline for gene prediction, annotation, and comparison. The Earl Grey package automates transposable element annotation.
 ```
