@@ -12,14 +12,14 @@ __Note:__ I created this documentation in the hopes that my friends and future R
 4. __[Contamination screening](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/04_ContamCheck.md#4-contamination-screening)__
 5. __[Draft assembly evaluation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/05_DraftEval.md#5-draft-assembly-evaluation)__ 
 6. __[Scaffolding through Hi-C data incorporation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/06_Scaffolding.md#6-scaffolding-through-hi-c-data-incorporation)__
-7. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/07_Annotation.md#7-genome-annotation)__
-8. __[Curation of annotated toxin genes](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/08_ToxinAnnotationEval.md#8-post-hi-c-finalizing-toxin-gene-annotation)__
-9. __[Toxin gene evolution](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/09_ToxinGeneAnalyses.md#9-toxin-gene-evolution)__
-10. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/10_Synteny.md#10-chromosomal-synteny)__ 
-11. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/11_MitoAssembly.md#11-mitogenome-assembly)__
-12. __[Telomere identification](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/12_Telomere.md#12-telomere-identification)__
-13. __[Historical demography](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/13_Demography.md#13-demographic-history-using-psmc)__
-14. __[Circos plot](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/14_CircosPlot.md#14-circos-plot)__
-15. __[Repeat landscape plot](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/15_PlotRepeats.md#15-plotting-the-repeat-landscape)__
+7. __[Telomere identification](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/07_Telomere.md#7-telomere-identification)__
+8. __[Genome annotation](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/08_Annotation.md#8-genome-annotation)__
+9. __[Curation of annotated toxin genes](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/09_ToxinAnnotationEval.md#9-post-hi-c-finalizing-toxin-gene-annotation)__
+10. __[Toxin gene evolution](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/10_ToxinGeneAnalyses.md#10-toxin-gene-evolution)__
+11. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/11_Synteny.md#11-chromosomal-synteny)__  
+12. __[Historical demography](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/12_Demography.md#12-demographic-history-using-psmc)__
+13. __[Circos plot](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/13_CircosPlot.md#13-circos-plot)__
+14. __[Repeat landscape plot](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/14_PlotRepeats.md#14-plotting-the-repeat-landscape)__
+15. __[Mitogenome assembly](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/15_MitoAssembly.md#15-mitogenome-assembly)__
 
 
