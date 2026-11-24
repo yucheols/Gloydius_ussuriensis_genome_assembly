@@ -5,10 +5,10 @@ zcat AMNH_21010_HiFi.fastq.gz | head -n 2
 ```
 
 When you run the line above you will get a string of sequence read printed out:
-![alt text](etc/seqchunk.PNG)
+![alt text](/docs/etc/seqchunk.PNG)
 
 Let's copy the whole chunk and paste it into NCBI BLAST. The result  will look something like this:
-![alt text](etc/blast.PNG)
+![alt text](/docs/etc/blast.PNG)
 
 We can see that the top hits are from the Tiger Rattlesnake (*Crotalus tigris*). This is the expected result, although the species itself is not in the genus *Gloydius*. This is because our target species (*G. ussuriensis*) only have isolated, Sanger-sequenced mitochondrial and nuclear markers accessioned in GenBank. Since *C. tigris* is in the same subfamily as *Gloydius*, this means that our FASTQ file contains actual genome sequence reads from *G. ussuriensis*. 
 
@@ -36,4 +36,4 @@ Next, let's check the average read length. We can do so by running the "seqkit s
 conda activate genome_assembly
 seqkit stats AMNH_21010_HiFi.fastq.gz
 ```
-![alt text](etc/raw_read_avg_seqlen.PNG)
+![alt text](/docs/etc/raw_read_avg_seqlen.PNG)

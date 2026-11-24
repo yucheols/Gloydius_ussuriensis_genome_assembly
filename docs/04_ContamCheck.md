@@ -46,7 +46,7 @@ tar zxf data/taxdump.tar.gz -C data/ nodes.dmp names.dmp
 blobtools nodesdb --nodes data/nodes.dmp --names data/names.dmp
 ```
 Then, if you do "ls data/" you should see something like:
-![alt text](etc/lsdata.PNG)
+![alt text](/docs/etc/lsdata.PNG)
 
 
 To generate the blast hit file, we will use the Huxley cluster because it already has the database soft linked to /nas3. Blast is also available as a module on Huxley. But before running blast, there is one thing to consider - blasting a whole genome assembly againt the database will take a long time. The job will either fail due to insufficient computational resources or walltime. 
@@ -210,11 +210,11 @@ blobtools view -i ussuri_blob_results.blobDB.json
 blobtools plot -i ussuri_blob_results.blobDB.json
 ```
 This will generate a whole bunch of files:
-![alt text](etc/blobtools.PNG)
+![alt text](/docs/etc/blobtools.PNG)
 
 Now, scp these files from the cluster to a local device for viewing.
-![alt text](etc/ussuri_blob_results1.png)
-![alt text](etc/ussuri_blob_results2.png)
+![alt text](/docs/etc/ussuri_blob_results1.png)
+![alt text](/docs/etc/ussuri_blob_results2.png)
 
 We can see there are no obvious non-vertebrate contaminants.
 
@@ -295,7 +295,7 @@ tr '\t' ',' < ${outdir}/mito_contigs_blast.out > ${outdir}/mito_contigs_blast.cs
 ```
 
 The output should look something like this:
-![alt text](etc/mito_blast_out.PNG)
+![alt text](/docs/etc/mito_blast_out.PNG)
 
 Let's break this down. 
 - Column 1: "qseqid" (means "query sequence ID") - Shows the GenBank accession number of the mitogenome reference. 
@@ -323,7 +323,7 @@ conda activate genome_assembly
 seqkit fx2tab -n -l Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa | grep -w ptg000073c
 ```
 This will show that the contig is 68.8Kb long, which is much longer than the actual mitogenome. But this likely because one whole mitogenome was repeated several time on the same contig. For example:
-![alt text](etc/mito_blast_out_head.PNG)
+![alt text](/docs/etc/mito_blast_out_head.PNG)
 In the first three lines we can see that 17,212bp stretch is repeated three times, and the fourth line shows another 15,348bp region, and there are other, shorter hits. Combined, this is about 67Kb long. Also, 68.8Kb is about 17.2Kb x 4. 
 
 We can verify this by blasting the putative mitochondrial contig to itself.
@@ -414,7 +414,7 @@ Let's examine the output:
 ```
 cat ptg000073c_selfblast_filtered.tsv
 ```
-![alt text](etc/selfalign_mito.PNG)
+![alt text](/docs/etc/selfalign_mito.PNG)
 
 We can see that the alignment length here is 17,211bp. 17,211 x 4 is exactly 68,844bp. In the results, we can also see alignment lengths of 51,633bp (17,211 x 3) and 34,422bp (17,211 x 2). This basically means that the contig ptg000073c contains four tandem copies of the complete mitogenome.
 
@@ -448,7 +448,7 @@ seqkit grep -p ptg000073c Gloydius_ussuriensis_v1.asm.bp.p_ctg.fa > ptg000073c.f
 seqkit subseq -r 1:17211 ptg000073c.fa > mito_singlecopy.fa
 seqkit stats mito_singlecopy.fa
 ```
-![alt text](etc/mito_singlecopy_seqkit.PNG)
+![alt text](/docs/etc/mito_singlecopy_seqkit.PNG)
 
 This is exactly what we expect to see.
 
@@ -516,7 +516,7 @@ apptainer exec --bind "/home/yshin:/home/yshin" --bind "/mendel-nas1:/mendel-nas
   mitohifi.sif python3 /opt/MitoHiFi/src/mitohifi.py -c ${contigs} -f ${mito_ref} -g ${mito_gb} -o 2 -t ${SLURM_CPUS_PER_TASK}
 ``` 
 The error log should look something like this:
-![alt text](etc/check_nomito.PNG)
+![alt text](/docs/etc/check_nomito.PNG)
 
 In contrast, running MitoHiFi with the assembly still containing the mitochondrial contig will produce the full result, including the annotated mitogenome.
 ```sh
@@ -562,7 +562,7 @@ apptainer exec --bind "/home/yshin:/home/yshin" --bind "/mendel-nas1:/mendel-nas
 apptainer exec --bind "/home/yshin:/home/yshin" --bind "/mendel-nas1:/mendel-nas1" --pwd "$PWD" \
   mitohifi.sif python3 /opt/MitoHiFi/src/mitohifi.py -c ${contigs} -f ${mito_ref} -g ${mito_gb} -o 2 -t ${SLURM_CPUS_PER_TASK}
 ```
-![alt text](etc/mitohifi.PNG)
+![alt text](/docs/etc/mitohifi.PNG)
 
 Let's scp this file into a local device and have a closer look.
 ```

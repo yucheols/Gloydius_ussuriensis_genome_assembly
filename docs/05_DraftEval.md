@@ -38,7 +38,7 @@ compleasm run -a ${path_to_asm}/Gloydius_ussuriensis_AMNH_21010_noMito.fa -o ${o
 ```
 
 The script above should take only about 35 minutes to run. The results are:
-![alt text](etc/busco_compleasm.PNG)
+![alt text](/docs/etc/busco_compleasm.PNG)
 
 Compleasm output can be visualized in R:
 ```r
@@ -211,7 +211,7 @@ Check the results when the job finishes running. Let's check the .qv file first.
 # cd into "/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/PacBio_Revio/merqury/noMito_k21" dirctory"
 cat AMNH_21010_noMito_k21.qv 
 ```
-![alt text](etc/qv.PNG)
+![alt text](/docs/etc/qv.PNG)
 
 Let's break it down:
 - Column 1: Assembly name
@@ -226,7 +226,7 @@ Let's also check the *k*-mer completeness.
 ```
 cat AMNH_21010_noMito_k21.completeness.stats
 ```
-![alt text](etc/merqury_completeness_stats.PNG)
+![alt text](/docs/etc/merqury_completeness_stats.PNG)
 - Column 1: Assembly name
 - Column 2: Subset ("all" means that completeness was calculated from all read *k*-mers)
 - Column 3: Total read *k*-mers found in the assembly

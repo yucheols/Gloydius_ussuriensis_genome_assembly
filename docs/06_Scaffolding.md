@@ -647,7 +647,7 @@ Since the *G. ussuriensis* scaffold 11 had highest matches to chromosome 11 in *
 
 When you zoom into scaffold 11 in the Hi-C contact map, you will see the block corresponding to chromosome 11 actually contains two distinct chunks.
 
-![alt_text](/etc/scaff_11.png)
+![alt_text](/docs/etc/scaff_11.png)
 
 Now, let's identify where to break this misjoin. I'm using *C. adamanteus* and *V. berus* here because the output from *C. viridis* paf file was noisier (but it didn't contract the results from the other two species).
 

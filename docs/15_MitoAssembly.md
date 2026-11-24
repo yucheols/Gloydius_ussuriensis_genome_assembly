@@ -8,14 +8,14 @@ First, let's check the fasta header (we are in the "genome_cleanup" directory):
 ```txt
 head mito_singlecopy.fa 
 ```
-![alt text](etc/head_mitogenome_fa.PNG)
+![alt text](/docs/etc/head_mitogenome_fa.PNG)
 
 We can see that the header is the contig name. This is not ideal; let's change the header with species name:
 ```txt
 sed 's/^>.*/>Gloydius_ussuriensis_mitogenome/' mito_singlecopy.fa > ussuri_mitogenome_ann.fa
 head ussuri_mitogenome_ann.fa 
 ```
-![alt text](etc/head_mitogenome_ann_fa.PNG)
+![alt text](/docs/etc/head_mitogenome_ann_fa.PNG)
 
 Now, scp this file to your local device.
 
@@ -32,26 +32,26 @@ Use the following settings:
 6) Turn on "Attempt to re-use jobs with identical parameters?"
 
 MITOS2 can be run through the run on the Galaxy Server. The window looks something like this:
-![alt text](etc/mitos2.PNG)
+![alt text](/docs/etc/mitos2.PNG)
 
 After MITOS2 run is complete, run a quick sanity check on the output GFF (annotation) file. First, download all output files in the "mitos2" directory in your local device and cd into it (in my case the directory in my local device is: /home/yshin/Gloydius_ussuriensis_genome_assembly/outfiles/mito_assembly/mitos2)
 ```txt
 grep -v "^#" "Galaxy7-[MITOS2 on dataset 5_ GFF].gff" | cut -f3 | sort | uniq -c
 ```
-![alt text](etc/check_mitos2_gff1.PNG)
+![alt text](/docs/etc/check_mitos2_gff1.PNG)
 
 Looks good! Also check if the names of all 13 protein-coding genes:
 ```
 grep -v "^#" "Galaxy7-[MITOS2 on dataset 5_ GFF].gff" | awk -F'\t' '$3=="gene"{print $9}' | \
   grep -Eo 'cox1|cox2|cox3|cob|cytb|atp6|atp8|nad1|nad2|nad3|nad4l|nad4|nad5|nad6' | sort | uniq -c
 ```
-![alt text](etc/check_mitos2_gff2.PNG)
+![alt text](/docs/etc/check_mitos2_gff2.PNG)
 
 Sweet. Now let's rotate the mitogenome FASTA based on the location of tRNA-Phe (trnF)
 ```txt
 grep -i -E "trnF|tRNA-Phe|phenylalanine" "Galaxy7-[MITOS2 on dataset 5_ GFF].gff" 
 ```
-![alt text](etc/check_mitos2_gff3.PNG)
+![alt text](/docs/etc/check_mitos2_gff3.PNG)
 
 We can see that trnF starts at position 15284 and ends at position 15347. __BUT,__ because the orientation of this sequence is (-), this means that the actual 5' end is at position 15347 and the 3' is at position 15284. 
 
@@ -84,7 +84,7 @@ conda activate genome_assembly
 seqkit stats ${out_dir}/ussuri_mt_rotated.fasta
 ```
 The output should look something like this:
-![alt text](etc/rotate_checkstat.PNG)
+![alt text](/docs/etc/rotate_checkstat.PNG)
 
 Awesome. Now, scp the rotated fasta the directory in your local device and re-run MITOS2 to get GFF of the rotated FASTA. Once this is done, run some final checks
 
@@ -107,32 +107,32 @@ mv 'Galaxy28-[MITOS2 on dataset 26_ GFF].gff' annotation_rotated_final.gff
 cd final/
 grep -v "^#" *.gff | cut -f3 | sort | uniq -c
 ```
-![alt text](etc/final_check_mitos2_gff1.PNG)
+![alt text](/docs/etc/final_check_mitos2_gff1.PNG)
 
 ```
 # check trnF position
 grep -i -E "gene_trnF|Name=trnF|trnF" *.gff
 ```
-![alt text](etc/final_check_mitos2_gff2.PNG)
+![alt text](/docs/etc/final_check_mitos2_gff2.PNG)
 
 The trnF is now shown to span 1 bp - 64 bp.This is exactly what we expect from a correctly rotated sequence. Check the sequence stats in the local device using seqkit (install it if you need to).
 
 ```txt
 seqkit stats ussuri_mt_rotated.fasta
 ```
-![alt text](etc/final_mt_seqstat.PNG)
+![alt text](/docs/etc/final_mt_seqstat.PNG)
 
 Awesome! this can now be imported into Geneious for visualization.
-![alt text](etc/mt_geneious_vis.PNG)
+![alt text](/docs/etc/mt_geneious_vis.PNG)
 
 __Note:__ The steps outlined above already have a lot of manual work. But then it needs further manual curation to adjust annotation. But we don't have to go through all of this for this sample because MitoHiFi run we did in the "Contamination screening" step will automatically produce fully annotated mitogenome that requires minimal manual data processing.
-![alt text](etc/mitohifi_geneious.PNG)
+![alt text](/docs/etc/mitohifi_geneious.PNG)
 
 From here, we only need to manually annotate the replication origin and two D-loop regions. I did this by extracting these sequences from the reference mitogenome and aligning them to the MitoHiFi assembly. The final output looks like this (after some name edits):
-![alt text](etc/fullMt_MitoHiFi.PNG)
+![alt text](/docs/etc/fullMt_MitoHiFi.PNG)
 
 Note that this genome is also 17,211bp long, like the assembly generated through the steps in this subsection. But overall, MitoHiFi output produced a cleaner output. This is because the assembly we annotated with MITOS2 had some issues determining gene boundaries in some places. Let's look at this by comparing the MitoHiFi assembly, MITOS2 assembly, and the reference mitogenome:
-![alt text](etc/gene_boundaries.PNG)
+![alt text](/docs/etc/gene_boundaries.PNG)
 
 Finally, recall that our mitogenome was contained in the contig ptg000073c and that this contig was 68,844 bp in length. Since our mitogenome is 17.211 bp in length, this mean that the contig has four complete mitogenomes stitched back to back four times. Let's make sure this is actually the case by splitting up this contig into four equal chunks and see if each of them is indeed a complete mitogenome.
 
@@ -142,7 +142,7 @@ First, let's cd into the "genome_cleanup" directory on Mendel, which is where th
 conda activate genome_assembly
 seqkit stats ptg000073c.fa
 ```
-![alt text](etc/mito_dup.PNG)
+![alt text](/docs/etc/mito_dup.PNG)
 
 Now, let's create a "mito_chunks" directory under the current directory to store the split files, and use the samtools faidx command to slice this contig into four chunks, each exactlty 17,211 bp in length. 
 ```sh
@@ -171,7 +171,7 @@ Let's use seqkit to verify the size of each chunk
 ```sh
 seqkit stats mito_part*
 ```
-![alt text](etc/mito_chunk_size.PNG)
+![alt text](/docs/etc/mito_chunk_size.PNG)
 
 scp this folder to our local device and run blast on each of them. The results will show that they all match our *G. ussuriensis* reference mitogenome with > 99% percent identity with 100% query cover. This confirms that mitogenomes were stitched four times on to the contig ptg000073c. This likely happened because the assembler failed to recognize the circular nature of the mitogenome.
 

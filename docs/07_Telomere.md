@@ -1,4 +1,5 @@
 ## 7) Telomere identification
+Setup a conda env for tidk:
 ```sh
 conda create -n tidk
 conda activate tidk
@@ -207,7 +208,7 @@ for chrom, length in sorted(lengths.items(), key=lambda x: x[1], reverse=True):
 ```
 
 Go to the Python scripts dir and run it like:
-```
+```sh
 # in the tidk conda env
 python summarize_tidk_tsv.py /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/find_telomere/Gloydius_ussuriensis_tidk_telomeric_repeat_windows.tsv > /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/find_telomere/Gloydius_curated_terminal_telomere_summary.tsv
 ```

@@ -34,7 +34,7 @@ jellyfish histo ${outdir}/Gloydius_ussuriensis_kmer.jf -t ${SLURM_CPUS_PER_TASK}
 
 The output .histo file can be fed into GenomeScope 2.0 (http://genomescope.org/genomescope2.0/) to visualize the results, which look something like: 
 
-![alt text](etc/genomescope_result_summary.png)
+![alt text](/docs/etc/genomescope_result_summary.png)
 
 The results suggest:
   - Estimated haploid genome size of 1.18 Gb
