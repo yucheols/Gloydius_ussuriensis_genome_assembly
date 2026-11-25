@@ -696,4 +696,284 @@ Regarding SVMPs, SVMP-3, 5, 7, 8, 9, 10, 13, 14 are similar to SVMP P-II class b
 
 SVMP-4 (241aa) and SVMP-15 (247aa) require special attention. First, SVMP-4 only has a propeptide domain and has no significant matches to the canonical metalloprotease domain. SVMP-15 has both domainss but its short length raises the question of whether this metalloprotease domain is complete or truncated.
 
+Regarding PLA2s, all five PLA2s in our curated toxin annotation set had significant Pfam matches to PLA2 family, and have lengths ranging from 118aa to 140aa. Although PLA2-2 is shorter than the rest, this in and of itself is not problematic.
+
+Before extracting protein sequences for phylogenetic analyses, we will run one additional diagnostic step using the HMMER result we already obtained. The below script will check the following:
+ - Presence/absence of metalloprotease domain in SVMP-4 and SVMP-15
+ - Whether the P-II- and P-III-like proteins have the expected domain order
+ - Whether PLA2-2 contains a near-complete PF00068 domain despite its shorter length
+```sh
+# ============================================================
+# inspect SVMP and PLA2 domain coordinates and completeness
+# ============================================================
+
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+
+OUTDIR="$ROOT/phylogeny"
+
+python - "$OUTDIR" <<'PY'
+import sys
+import csv
+from pathlib import Path
+
+outdir = Path(sys.argv[1])
+
+target_domains = {
+    "PF01421",
+    "PF00200",
+    "PF08516",
+    "PF01562",
+    "PF00068"
+}
+
+rows = []
+
+for family in ("SVMP", "PLA2"):
+
+    domtbl = outdir / f"Guss_{family}_Pfam.domtblout"
+
+    with domtbl.open() as handle:
+        for line in handle:
+
+            if not line.strip() or line.startswith("#"):
+                continue
+
+            f = line.split(maxsplit=22)
+            pfam = f[1].split(".")[0]
+
+            if pfam not in target_domains:
+                continue
+
+            hmm_length = int(f[2])
+            hmm_start = int(f[15])
+            hmm_end = int(f[16])
+
+            coverage = (
+                100 * (hmm_end - hmm_start + 1)
+                / hmm_length
+            )
+
+            rows.append({
+                "family": family,
+                "gene_id": f[3],
+                "pfam_id": pfam,
+                "domain": f[0],
+                "aa_start": int(f[17]),
+                "aa_end": int(f[18]),
+                "hmm_coverage_pct": round(coverage, 1),
+                "i_evalue": f[12]
+            })
+
+rows.sort(
+    key=lambda r: (
+        r["family"],
+        r["gene_id"],
+        r["aa_start"]
+    )
+)
+
+output = outdir / "Guss_SVMP_PLA2_domain_coordinates.tsv"
+
+with output.open("w", newline="") as handle:
+    writer = csv.DictWriter(
+        handle,
+        fieldnames=list(rows[0]),
+        delimiter="\t"
+    )
+    writer.writeheader()
+    writer.writerows(rows)
+
+for family in ("SVMP", "PLA2"):
+    print(f"\n===== {family} DOMAIN COORDINATES =====")
+
+    for r in rows:
+        if r["family"] != family:
+            continue
+
+        print(
+            f"{r['gene_id']:<10} "
+            f"{r['pfam_id']:<9} "
+            f"{r['aa_start']:>4}-"
+            f"{r['aa_end']:<4} "
+            f"HMM coverage: "
+            f"{r['hmm_coverage_pct']:>5.1f}% "
+            f"E-value: {r['i_evalue']}"
+        )
+
+print("\nOutput:", output)
+PY
+```
+The output will show that SVMP-15 has only 18.5% HMM coverage for the Pfam domain `PF01421`, which is a reprolysin domain. Regarding SVMP-4, there is 100% match to the Pfam domain `PF01562` (reprolysin propeptide). However, there is no reprolysin/metalloprotease domain.
+
+For all five PLA2s, the HMM coverage is > 90% for the Pfam domain `PF00068`, which corresponds to PLA2. PLA2-1 is noteworthy compared to other PLA2s because its domain begins at amino acid 1, whereas the other proteins have approximately 17 residues before the detected domain. This suggests that PLA2-2 may lack the N-terminal signal peptide or that its annotation begins at the mature protein sequence. Alternatively, it could be an incomplete N-terminal prediction. However, its strong Pfam match (E-value 4.4 × 10⁻³²) and 93.6% HMM coverage support its identification as a PLA₂-family protein. We will thus retain all five PLA₂ sequences for our primary analysis, while flagging PLA2-2 for inspection.
+
+#### Step 4: Prepare primary protein sequences
+Now, we will prepare primary protein sequences for phylogenetic analyses. For SVMPs, we will extract the metalloprotease domain (`PF01421`) that is conserved across all SVMP classes. Our SVMPs frequently include `PF01421`, `PF13574`, `PF13582`, `PF13583`, and `PF13688` domains. This does not mean that these are five different domains. Instead, these are different Pfam profiles that recognize related metalloproteinase sequences. For example, a single SVMP protein might match multiple Reprolysin HMM profiles. 
+
+For PLA2s, we will initialy retain the full predicted proteins, because strictly extracting `PF00068` would discard some C-terminal residues that may contain useful phylogenetic information. We can account for the apparently missing N-terminal region of PLA2-2 during alignment.
+
+Run the script below:
+```sh
+# ============================================================
+# prepare SVMP and PLA2 sequences for phylogenetic analyses
+# ============================================================
+
+# ------------------------------------------------------------
+# 1. directories
+# ------------------------------------------------------------
+
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+
+OUTDIR="$ROOT/phylogeny"
+
+# ------------------------------------------------------------
+# 2. extract phylogenetic sequences
+# ------------------------------------------------------------
+
+python - "$OUTDIR" <<'PY'
+
+import sys
+import csv
+from pathlib import Path
+
+outdir = Path(sys.argv[1])
+
+def read_fasta(path):
+    sequences = {}
+    name = None
+    parts = []
+
+    def save():
+        if name is not None:
+            if name in sequences:
+                raise ValueError(f"Duplicate FASTA ID: {name}")
+            sequences[name] = "".join(parts)
+
+    with path.open() as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith(">"):
+                save()
+                name = line[1:].split()[0]
+                parts = []
+            else:
+                parts.append(line)
+        save()
+
+    return sequences
+
+def write_fasta(path, sequences):
+    with path.open("w") as handle:
+        for gene, seq in sequences.items():
+            handle.write(f">{gene}\n")
+            for i in range(0, len(seq), 80):
+                handle.write(seq[i:i+80] + "\n")
+
+# ------------------------------------------------------------
+# 3. extract complete SVMP metalloproteinase domains
+# ------------------------------------------------------------
+
+svmp = read_fasta(outdir / "Guss_SVMP_core.faa")
+
+domtbl = outdir / "Guss_SVMP_Pfam.domtblout"
+
+selected = {}
+excluded = {}
+
+with domtbl.open() as handle:
+    for line in handle:
+        if not line.strip() or line.startswith("#"):
+            continue
+
+        f = line.split(maxsplit=22)
+
+        pfam = f[1].split(".")[0]
+        gene = f[3]
+
+        if pfam != "PF01421":
+            continue
+
+        if gene not in svmp:
+            raise ValueError(f"Unknown SVMP: {gene}")
+
+        hmm_length = int(f[2])
+        hmm_start = int(f[15])
+        hmm_end = int(f[16])
+
+        aa_start = int(f[17])
+        aa_end = int(f[18])
+
+        coverage = (
+            hmm_end - hmm_start + 1
+        ) / hmm_length
+
+        if coverage >= 0.90:
+
+            if gene in selected:
+                raise ValueError(
+                    f"Multiple qualifying domains: {gene}"
+                )
+
+            selected[gene] = svmp[gene][
+                aa_start - 1:aa_end
+            ]
+
+for gene in svmp:
+    if gene not in selected:
+        excluded[gene] = svmp[gene]
+
+if len(selected) != 15:
+    raise ValueError(
+        f"Expected 15 SVMP domains, found {len(selected)}"
+    )
+
+svmp_file = outdir / "Guss_SVMP_PF01421_primary.faa"
+
+write_fasta(svmp_file, selected)
+
+# ------------------------------------------------------------
+# 4. prepare PLA2 proteins
+# ------------------------------------------------------------
+
+pla2 = read_fasta(outdir / "Guss_PLA2_core.faa")
+
+if len(pla2) != 5:
+    raise ValueError(
+        f"Expected 5 PLA2 proteins, found {len(pla2)}"
+    )
+
+pla2_file = outdir / "Guss_PLA2_full_primary.faa"
+
+write_fasta(pla2_file, pla2)
+
+# ------------------------------------------------------------
+# 5. print summary
+# ------------------------------------------------------------
+
+print("\n===== SVMP PRIMARY DATASET =====")
+
+for gene, seq in sorted(selected.items()):
+    print(f"{gene:<12} {len(seq):>4} aa")
+
+print("\nExcluded from primary SVMP alignment:")
+
+for gene in sorted(excluded):
+    print(gene)
+
+print("\n===== PLA2 PRIMARY DATASET =====")
+
+for gene, seq in sorted(pla2.items()):
+    print(f"{gene:<12} {len(seq):>4} aa")
+
+print("\n===== OUTPUT FILES =====")
+print(svmp_file)
+print(pla2_file)
+
+print("\nsequence preparation for phylogenetic analyses completed.")
+
+PY
+```
+
 ### Toxin gene microsynteny with *Crotalus adamanteus* assembly
