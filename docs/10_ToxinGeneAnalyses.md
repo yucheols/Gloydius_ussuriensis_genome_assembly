@@ -976,4 +976,6 @@ print("\nsequence preparation for phylogenetic analyses completed.")
 PY
 ```
 
+#### Step 5: Collect homologous sequences from other species
+
 ### Toxin gene microsynteny with *Crotalus adamanteus* assembly
