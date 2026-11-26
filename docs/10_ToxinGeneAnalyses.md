@@ -1005,6 +1005,7 @@ synteny/
     └── 06_figures/
 ```
 
+#### Step 1: Locate the files needed
 First, let's identify the actual FASTA files, assembly versions, and available GFF3/GTF annotations. Below is a read-only script that will do the job. This will not create any new folders or files.
 ```sh
 # ============================================================
@@ -1089,3 +1090,159 @@ echo
 echo "===== COMPLETE ====="
 ```
 The output of this script will show that our three comparison taxa all have the genome FASTA, gneome annotation GFF3, and protein FASTA files. It will also show that we have (as expected) *G. ussuriensis* ToxCodAn GTF, CDS FASTA, and protein FASTA.
+
+#### Step 2: Extract genomic coordinates of *G. ussuriensis* SVMPs and PLA2s
+This step will establish the focal genomic regions against which we will compare the other three species. Unlike the phylogenetic analysis, microsynteny should include our complete locus inventory, including SVMP-4, SVMP-15, and PLA2-4 where their genomic positions are supported.
+```sh
+# ============================================================
+# inspect G. ussuriensis SVMP and PLA2 gene coordinates
+# ============================================================
+
+# activate funannotate conda env to access python
+conda activate funannotate
+
+# 1. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+TOXIN="$ROOT/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+GTF="$TOXIN/toxin_annotation.gtf"
+
+# 2. inspect GTF structure
+echo "===== GTF STRUCTURE ====="
+
+grep -v '^#' "$GTF" | head -n 5
+
+echo
+echo "===== FEATURE TYPES ====="
+
+awk -F '\t' '
+    $0 !~ /^#/ && NF >= 9 {
+        count[$3]++
+    }
+    END {
+        for (feature in count)
+            print feature, count[feature]
+    }
+' "$GTF" | sort
+
+# 3. extract SVMP and PLA2 gene coordinates
+echo
+echo "===== TOXIN GENE COORDINATES ====="
+
+python - "$GTF" <<'PY'
+
+import sys
+import re
+from collections import defaultdict
+
+gtf = sys.argv[1]
+
+loci = defaultdict(
+    lambda: {
+        "chr": set(),
+        "start": float("inf"),
+        "end": 0,
+        "features": set()
+    }
+)
+
+with open(gtf) as handle:
+
+    for line in handle:
+
+        if not line.strip() or line.startswith("#"):
+            continue
+
+        fields = line.rstrip("\n").split("\t")
+
+        if len(fields) < 9:
+            continue
+
+        chrom = fields[0]
+        feature = fields[2]
+        start = int(fields[3])
+        end = int(fields[4])
+        attributes = fields[8]
+
+        match = re.search(
+            r'(?:SVMP|PLA2)-\d+',
+            attributes
+        )
+
+        if not match:
+            continue
+
+        gene = match.group(0)
+
+        loci[gene]["chr"].add(chrom)
+        loci[gene]["start"] = min(
+            loci[gene]["start"], start
+        )
+        loci[gene]["end"] = max(
+            loci[gene]["end"], end
+        )
+        loci[gene]["features"].add(feature)
+
+def sort_key(gene):
+    family, number = gene.split("-")
+    return (family, int(number))
+
+print(
+    f"{'Gene':<12}"
+    f"{'Chromosome':<24}"
+    f"{'Start':>14}"
+    f"{'End':>14}"
+    f"{'Span (bp)':>14}"
+)
+
+for gene in sorted(loci, key=sort_key):
+
+    row = loci[gene]
+
+    span = row["end"] - row["start"] + 1
+
+    print(
+        f"{gene:<12}"
+        f"{','.join(sorted(row['chr'])):<24}"
+        f"{row['start']:>14,}"
+        f"{row['end']:>14,}"
+        f"{span:>14,}"
+    )
+
+print()
+print("Total loci:", len(loci))
+
+print(
+    "SVMP loci:",
+    sum(g.startswith("SVMP-") for g in loci)
+)
+
+print(
+    "PLA2 loci:",
+    sum(g.startswith("PLA2-") for g in loci)
+)
+
+if not loci:
+    print(
+        "WARNING: No matching gene IDs found. "
+        "Inspect the GTF attributes shown above."
+    )
+
+PY
+
+# 4. locate G. ussuriensis reference assembly
+echo
+echo "===== G. USSURIENSIS ASSEMBLY CANDIDATES ====="
+
+find "$ROOT" -maxdepth 6 \
+    \( -type f -o -type l \) \
+    \( -name '*.fai' \
+       -o -name '*genome*.fasta' \
+       -o -name '*genome*.fa' \
+       -o -name '*assembly*.fasta' \
+       -o -name '*assembly*.fa' \) \
+    -not -path '*/assemblies_synteny/*' \
+    -print 2>/dev/null | head -n 40
+
+echo
+echo "===== COMPLETE ====="
+```
