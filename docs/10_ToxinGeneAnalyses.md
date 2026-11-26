@@ -985,6 +985,25 @@ These genomes have their respective toxin gene anootation, and we already downlo
 ```sh
 /home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny
 ```  
+We will create the following directory structure:
+```sh
+synteny/
+├── assemblies_synteny/          # existing reference genomes
+│
+└── toxin_microsynteny/
+    ├── 01_reference_inventory/
+    ├── 02_blast/
+    │   ├── SVMP/
+    │   └── PLA2/
+    ├── 03_genomic_intervals/
+    │   ├── SVMP/
+    │   └── PLA2/
+    ├── 04_alignments/
+    │   ├── SVMP/
+    │   └── PLA2/
+    ├── 05_annotations/
+    └── 06_figures/
+```
 
 First, let's identify the actual FASTA files, assembly versions, and available GFF3/GTF annotations. Below is a read-only script that will do the job. This will not create any new folders or files.
 ```sh
@@ -1069,23 +1088,4 @@ ls -lh \
 echo
 echo "===== COMPLETE ====="
 ```
-
-We will create the following directory structure:
-```sh
-synteny/
-├── assemblies_synteny/          # existing reference genomes
-│
-└── toxin_microsynteny/
-    ├── 01_reference_inventory/
-    ├── 02_blast/
-    │   ├── SVMP/
-    │   └── PLA2/
-    ├── 03_genomic_intervals/
-    │   ├── SVMP/
-    │   └── PLA2/
-    ├── 04_alignments/
-    │   ├── SVMP/
-    │   └── PLA2/
-    ├── 05_annotations/
-    └── 06_figures/
-```
+The output of this script will show that our three comparison taxa all have the genome FASTA, gneome annotation GFF3, and protein FASTA files. It will also show that we have (as expected) *G. ussuriensis* ToxCodAn GTF, CDS FASTA, and protein FASTA.
