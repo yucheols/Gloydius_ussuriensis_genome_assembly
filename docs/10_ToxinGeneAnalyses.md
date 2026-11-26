@@ -978,4 +978,114 @@ PY
 
 #### Step 5: Collect homologous sequences from other species
 
-### Toxin gene microsynteny with *Crotalus adamanteus* assembly
+### Toxin gene microsynteny with other venomous snakes
+Here, we will explore the organization of SVMPs and PLA2s in different venom snake lineages. We will use our *G. ussuriensis* assembly and chromosome-level genomes of *Crotalus adamanteus*, *Cerastes gasperettii*, and *Naja naja*. For this analysis, we will closely follow the methods used by Mochales-Riaño et al. (2025). As outlined in that study, we will use BLASTn to locate SVMPs and PLA2s and their nontoxin paralogs across these genomes. 
+
+These genomes have their respective toxin gene anootation, and we already downloaded these assemblies for chromosomal macrosynteny analysis (see `11_Synteny.md`. I actually ran syteny analysis first, but documentation-wise I tought it would be better placed after these analyses). These assemblies are placed under the following directory:
+```sh
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/assemblies_synteny
+```  
+
+First, let's identify the actual FASTA files, assembly versions, and available GFF3/GTF annotations. Below is a read-only script that will do the job. This will not create any new folders or files.
+```sh
+# ============================================================
+# inspect reference genomes and annotations
+# ============================================================
+
+# 1. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+ASSEMBLIES="$ROOT/synteny/assemblies_synteny"
+
+# 2. inspect reference species
+for SPECIES in \
+    Cerastes_gasperettii \
+    Crotalus_adamanteus \
+    Naja_naja
+do
+    echo
+    echo "============================================================"
+    echo "$SPECIES"
+    echo "============================================================"
+
+    DIR="$ASSEMBLIES/$SPECIES"
+
+    if [[ ! -d "$DIR" ]]; then
+        echo "ERROR: Species directory missing."
+        continue
+    fi
+
+    echo
+    echo "===== DIRECTORY CONTENTS ====="
+
+    ls -lah "$DIR"
+
+    echo
+    echo "===== GENOME AND ANNOTATION FILES ====="
+
+    find "$DIR" -maxdepth 4 -type f \
+        \( -iname '*.fa' \
+        -o -iname '*.fasta' \
+        -o -iname '*.fna' \
+        -o -iname '*.fa.gz' \
+        -o -iname '*.fasta.gz' \
+        -o -iname '*.fna.gz' \
+        -o -iname '*.gff' \
+        -o -iname '*.gff3' \
+        -o -iname '*.gtf' \
+        -o -iname '*.gff.gz' \
+        -o -iname '*.gff3.gz' \
+        -o -iname '*.gtf.gz' \
+        -o -iname '*.faa' \
+        -o -iname '*.faa.gz' \
+        -o -iname '*.gbff' \
+        -o -iname '*.gbff.gz' \) \
+        -print | sort
+
+done
+
+# 3. inspect existing assembly inventories
+echo
+echo "===== ASSEMBLY MANIFEST ====="
+
+head -n 12 "$ASSEMBLIES/assembly_manifest.tsv"
+
+echo
+echo "===== ANNOTATION INVENTORY ====="
+
+head -n 12 "$ASSEMBLIES/annotation_protein_inventory.tsv"
+
+
+# 4. inspect G. ussuriensis toxin annotation
+echo
+echo "===== G. USSURIENSIS TOXIN ANNOTATION ====="
+
+TOXIN="$ROOT/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+
+ls -lh \
+    "$TOXIN/toxin_annotation.gtf" \
+    "$TOXIN/toxin_annotation_cds.fasta" \
+    "$TOXIN/toxin_annotation_pep.fasta"
+
+echo
+echo "===== COMPLETE ====="
+```
+
+We will create the following directory structure:
+```sh
+synteny/
+├── assemblies_synteny/          # existing reference genomes
+│
+└── toxin_microsynteny/
+    ├── 01_reference_inventory/
+    ├── 02_blast/
+    │   ├── SVMP/
+    │   └── PLA2/
+    ├── 03_genomic_intervals/
+    │   ├── SVMP/
+    │   └── PLA2/
+    ├── 04_alignments/
+    │   ├── SVMP/
+    │   └── PLA2/
+    ├── 05_annotations/
+    └── 06_figures/
+```
