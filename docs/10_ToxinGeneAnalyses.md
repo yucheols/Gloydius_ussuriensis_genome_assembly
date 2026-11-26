@@ -2636,4 +2636,805 @@ echo
 echo "===== COMPLETE ====="
 ```
 
-#### Step 6: Chromosome-coordinate inventory of the existing SVMP and PLA₂ annotations in *Cerastes*, *Crotalus*, and *Naja* 
+#### Step 6: Chromosome-coordinate inventory of the existing SVMP and PLA2 annotations in *Cerastes*, *Crotalus*, and *Naja* 
+Before rushing to get BLASTn done, let's first build a chromosome coordinate inventory of the existing SVMP and PLA₂ annotations in *Cerastes*, *Crotalus*, and *Naja*, then compare it with our curated *G. ussuriensis* ToxCodAn annotations. This will establish what is already annotated before we look for missing toxin loci using BLASTn.
+```sh
+# ============================================================
+# inventory existing SVMP and PLA2 gene annotations
+# ============================================================
+
+# 1. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+SYNTENY="$ROOT/synteny/toxin_microsynteny"
+ASSEMBLIES="$ROOT/synteny/assemblies_synteny"
+OUTDIR="$SYNTENY/05_annotations"
+MANIFEST="$SYNTENY/01_reference_inventory/anchor_bounded_regions.tsv"
+TOXIN="$ROOT/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/toxin_annotation.gtf"
+
+mkdir -p "$OUTDIR"
+
+# 2. comparative annotation files
+CGAS="$ASSEMBLIES/Cerastes_gasperettii/Cerastes_gasperettii.annotation.gff3"
+CADAM="$ASSEMBLIES/Crotalus_adamanteus/Crotalus_adamanteus.annotation.gff3"
+NAJA="$ASSEMBLIES/Naja_naja/Naja_naja.annotation.gff3"
+
+# 3. verify input files
+echo "===== VERIFY INPUT FILES ====="
+
+for FILE in "$MANIFEST" "$TOXIN" "$CGAS" "$CADAM" "$NAJA"
+do
+    if [[ ! -s "$FILE" ]]; then
+        echo "ERROR: Missing or empty input: $FILE"
+        exit 1
+    fi
+
+    echo "OK: $FILE"
+done
+
+# 4. extract existing annotations
+python - "$MANIFEST" "$OUTDIR" "$TOXIN" "$CGAS" "$CADAM" "$NAJA" <<'PY'
+
+import sys
+import csv
+import re
+from pathlib import Path
+from urllib.parse import unquote
+from collections import defaultdict
+
+manifest = Path(sys.argv[1])
+outdir = Path(sys.argv[2])
+toxin_gtf = Path(sys.argv[3])
+
+gff_files = {
+    "Cerastes_gasperettii": Path(sys.argv[4]),
+    "Crotalus_adamanteus": Path(sys.argv[5]),
+    "Naja_naja": Path(sys.argv[6])
+}
+
+# ------------------------------------------------------------
+# 1. read genomic interval manifest
+# ------------------------------------------------------------
+
+regions = {}
+
+with manifest.open() as handle:
+
+    for row in csv.DictReader(handle, delimiter="\t"):
+
+        regions[(row["species"], row["family"])] = {
+            "chr": row["chromosome"],
+            "start": int(row["start"]),
+            "end": int(row["end"])
+        }
+
+# ------------------------------------------------------------
+# 2. annotation parsing functions
+# ------------------------------------------------------------
+
+def parse_gff_attributes(text):
+
+    result = {}
+
+    for item in text.split(";"):
+
+        if "=" in item:
+            key, value = item.split("=", 1)
+            result[key.strip()] = unquote(value.strip())
+
+    return result
+
+
+def parse_gtf_attributes(text):
+
+    return dict(
+        re.findall(r'(\S+)\s+"([^"]*)"', text)
+    )
+
+
+def overlaps(start, end, region):
+
+    return (
+        start <= region["end"]
+        and end >= region["start"]
+    )
+
+
+svmp_pattern = re.compile(
+    r"SVMP|venom.{0,35}metalloprote|"
+    r"metalloprote.{0,35}venom",
+    re.IGNORECASE
+)
+
+pla2_pattern = re.compile(
+    r"PLA2|phospholipase[\s_-]*A[\s_-]*2",
+    re.IGNORECASE
+)
+
+
+def classify(text, family):
+
+    pattern = (
+        svmp_pattern
+        if family == "SVMP"
+        else pla2_pattern
+    )
+
+    return (
+        "family_keyword"
+        if pattern.search(text)
+        else "no_keyword"
+    )
+
+
+def functional_hint(records):
+
+    for key in (
+        "gene", "gene_name", "product",
+        "description", "Note", "Name"
+    ):
+        for record in records:
+
+            if not record:
+                continue
+
+            value = record["attrs"].get(key, "")
+
+            if value:
+                return value[:200]
+
+    return "unannotated"
+
+# ------------------------------------------------------------
+# 3. read comparative GFF3 annotations
+# ------------------------------------------------------------
+
+all_models = []
+
+for species, gff in gff_files.items():
+
+    print(f"\n===== {species} =====")
+
+    for family in ("SVMP", "PLA2"):
+
+        region = regions[(species, family)]
+
+        genes = {}
+        transcripts = {}
+        cds_by_parent = defaultdict(list)
+
+        with gff.open() as handle:
+
+            for line in handle:
+
+                if not line.strip() or line.startswith("#"):
+                    continue
+
+                f = line.rstrip("\n").split("\t")
+
+                if len(f) < 9:
+                    continue
+
+                if f[0] != region["chr"]:
+                    continue
+
+                if f[2] not in (
+                    "gene", "mRNA", "transcript", "CDS"
+                ):
+                    continue
+
+                start = int(f[3])
+                end = int(f[4])
+
+                if not overlaps(start, end, region):
+                    continue
+
+                record = {
+                    "start": start,
+                    "end": end,
+                    "strand": f[6],
+                    "attrs": parse_gff_attributes(f[8])
+                }
+
+                attrs = record["attrs"]
+
+                if f[2] == "gene":
+
+                    gene_id = attrs.get("ID", "")
+
+                    if gene_id:
+                        genes[gene_id] = record
+
+                elif f[2] in ("mRNA", "transcript"):
+
+                    tx_id = attrs.get("ID", "")
+
+                    if tx_id:
+                        transcripts[tx_id] = record
+
+                elif f[2] == "CDS":
+
+                    for parent in attrs.get(
+                        "Parent", ""
+                    ).split(","):
+
+                        if parent:
+                            cds_by_parent[parent].append(
+                                record
+                            )
+
+        covered_genes = set()
+
+        # Build transcript-centered gene-model inventory.
+        for tx_id in sorted(
+            set(transcripts) | set(cds_by_parent)
+        ):
+
+            tx = transcripts.get(tx_id)
+            cds = cds_by_parent.get(tx_id, [])
+
+            parent = (
+                tx["attrs"].get("Parent", "").split(",")[0]
+                if tx
+                else ""
+            )
+
+            gene_id = parent or (
+                tx_id if tx_id in genes else ""
+            )
+
+            gene = genes.get(gene_id)
+
+            if gene_id:
+                covered_genes.add(gene_id)
+
+            records = [
+                r for r in [tx, *cds]
+                if r is not None
+            ]
+
+            if not records:
+                continue
+
+            start = min(r["start"] for r in records)
+            end = max(r["end"] for r in records)
+
+            strand = records[0]["strand"]
+
+            annotation_records = [
+                r for r in [gene, tx, *cds]
+                if r is not None
+            ]
+
+            attributes_text = " ".join(
+                " ".join(r["attrs"].values())
+                for r in annotation_records
+            )
+
+            all_models.append({
+                "species": species,
+                "family": family,
+                "chr": region["chr"],
+                "start": start,
+                "end": end,
+                "strand": strand,
+                "gene_id": gene_id,
+                "model_id": tx_id,
+                "model_source": (
+                    "transcript"
+                    if tx
+                    else "CDS_parent"
+                ),
+                "cds_segments": len(cds),
+                "functional_hint": functional_hint(
+                    annotation_records
+                ),
+                "classification": classify(
+                    attributes_text, family
+                )
+            })
+
+        # Include genes without recovered transcript models.
+        for gene_id, gene in genes.items():
+
+            if gene_id in covered_genes:
+                continue
+
+            all_models.append({
+                "species": species,
+                "family": family,
+                "chr": region["chr"],
+                "start": gene["start"],
+                "end": gene["end"],
+                "strand": gene["strand"],
+                "gene_id": gene_id,
+                "model_id": gene_id,
+                "model_source": "gene_only",
+                "cds_segments": 0,
+                "functional_hint": functional_hint(
+                    [gene]
+                ),
+                "classification": classify(
+                    " ".join(gene["attrs"].values()),
+                    family
+                )
+            })
+
+        subset = [
+            r for r in all_models
+            if r["species"] == species
+            and r["family"] == family
+        ]
+
+        candidates = [
+            r for r in subset
+            if r["classification"] == "family_keyword"
+        ]
+
+        print(
+            f"{family}: "
+            f"{len(subset)} annotated models; "
+            f"{len(candidates)} family-keyword matches"
+        )
+
+# ------------------------------------------------------------
+# 4. recover curated G. ussuriensis toxin loci
+# ------------------------------------------------------------
+
+guss_loci = {}
+
+with toxin_gtf.open() as handle:
+
+    for line in handle:
+
+        if not line.strip() or line.startswith("#"):
+            continue
+
+        f = line.rstrip("\n").split("\t")
+
+        if len(f) < 9 or f[2] != "CDS":
+            continue
+
+        attrs = parse_gtf_attributes(f[8])
+
+        gene_id = attrs.get("gene_id", "")
+
+        if gene_id.startswith("SVMP-"):
+            family = "SVMP"
+
+        elif gene_id.startswith("PLA2-"):
+            family = "PLA2"
+
+        else:
+            continue
+
+        region = regions[
+            ("Gloydius_ussuriensis", family)
+        ]
+
+        start = int(f[3])
+        end = int(f[4])
+
+        if (
+            f[0] != region["chr"]
+            or not overlaps(start, end, region)
+        ):
+            continue
+
+        key = (family, gene_id)
+
+        if key not in guss_loci:
+
+            guss_loci[key] = {
+                "species": "Gloydius_ussuriensis",
+                "family": family,
+                "chr": f[0],
+                "start": start,
+                "end": end,
+                "strand": f[6],
+                "gene_id": gene_id,
+                "cds_segments": 0
+            }
+
+        locus = guss_loci[key]
+
+        locus["start"] = min(
+            locus["start"], start
+        )
+
+        locus["end"] = max(
+            locus["end"], end
+        )
+
+        locus["cds_segments"] += 1
+
+# ------------------------------------------------------------
+# 5. export annotation inventories
+# ------------------------------------------------------------
+
+model_fields = [
+    "species",
+    "family",
+    "chr",
+    "start",
+    "end",
+    "strand",
+    "gene_id",
+    "model_id",
+    "model_source",
+    "cds_segments",
+    "functional_hint",
+    "classification"
+]
+
+locus_fields = [
+    "species",
+    "family",
+    "chr",
+    "start",
+    "end",
+    "strand",
+    "gene_id",
+    "cds_segments"
+]
+
+
+def write_tsv(path, rows, fields):
+
+    with path.open("w", newline="") as handle:
+
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=fields,
+            delimiter="\t"
+        )
+
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+all_models.sort(
+    key=lambda r: (
+        r["species"],
+        r["family"],
+        r["chr"],
+        r["start"]
+    )
+)
+
+candidates = [
+    r for r in all_models
+    if r["classification"] == "family_keyword"
+]
+
+curated_loci = sorted(
+    guss_loci.values(),
+    key=lambda r: (
+        r["family"],
+        r["start"]
+    )
+)
+
+output_all = (
+    outdir / "comparative_GFF_models_in_regions.tsv"
+)
+
+output_candidates = (
+    outdir / "comparative_toxin_keyword_candidates.tsv"
+)
+
+output_guss = (
+    outdir / "Guss_ToxCodAn_loci_in_regions.tsv"
+)
+
+write_tsv(output_all, all_models, model_fields)
+
+write_tsv(
+    output_candidates,
+    candidates,
+    model_fields
+)
+
+write_tsv(
+    output_guss,
+    curated_loci,
+    locus_fields
+)
+
+# ------------------------------------------------------------
+# 6. print summary
+# ------------------------------------------------------------
+
+print("\n===== COMPARATIVE TOXIN ANNOTATION SUMMARY =====")
+
+for species in gff_files:
+
+    for family in ("SVMP", "PLA2"):
+
+        subset = [
+            r for r in candidates
+            if r["species"] == species
+            and r["family"] == family
+        ]
+
+        print(f"\n--- {species}: {family} ---")
+
+        if not subset:
+            print(
+                "No family keywords detected in GFF3."
+            )
+            continue
+
+        for r in subset:
+
+            print(
+                f"{r['start']:>12,}-"
+                f"{r['end']:<12,} "
+                f"{r['strand']} "
+                f"{r['model_id'][:30]:<30} "
+                f"{r['functional_hint'][:65]}"
+            )
+
+print("\n===== G. USSURIENSIS TOXCODAN LOCI =====")
+
+for family in ("SVMP", "PLA2"):
+
+    subset = [
+        r for r in curated_loci
+        if r["family"] == family
+    ]
+
+    print(f"\n{family}: {len(subset)} raw locus IDs")
+
+    for r in subset:
+
+        print(
+            f"{r['gene_id']:<12} "
+            f"{r['chr']} "
+            f"{r['start']:,}-{r['end']:,}"
+        )
+
+print("\n===== OUTPUT FILES =====")
+
+for path in (
+    output_all,
+    output_candidates,
+    output_guss
+):
+    print(path)
+
+print("\n===== COMPLETE =====")
+PY
+```
+
+#### Step 7: Comparative BLASTn and tBLASTn searches  
+We'll use two complementary approaches:
+ - tBLASTn: Search translated genomic regions using our curated toxin proteins. This should be especially useful for detecting homologs in the more divergent *Naja naja* genome.
+ - BLASTn: Search genomic DNA using our toxin coding sequences, providing nucleotide-level evidence of homology.
+
+We'll run both methods against the eight extracted genomic intervals, including *G. ussuriensis*. Importantly, individual BLAST hits may represent separate exons, multiple alignments to the same gene, or fragments of pseudogenes. We will not interpret the number of hits as the number of toxin loci.
+
+Below is the BLASTn + tBLASTn script:
+```sh
+#!/bin/bash
+#SBATCH --job-name=toxin_homology
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=04:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# ============================================================
+# comparative SVMP and PLA2 BLASTN and TBLASTN searches
+# ============================================================
+
+# 1. environment
+source "$HOME/mendel-nas1/miniconda3/etc/profile.d/conda.sh"
+conda activate funannotate
+
+set -euo pipefail
+
+# 2. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+SYNTENY="$ROOT/synteny/toxin_microsynteny"
+TOXIN="$ROOT/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
+PHYLO="$TOXIN/phylogeny"
+CDS="$TOXIN/toxin_annotation_cds.fasta"
+INTERVALS="$SYNTENY/03_genomic_intervals"
+BLASTDIR="$SYNTENY/02_blast"
+THREADS="${SLURM_CPUS_PER_TASK:-4}"
+
+# 3. verify and extract query sequences
+echo "===== PREPARE QUERY SEQUENCES ====="
+
+python - "$PHYLO" "$CDS" "$BLASTDIR" <<'PY'
+
+import sys
+from pathlib import Path
+
+phylo = Path(sys.argv[1])
+cds_file = Path(sys.argv[2])
+outdir = Path(sys.argv[3])
+
+def read_fasta(path):
+    seqs = {}
+    name = None
+    parts = []
+
+    with path.open() as handle:
+        for line in handle:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            if line.startswith(">"):
+                if name is not None:
+                    if name in seqs:
+                        raise ValueError(f"Duplicate ID: {name}")
+                    seqs[name] = "".join(parts)
+
+                name = line[1:].split()[0]
+                parts = []
+            else:
+                parts.append(line)
+
+    if name is not None:
+        if name in seqs:
+            raise ValueError(f"Duplicate ID: {name}")
+        seqs[name] = "".join(parts)
+
+    return seqs
+
+all_cds = read_fasta(cds_file)
+
+for family in ("SVMP", "PLA2"):
+
+    proteins = read_fasta(
+        phylo / f"Guss_{family}_core.faa"
+    )
+
+    missing = [
+        gene for gene in proteins
+        if gene not in all_cds
+    ]
+
+    if missing:
+        raise ValueError(
+            f"Missing {family} CDS: {missing}"
+        )
+
+    dest = (
+        outdir / family /
+        f"Guss_{family}_core_cds.fna"
+    )
+
+    with dest.open("w") as handle:
+
+        for gene in proteins:
+            seq = all_cds[gene]
+
+            if not seq:
+                raise ValueError(f"Empty CDS: {gene}")
+
+            handle.write(f">{gene}\n")
+
+            for i in range(0, len(seq), 80):
+                handle.write(seq[i:i+80] + "\n")
+
+    print(
+        f"{family}: {len(proteins)} proteins, "
+        f"{len(proteins)} matching CDS sequences"
+    )
+
+    print(f"CDS output: {dest}")
+
+PY
+
+# 4. build local genomic BLAST databases
+echo
+echo "===== BUILD GENOMIC BLAST DATABASES ====="
+
+for FAMILY in SVMP PLA2
+do
+    mkdir -p "$BLASTDIR/$FAMILY/db"
+
+    for SPECIES in \
+        Gloydius_ussuriensis \
+        Cerastes_gasperettii \
+        Crotalus_adamanteus \
+        Naja_naja
+    do
+        GENOME="$INTERVALS/$FAMILY/${SPECIES}_${FAMILY}_anchor_bounded.fa"
+
+        DB="$BLASTDIR/$FAMILY/db/${SPECIES}"
+
+        if [[ ! -s "$GENOME" ]]; then
+            echo "ERROR: Missing genomic interval: $GENOME"
+            exit 1
+        fi
+
+        makeblastdb \
+            -in "$GENOME" \
+            -dbtype nucl \
+            -out "$DB" \
+            > /dev/null
+
+        echo "OK: $FAMILY $SPECIES"
+    done
+done
+
+# 5. run TBLASTN and BLASTN
+echo
+echo "===== RUN HOMOLOGY SEARCHES ====="
+
+for FAMILY in SVMP PLA2
+do
+    PROTEINS="$PHYLO/Guss_${FAMILY}_core.faa"
+    NUCLEOTIDES="$BLASTDIR/$FAMILY/Guss_${FAMILY}_core_cds.fna"
+
+    for SPECIES in \
+        Gloydius_ussuriensis \
+        Cerastes_gasperettii \
+        Crotalus_adamanteus \
+        Naja_naja
+    do
+        DB="$BLASTDIR/$FAMILY/db/${SPECIES}"
+
+        OUT_TBLASTN="$BLASTDIR/$FAMILY/Guss_${FAMILY}_vs_${SPECIES}.tblastn.tsv"
+
+        OUT_BLASTN="$BLASTDIR/$FAMILY/Guss_${FAMILY}_vs_${SPECIES}.blastn.tsv"
+
+        echo
+        echo "===== $FAMILY vs $SPECIES ====="
+
+        tblastn \
+            -query "$PROTEINS" \
+            -db "$DB" \
+            -evalue 1e-5 \
+            -num_threads "$THREADS" \
+            -outfmt '6 qseqid sseqid pident length qlen qstart qend sstart send sframe evalue bitscore' \
+            -out "$OUT_TBLASTN"
+
+        blastn \
+            -task blastn \
+            -query "$NUCLEOTIDES" \
+            -db "$DB" \
+            -evalue 1e-5 \
+            -num_threads "$THREADS" \
+            -outfmt '6 qseqid sseqid pident length qlen qstart qend sstart send sstrand evalue bitscore' \
+            -out "$OUT_BLASTN"
+
+        echo "TBLASTN HSPs: $(wc -l < "$OUT_TBLASTN")"
+        echo "BLASTN HSPs:  $(wc -l < "$OUT_BLASTN")"
+    done
+done
+
+# 6. verify output files
+echo
+echo "===== SEARCH OUTPUT SUMMARY ====="
+
+for FAMILY in SVMP PLA2
+do
+    for SPECIES in \
+        Gloydius_ussuriensis \
+        Cerastes_gasperettii \
+        Crotalus_adamanteus \
+        Naja_naja
+    do
+        for METHOD in tblastn blastn
+        do
+            FILE="$BLASTDIR/$FAMILY/Guss_${FAMILY}_vs_${SPECIES}.${METHOD}.tsv"
+
+            echo "$FAMILY $SPECIES $METHOD: $(wc -l < "$FILE") HSPs"
+        done
+    done
+done
+
+echo
+echo "===== COMPLETE ====="
+```
