@@ -4481,7 +4481,7 @@ Importantly, this script DOES NOT do the following:
   - Automatically establish orthology, toxin function, or independent gene copy numbers.
   - Validate protein domains or determine whether predicted coding sequences are complete.
 
-The output of the above script can be summarized into:
+The output of the above script can be summarized like below for SVMPs:
 ```sh
 Classification	          Naja gene IDs (suffixes)	                                Evidence
 ------------------------------------------------------------------------------------------------------------------
@@ -4492,3 +4492,19 @@ Additional SVMP-like	  `006954`, `006956`	           Substantial but shorter ali
 Short homologous models	  `006951`, `006953`	           Matches spanning only 83–166 aa
 Conserved flanking genes  `006948`, `006958`, `006959`	   STC1, NEFM and NEFL homologs
 ```
+
+... and for PLA2s:
+```sh
+Classification                  Naja gene IDs (suffixes)	Evidence
+----------------------------------------------------------------------------------------------------------------
+Putative venom PLA₂ homolog	                      006365	82.6% identity over 138 aa with Crotalus; 62.5% with  
+                                                            Cerastes PLA₂-gC
+PLA₂G2F-like nonvenom homolog	                  006357	83.2% identity with Cerastes PLA₂G2F
+Uncertain PLA₂-family model	                      006364	78–84% identity over short alignments; only 41–46% 
+                                                            query coverage
+Conserved flanking genes	              006360, 006356	OTUD3 (82.1% identity) and MUL1 (83.8% identity) with 
+                                                            Cerastes homologs
+```
+
+#### Step 8: Local genomic alignments of the SVMP and PLA₂ regions across species
+So far, we have identified homologous genomic neighborhoods of SVMPs and PLA2s, extracted sequences bound by homologous anchor loci, and compiled preliminary toxin-gene annotations. The next objective is to determine which DNA segments remain conserved, their relative orientation, and how their arrangement differs between species. For this, we'll use minimap2 with the `asm20` preset for assembly-to-assembly alignments.
