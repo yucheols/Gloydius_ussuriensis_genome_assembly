@@ -2184,4 +2184,456 @@ for family in ("SVMP", "PLA2"):
 
 print("\n===== COMPLETE =====")
 PY
- ```
+```
+
+Once this finishes running (it will take less than a minute on Mendel), summarize the output:
+```sh
+# ============================================================
+# summarize SVMP and PLA2 flanking gene BLASTp results
+# ============================================================
+
+# 1. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+BLASTDIR="$ROOT/synteny/toxin_microsynteny/02_blast"
+
+# 2. verify BLASTp output files
+echo "===== BLASTP OUTPUT FILES ====="
+
+for FAMILY in SVMP PLA2
+do
+    for SPECIES in \
+        Cerastes_gasperettii \
+        Crotalus_adamanteus \
+        Naja_naja
+    do
+        FILE="$BLASTDIR/$FAMILY/Guss_${FAMILY}_vs_${SPECIES}.blastp.tsv"
+
+        if [[ -s "$FILE" ]]; then
+            echo "OK: $FAMILY vs $SPECIES ($(wc -l < "$FILE") hits)"
+        elif [[ -f "$FILE" ]]; then
+            echo "EMPTY: $FAMILY vs $SPECIES"
+        else
+            echo "MISSING: $FAMILY vs $SPECIES"
+        fi
+    done
+done
+
+# 3. summarize best BLASTP hits
+for FAMILY in SVMP PLA2
+do
+    echo
+    echo "===== $FAMILY BEST BLASTP HITS ====="
+
+    for SPECIES in \
+        Cerastes_gasperettii \
+        Crotalus_adamanteus \
+        Naja_naja
+    do
+        FILE="$BLASTDIR/$FAMILY/Guss_${FAMILY}_vs_${SPECIES}.blastp.tsv"
+
+        echo
+        echo "----- $SPECIES -----"
+
+        if [[ ! -s "$FILE" ]]; then
+            echo "No BLASTP results available."
+            continue
+        fi
+
+        awk -F '\t' '
+            !seen[$1]++ {
+                printf "%-20s %-30s Identity=%5.1f%% Qcov=%5.1f%% E=%s\n",
+                    $1, $2, $3, $7, $8
+            }
+        ' "$FILE"
+    done
+done
+
+echo
+echo "===== COMPLETE ====="
+```
+
+The output of this script should look like:
+```sh
+===== SVMP BEST BLASTP HITS =====
+
+----- Cerastes_gasperettii -----
+FUN_014513-T1        crotalus-ruber-cadam-rna-Stc1-gene14556-R0-R0 Identity= 98.0% Qcov=100.0% E=0.0
+FUN_014512-T1        crotalus-ruber-ctigris-rna-XM-039354206.1-R0-R0 Identity= 96.3% Qcov= 72.0% E=5.23e-94
+FUN_014511-T1        crotalus-ruber-cadam-rna-Slc25a28-gene11692-R0-R0 Identity= 73.5% Qcov= 86.0% E=1.85e-164
+FUN_014526-T1        rna-NEFM                       Identity= 87.6% Qcov= 92.0% E=0.0
+FUN_014527-T1        rna-NEFL                       Identity= 74.1% Qcov=100.0% E=0.0
+FUN_014528-T1        crotalus-tigris-rna-XM-039354176.1-R0 Identity= 98.7% Qcov= 99.0% E=0.0
+
+----- Crotalus_adamanteus -----
+FUN_014513-T1        KAK9395204.1                   Identity= 98.8% Qcov= 99.0% E=0.0
+FUN_014512-T1        KAK9395205.1                   Identity= 97.8% Qcov= 72.0% E=2.07e-93
+FUN_014511-T1        KAK9395206.1                   Identity= 96.6% Qcov=100.0% E=0.0
+FUN_014526-T1        KAK9395179.1                   Identity= 96.5% Qcov= 92.0% E=0.0
+FUN_014527-T1        KAK9395178.1                   Identity= 98.2% Qcov=100.0% E=0.0
+FUN_014528-T1        KAK9395177.1                   Identity= 99.2% Qcov= 99.0% E=0.0
+
+----- Naja_naja -----
+FUN_014513-T1        KAG8141316.1                   Identity= 90.4% Qcov=100.0% E=2.95e-159
+FUN_014512-T1        KAG8141315.1                   Identity= 94.8% Qcov= 72.0% E=1.89e-92
+FUN_014511-T1        KAG8141313.1                   Identity= 86.0% Qcov= 82.0% E=7.01e-179
+FUN_014526-T1        KAG8141328.1                   Identity= 94.5% Qcov= 47.0% E=0.0
+FUN_014527-T1        KAG8141329.1                   Identity= 92.8% Qcov= 88.0% E=0.0
+FUN_014528-T1        KAG8141330.1                   Identity= 82.7% Qcov= 97.0% E=0.0
+
+===== PLA2 BEST BLASTP HITS =====
+
+----- Cerastes_gasperettii -----
+FUN_018058-T1        rna-Pla2g2F                    Identity= 84.9% Qcov=100.0% E=2.21e-84
+FUN_018057-T1        crotalus-ruber-Mul1-R0         Identity= 93.8% Qcov=100.0% E=0.0
+FUN_018056-T1        naja-naja-rna-gnl|WGS:SOZL|mRNA10391-R0 Identity= 49.4% Qcov=100.0% E=7.03e-18
+FUN_018055-T1        crotalus-ruber-cadam-rna-Vwa5b1-gene17777-R0-R0 Identity= 81.6% Qcov= 99.0% E=0.0
+FUN_018054-T1        crotalus-ruber-cadam-rna-Vwa5b1-gene17777-R0-R0 Identity= 89.4% Qcov= 93.0% E=0.0
+FUN_018053-T1        crotalus-ruber-cadam-rna-Vwa5b1-gene17777-R0-R0 Identity= 90.8% Qcov= 88.0% E=3.90e-131
+FUN_018052-T1        crotalus-tigris-rna-XM-039367319.1-R0 Identity= 98.1% Qcov=100.0% E=0.0
+FUN_018051-T1        crotalus-tigris-rna-XM-039367328.1-R0 Identity= 88.6% Qcov=100.0% E=0.0
+FUN_018072-T1        crotalus-tigris-rna-XM-039367456.1-R0 Identity= 91.4% Qcov= 80.0% E=6.74e-60
+FUN_018073-T1        crotalus-ruber-Otud3-R0        Identity= 88.8% Qcov=100.0% E=0.0
+FUN_018074-T1        crotalus-tigris-rna-XM-039367450.1-R0 Identity= 81.6% Qcov=100.0% E=0.0
+FUN_018075-T1        crotalus-ruber-ctigris-rna-XM-039367458.1-R0-R0 Identity=100.0% Qcov=100.0% E=7.59e-131
+FUN_018076-T1        crotalus-ruber-ctigris-rna-XM-039367429.1-R0-R0 Identity= 80.7% Qcov= 96.0% E=0.0
+FUN_018077-T1        crotalus-ruber-ctigris-rna-XM-039367453.1-R0-R0 Identity= 97.4% Qcov=100.0% E=0.0
+FUN_018078-T1        crotalus-ruber-cadam-rna-Zmynd12-gene17767-R0-R0 Identity= 96.5% Qcov=100.0% E=0.0
+FUN_018079-T1        crotalus-viridis-augustus-masked-scaffold-mi7-processed-gene-9.4-mRNA-1-R0 Identity= 93.5% Qcov= 92.0% E=0.0
+
+----- Crotalus_adamanteus -----
+FUN_018058-T1        KAK9392178.1                   Identity= 39.7% Qcov= 96.0% E=4.78e-28
+FUN_018057-T1        KAK9392180.1                   Identity= 97.9% Qcov=100.0% E=0.0
+FUN_018056-T1        KAK9392181.1                   Identity= 97.3% Qcov=100.0% E=1.37e-46
+FUN_018055-T1        KAK9392182.1                   Identity= 85.0% Qcov= 99.0% E=0.0
+FUN_018054-T1        KAK9392182.1                   Identity= 96.3% Qcov= 93.0% E=0.0
+FUN_018053-T1        KAK9392182.1                   Identity= 96.8% Qcov= 88.0% E=1.50e-144
+FUN_018052-T1        KAK9392183.1                   Identity= 98.3% Qcov=100.0% E=0.0
+FUN_018051-T1        KAK9392184.1                   Identity= 95.6% Qcov=100.0% E=0.0
+FUN_018072-T1        KAK9392177.1                   Identity= 94.6% Qcov= 80.0% E=1.61e-62
+FUN_018073-T1        KAK9392176.1                   Identity= 96.9% Qcov=100.0% E=0.0
+FUN_018074-T1        KAK9392175.1                   Identity= 99.7% Qcov= 87.0% E=0.0
+FUN_018075-T1        KAK9392175.1                   Identity=100.0% Qcov=100.0% E=3.61e-125
+FUN_018076-T1        KAK9392174.1                   Identity= 87.9% Qcov= 58.0% E=0.0
+FUN_018077-T1        KAK9392173.1                   Identity= 95.6% Qcov= 96.0% E=0.0
+FUN_018078-T1        KAK9392172.1                   Identity= 97.3% Qcov=100.0% E=0.0
+FUN_018079-T1        KAK9392171.1                   Identity= 98.5% Qcov= 92.0% E=0.0
+
+----- Naja_naja -----
+FUN_018058-T1        KAG8142458.1                   Identity= 88.0% Qcov= 82.0% E=1.93e-82
+FUN_018057-T1        KAG8142459.1                   Identity= 86.2% Qcov= 98.0% E=0.0
+FUN_018056-T1        KAG8142460.1                   Identity= 90.4% Qcov=100.0% E=7.81e-44
+FUN_018055-T1        KAG8142461.1                   Identity= 75.9% Qcov= 99.0% E=0.0
+FUN_018054-T1        KAG8142461.1                   Identity= 79.0% Qcov= 88.0% E=0.0
+FUN_018053-T1        KAG8142461.1                   Identity= 85.3% Qcov= 88.0% E=1.78e-122
+FUN_018052-T1        KAG8142462.1                   Identity= 90.0% Qcov=100.0% E=0.0
+FUN_018051-T1        KAG8142463.1                   Identity= 84.3% Qcov=100.0% E=2.55e-175
+FUN_018072-T1        KAG8142457.1                   Identity= 42.7% Qcov= 68.0% E=2.41e-13
+FUN_018073-T1        KAG8142454.1                   Identity= 84.1% Qcov=100.0% E=0.0
+FUN_018074-T1        KAG8142453.1                   Identity= 98.3% Qcov=100.0% E=0.0
+FUN_018075-T1        KAG8142452.1                   Identity= 99.4% Qcov=100.0% E=1.40e-131
+FUN_018076-T1        KAG8142451.1                   Identity= 67.8% Qcov= 75.0% E=0.0
+FUN_018077-T1        KAG8142450.1                   Identity= 94.0% Qcov= 91.0% E=6.99e-165
+FUN_018078-T1        KAG8142449.1                   Identity= 87.1% Qcov=100.0% E=0.0
+FUN_018079-T1        KAG8142447.1                   Identity= 95.5% Qcov= 92.0% E=0.0
+```
+These BLASTp results are promising, and we have identified strong candidate conserved flanking genes for both the SVMP and PLA₂ clusters across all four species.
+
+For SVMPs:
+```sh
+G. ussuriensis gene |  Putative identity	| Supporting evidence
+--------------------|-----------------------|---------------------------------------------------------------
+FUN_014526	        |               NEFM    | Explicitly annotated as NEFM in Cerastes; homologs detected in      
+                    |                       | Crotalus and Naja
+FUN_014527	        |               NEFL	| Explicitly annotated as NEFL in Cerastes; strong matches in both                |                       | other species
+FUN_014528	        |         Unresolved	| Strong matches in all three species
+FUN_014513	        |         Unresolved	| Strong matches in all three species
+```
+
+For PLA2s:
+```sh
+G. ussuriensis gene	  |   Putative identity	 |  Supporting evidence
+----------------------|----------------------|---------------------------------------------
+FUN_018058	          |            PLA₂-g2F	 |  Explicitly annotated as Pla2g2F in Cerastes
+FUN_018057	          |                MUL1	 |  Explicitly annotated as Mul1 in Cerastes
+FUN_018073	          |               OTUD3	 |  Explicitly annotated as Otud3 in Cerastes
+```
+
+However, there are three things worth examining before selecting final homologous anchors. First, several genes have multiple potential homologs. In the PLA2 region, `FUN_018053`, `FUN_018054`, and `FUN_018055` all match the same *C. adamanteus* protein `KAK9392182.1`. Similarly, `FUN_018074` and `FUN_018075` both match `KAK9392175.1`. These could represent duplications, fragmented gene models, or paralogous sequences. We should not assume one-to-one orthology. Second, some matches have relatively low coverage. For example, the *Naja* match to `FUN_014526` has only 47% query coverage. We should inspect whether this reflects an incomplete annotation or a more divergent homolog. Third, protein names in the *Cerastes* dataset include names derived from other snakes, such as `crotalus-ruber-cadam-rna-....` These are annotation identifiers, not evidence that the sequences come from those other species.
+
+Our next goal is to verify that the candidate homologs actually occur together in the expected genomic neighborhoods. Run this diagnostic script on Mendel. It searches the existing GFF3 annotations for key BLASTp subject IDs and reports their genomic locations.
+
+Specifically, the script takes the protein IDs from our previous BLASTp analysis and also reads the annotation files for the three comparative species. For each target protein ID, it searches the GFF3 attributes column (column 9) for that identifier. That record provides the chromosome and coordinates of the corresponding annotated coding sequence. For each matched protein identifier, the script extracts: chromosome, start & end, strand, feature types (e.g., CDS, mRNA, exon, etc.), and attributes. This then allows us to examine conserved genomic neighborhoods, which basically helps answer our question: "Are we comparing the corresponding genomic regions when examining SVMP and PLA₂ gene organization across the four snake species?"
+```sh
+# ============================================================
+# map SVMP and PLA2 candidate anchors to comparative genomes
+# ============================================================
+
+# 1. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+ASSEMBLIES="$ROOT/synteny/assemblies_synteny"
+
+# 2. inspect genomic locations
+python - "$ASSEMBLIES" <<'PY'
+
+import sys
+from pathlib import Path
+from collections import defaultdict, Counter
+
+assemblies = Path(sys.argv[1])
+
+targets = {
+    "Cerastes_gasperettii": {
+        "SVMP": [
+            "rna-NEFM",
+            "rna-NEFL",
+            "crotalus-ruber-cadam-rna-Stc1-gene14556-R0-R0",
+            "crotalus-tigris-rna-XM-039354176.1-R0"
+        ],
+        "PLA2": [
+            "rna-Pla2g2F",
+            "crotalus-ruber-Mul1-R0",
+            "crotalus-ruber-Otud3-R0"
+        ]
+    },
+    "Crotalus_adamanteus": {
+        "SVMP": [
+            "KAK9395179.1",
+            "KAK9395178.1",
+            "KAK9395204.1",
+            "KAK9395177.1"
+        ],
+        "PLA2": [
+            "KAK9392178.1",
+            "KAK9392180.1",
+            "KAK9392176.1"
+        ]
+    },
+    "Naja_naja": {
+        "SVMP": [
+            "KAG8141328.1",
+            "KAG8141329.1",
+            "KAG8141316.1",
+            "KAG8141330.1"
+        ],
+        "PLA2": [
+            "KAG8142458.1",
+            "KAG8142459.1",
+            "KAG8142454.1"
+        ]
+    }
+}
+
+for species, families in targets.items():
+
+    print(f"\n===== {species} =====")
+
+    gff = (
+        assemblies / species /
+        f"{species}.annotation.gff3"
+    )
+
+    if not gff.is_file():
+        print("ERROR: Missing GFF3:", gff)
+        continue
+
+    ids = {
+        target
+        for family_targets in families.values()
+        for target in family_targets
+    }
+
+    matches = defaultdict(
+        lambda: defaultdict(
+            lambda: {
+                "start": float("inf"),
+                "end": 0,
+                "types": Counter(),
+                "example": ""
+            }
+        )
+    )
+
+    with gff.open() as handle:
+
+        for line in handle:
+
+            if not line.strip() or line.startswith("#"):
+                continue
+
+            f = line.rstrip("\n").split("\t")
+
+            if len(f) < 9:
+                continue
+
+            attributes = f[8]
+
+            for target in ids:
+
+                if target not in attributes:
+                    continue
+
+                key = (f[0], f[6])
+                hit = matches[target][key]
+
+                hit["start"] = min(
+                    hit["start"], int(f[3])
+                )
+
+                hit["end"] = max(
+                    hit["end"], int(f[4])
+                )
+
+                hit["types"][f[2]] += 1
+
+                if not hit["example"]:
+                    hit["example"] = attributes[:160]
+
+    for family, family_targets in families.items():
+
+        print(f"\n--- {family} ---")
+
+        for target in family_targets:
+
+            loci = matches.get(target)
+
+            if not loci:
+                print(f"{target}: NOT_FOUND_IN_GFF")
+                continue
+
+            for (chrom, strand), result in sorted(
+                loci.items()
+            ):
+
+                print(
+                    f"{target}\n"
+                    f"  Chromosome: {chrom}\n"
+                    f"  Coordinates: "
+                    f"{result['start']:,}-"
+                    f"{result['end']:,}\n"
+                    f"  Strand: {strand}\n"
+                    f"  Features: {dict(result['types'])}\n"
+                    f"  Attributes: {result['example']}"
+                )
+
+print("\n===== COMPLETE =====")
+PY
+```
+
+The result suggests that the candidate flanking genes occur in corresponding chromosomal neighborhoods across all four snake species, providing strong evidence that we have identified homologous SVMP and PLA2 regions. 
+
+For SVMPs, the key observation is that `STC1` and the `NEFM–NEFL–DOCK5` flank the SVMP region (`STC` > SVMP array > `NEFM-NEFL-DOCK5`). For PLA2, `OTUD3` and `PLA2G2F-MUL1` are flanking the toxin array.
+
+However, there are some limitations to this script. First, it does not demonstrate orthology. It maps BLASTp-selected homologs without performing reciprocal best-hit analysis or a formal orthology assessment. Second, it does not align genomic sequences. There is no comparison of nucleotide-level collinearity, conserved sequence blocks, inversions, or rearrangements. Third, it does not identify toxin-gene duplications or losses. Those require examination of toxin loci within the extracted homologous regions. Also, the script searches for protein IDs as text within GFF3 attributes; it does not comprehensively reconstruct gene models.
+
+#### Step 5: Extract anchor-bounded genomic intervals
+The script below will extract genomic intervals spanning the conserved anchors, with an additional 20 kb on each side. This will produce eight FASTA sequences: one SVMP and one PLA₂ region for each species. We'll preserve the previously extracted *G. ussuriensis* FASTAs and create new, explicitly labeled anchor-bounded sequences.
+```sh
+# ============================================================
+# extract anchor-bounded SVMP and PLA2 genomic intervals
+# ============================================================
+
+# 1. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+SYNTENY="$ROOT/synteny/toxin_microsynteny"
+ASSEMBLIES="$ROOT/synteny/assemblies_synteny"
+OUTDIR="$SYNTENY/03_genomic_intervals"
+INVENTORY="$SYNTENY/01_reference_inventory"
+
+mkdir -p "$OUTDIR/SVMP" "$OUTDIR/PLA2" "$INVENTORY"
+
+# 2. reference genomes
+GUSS="$ROOT/final_assembly/curated/Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa"
+CGAS="$ASSEMBLIES/Cerastes_gasperettii/Cerastes_gasperettii.genome.fa"
+CADAM="$ASSEMBLIES/Crotalus_adamanteus/Crotalus_adamanteus.genome.fa"
+NAJA="$ASSEMBLIES/Naja_naja/Naja_naja.genome.fa"
+
+# 3. extract anchor-bounded regions
+echo "===== EXTRACT ANCHOR-BOUNDED REGIONS ====="
+MANIFEST="$INVENTORY/anchor_bounded_regions.tsv"
+
+printf "species\tfamily\tchromosome\tstart\tend\tlength_bp\tfasta\n" > "$MANIFEST"
+
+while read -r SPECIES FAMILY CHR START END
+do
+    case "$SPECIES" in
+        Gloydius_ussuriensis) GENOME="$GUSS" ;;
+        Cerastes_gasperettii) GENOME="$CGAS" ;;
+        Crotalus_adamanteus) GENOME="$CADAM" ;;
+        Naja_naja) GENOME="$NAJA" ;;
+        *) echo "ERROR: Unknown species"; exit 1 ;;
+    esac
+
+    if [[ ! -s "$GENOME" || ! -s "${GENOME}.fai" ]]; then
+        echo "ERROR: Missing genome or FASTA index: $GENOME"
+        exit 1
+    fi
+
+    CHR_LENGTH=$(awk -v chr="$CHR" '$1 == chr {print $2; exit}' "${GENOME}.fai")
+
+    if [[ -z "$CHR_LENGTH" ]]; then
+        echo "ERROR: Chromosome $CHR not found in $GENOME"
+        exit 1
+    fi
+
+    # Add 20 kb to each side, respecting chromosome bounds.
+    REGION_START=$((START - 20000))
+    REGION_END=$((END + 20000))
+
+    if (( REGION_START < 1 )); then
+        REGION_START=1
+    fi
+
+    if (( REGION_END > CHR_LENGTH )); then
+        REGION_END=$CHR_LENGTH
+    fi
+
+    OUTPUT="$OUTDIR/$FAMILY/${SPECIES}_${FAMILY}_anchor_bounded.fa"
+
+    echo
+    echo "Species: $SPECIES"
+    echo "Family: $FAMILY"
+    echo "Region: $CHR:$REGION_START-$REGION_END"
+
+    samtools faidx \
+        "$GENOME" \
+        "$CHR:$REGION_START-$REGION_END" \
+        > "$OUTPUT"
+
+    LENGTH=$(awk '!/^>/ {n += length($0)} END {print n+0}' "$OUTPUT")
+
+    EXPECTED=$((REGION_END - REGION_START + 1))
+
+    if (( LENGTH != EXPECTED )); then
+        echo "ERROR: Extracted sequence length mismatch"
+        exit 1
+    fi
+
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+        "$SPECIES" "$FAMILY" "$CHR" \
+        "$REGION_START" "$REGION_END" \
+        "$LENGTH" "$OUTPUT" >> "$MANIFEST"
+
+    echo "Sequence length: $LENGTH bp"
+
+done <<'REGIONS'
+Gloydius_ussuriensis SVMP G_ussuri_chr9 5248666 6375539
+Cerastes_gasperettii SVMP CM101933.1 16343540 17508588
+Crotalus_adamanteus SVMP CM077925.1 25332156 26565562
+Naja_naja SVMP CM019156.1 7806172 8922708
+Gloydius_ussuriensis PLA2 G_ussuri_chr16 269786 329620
+Cerastes_gasperettii PLA2 CM101942.1 7877254 7916827
+Crotalus_adamanteus PLA2 CM077932.1 12869623 12906658
+Naja_naja PLA2 CM019158.1 9741034 9768259
+REGIONS
+
+# 4. summarize extracted intervals
+echo
+echo "===== GENOMIC INTERVAL SUMMARY ====="
+
+column -t -s $'\t' "$MANIFEST"
+
+echo
+echo "===== COMPLETE ====="
+```
+
+#### Step 6: Chromosome-coordinate inventory of the existing SVMP and PLA₂ annotations in *Cerastes*, *Crotalus*, and *Naja* 
