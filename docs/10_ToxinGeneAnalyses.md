@@ -4507,4 +4507,33 @@ Conserved flanking genes	              006360, 006356	OTUD3 (82.1% identity) and
 ```
 
 #### Step 8: Local genomic alignments of the SVMP and PLA₂ regions across species
-So far, we have identified homologous genomic neighborhoods of SVMPs and PLA2s, extracted sequences bound by homologous anchor loci, and compiled preliminary toxin-gene annotations. The next objective is to determine which DNA segments remain conserved, their relative orientation, and how their arrangement differs between species. For this, we'll use minimap2 with the `asm20` preset for assembly-to-assembly alignments.
+So far, we have identified homologous genomic neighborhoods of SVMPs and PLA2s, extracted sequences bound by homologous anchor loci, and compiled preliminary toxin-gene annotations. The next objective is to determine which DNA segments remain conserved, their relative orientation, and how their arrangement differs between species.
+
+Run the script below on Mendel. The script will run blastn to identify local alignments of these toxin genes across species and identify redundant hits and conserved collinear sequence blocks.
+```sh
+sbatch toxin_microsynteny.sh
+```
+
+The outputs will be saved under:
+```sh
+/synteny/toxin_microsynteny/06_local_alignments/
+```
+
+... and these files will be:
+  - `blastn/*.tsv`: Raw BLASTn alignments for all 12 comparisons
+  - `all_local_alignment_blocks.tsv`: All BLASTn HSPs, including genomic coordinates and strand orientation
+  - `filtered_blocks_for_plot.tsv`: Alignments passing the provisional minimum length and identity thresholds
+  - `alignment_pairs.tsv`: List of pairwise comparisons
+  - `interval_metadata.tsv`: Genomic interval coordinates and sequence metadata
+  - `nonredundant_alignment_hsps.tsv`: Filtered BLASTn HSPs after removing near-duplicate alignments
+  - `conserved_collinear_blocks.tsv`: All identified collinear conserved-block candidates
+  - `conserved_blocks_unique_candidates.tsv`: Blocks without detected competing mappings
+  - `conserved_blocks_multimapping_review.tsv`: Blocks flagged for potential duplication or ambiguous mapping
+  - `conserved_block_members.tsv`: Links each conserved block to its constituent BLASTn HSPs
+  - `conserved_block_summary.tsv`: Summary statistics for all 12 species comparisons
+
+Once the script finishes running, check the output:
+```sh
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+column -t -s $'\t' "$ROOT/synteny/toxin_microsynteny/06_local_alignments/conserved_block_summary.tsv"
+```
