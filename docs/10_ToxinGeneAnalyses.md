@@ -3206,235 +3206,1289 @@ print("\n===== COMPLETE =====")
 PY
 ```
 
-#### Step 7: Comparative BLASTn and tBLASTn searches  
-We'll use two complementary approaches:
- - tBLASTn: Search translated genomic regions using our curated toxin proteins. This should be especially useful for detecting homologs in the more divergent *Naja naja* genome.
- - BLASTn: Search genomic DNA using our toxin coding sequences, providing nucleotide-level evidence of homology.
+#### Step 7: Inventory all annotated genes in the eight regions
+The script below performs a comprehensive gene annotation inventory of SVMP and PLA2 genomic regions across four snake species. Here are the steps taken by the script to generate the inventory:
+  1) Extracts all annotated genes within the eight anchor-bounded genomic regions, including toxin genes, nonvenom homologs, and flanking genes.
+  2) Consolidates transcript annotations belonging to the same gene to avoid counting multiple transcripts as separate loci.
+  3) Classifies genes provisionally using annotation keywords, including SVMP, ADAM28, PLA₂, PLA₂G2F, and conserved flanking genes.
+  4) Cross-references G. ussuriensis Funannotate genes with existing ToxCodAn toxin loci.
+  5) Generates two output files:
+     - comparative_all_gene_models_in_regions.tsv — Comprehensive gene inventory across all four species.
+     - Naja_all_gene_models_for_review.tsv — Naja naja-specific annotation inventory.
 
-We'll run both methods against the eight extracted genomic intervals, including *G. ussuriensis*. Importantly, individual BLAST hits may represent separate exons, multiple alignments to the same gene, or fragments of pseudogenes. We will not interpret the number of hits as the number of toxin loci.
-
-Below is the BLASTn + tBLASTn script:
 ```sh
-#!/bin/bash
-#SBATCH --job-name=toxin_homology
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=16G
-#SBATCH --time=04:00:00
-#SBATCH --partition=compute
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yshin@amnh.org
-#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
-#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
-
 # ============================================================
-# comparative SVMP and PLA2 BLASTN and TBLASTN searches
+# inventory all annotated genes in homologous regions
 # ============================================================
 
-# 1. environment
-source "$HOME/mendel-nas1/miniconda3/etc/profile.d/conda.sh"
-conda activate funannotate
-
-set -euo pipefail
-
-# 2. directories
+# 1. directories
 ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
 SYNTENY="$ROOT/synteny/toxin_microsynteny"
-TOXIN="$ROOT/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome"
-PHYLO="$TOXIN/phylogeny"
-CDS="$TOXIN/toxin_annotation_cds.fasta"
-INTERVALS="$SYNTENY/03_genomic_intervals"
-BLASTDIR="$SYNTENY/02_blast"
-THREADS="${SLURM_CPUS_PER_TASK:-4}"
+OUTDIR="$SYNTENY/05_annotations"
+MANIFEST="$SYNTENY/01_reference_inventory/anchor_bounded_regions.tsv"
+MODELS="$OUTDIR/comparative_GFF_models_in_regions.tsv"
+GUSS_GFF="$ROOT/annotation/funannotate/update_results/Gloydius_ussuriensis_AMNH_21010.gff3"
+GUSS_TOXIN="$OUTDIR/Guss_ToxCodAn_loci_in_regions.tsv"
 
-# 3. verify and extract query sequences
-echo "===== PREPARE QUERY SEQUENCES ====="
+# 2. verify input files
+echo "===== VERIFY INPUT FILES ====="
 
-python - "$PHYLO" "$CDS" "$BLASTDIR" <<'PY'
+for FILE in \
+    "$MANIFEST" \
+    "$MODELS" \
+    "$GUSS_GFF" \
+    "$GUSS_TOXIN"
+do
+    if [[ ! -s "$FILE" ]]; then
+        echo "ERROR: Missing or empty input: $FILE"
+        exit 1
+    fi
+    echo "OK: $FILE"
+done
+
+# 3. extract comprehensive gene-level inventory
+python - "$MANIFEST" "$MODELS" "$GUSS_GFF" "$GUSS_TOXIN" "$OUTDIR" <<'PY'
 
 import sys
+import csv
+import re
 from pathlib import Path
+from collections import defaultdict
+from urllib.parse import unquote
 
-phylo = Path(sys.argv[1])
-cds_file = Path(sys.argv[2])
-outdir = Path(sys.argv[3])
+manifest_file = Path(sys.argv[1])
+models_file = Path(sys.argv[2])
+guss_gff = Path(sys.argv[3])
+toxin_file = Path(sys.argv[4])
+outdir = Path(sys.argv[5])
+
+species_list = [
+    "Gloydius_ussuriensis",
+    "Cerastes_gasperettii",
+    "Crotalus_adamanteus",
+    "Naja_naja"
+]
+
+families = ("SVMP", "PLA2")
+
+def read_tsv(path):
+    with path.open() as handle:
+        return list(csv.DictReader(handle, delimiter="\t"))
+
+def parse_attrs(text):
+    result = {}
+    for part in text.split(";"):
+        if "=" in part:
+            key, value = part.split("=", 1)
+            result[key.strip()] = unquote(value.strip())
+    return result
+
+def descriptions(attrs):
+    keys = (
+        "gene", "gene_name", "Name",
+        "product", "description", "Note"
+    )
+    return {
+        attrs[k] for k in keys
+        if attrs.get(k)
+    }
+
+# ------------------------------------------------------------
+# 1. read anchor-bounded genomic intervals
+# ------------------------------------------------------------
+
+regions = {}
+
+for r in read_tsv(manifest_file):
+    regions[(r["species"], r["family"])] = {
+        "chr": r["chromosome"],
+        "start": int(r["start"]),
+        "end": int(r["end"])
+    }
+
+# ------------------------------------------------------------
+# 2. initialize gene-level annotation records
+# ------------------------------------------------------------
+
+grouped = {}
+
+def add_gene(
+    species, family, chrom, strand,
+    gene_id, start, end, source,
+    transcript_id="", hint=""
+):
+
+    key = (
+        species, family, chrom, strand, gene_id
+    )
+
+    if key not in grouped:
+        grouped[key] = {
+            "species": species,
+            "family": family,
+            "chr": chrom,
+            "start": int(start),
+            "end": int(end),
+            "strand": strand,
+            "gene_id": gene_id,
+            "source": source,
+            "transcripts": set(),
+            "hints": set()
+        }
+
+    record = grouped[key]
+
+    record["start"] = min(
+        record["start"], int(start)
+    )
+
+    record["end"] = max(
+        record["end"], int(end)
+    )
+
+    if transcript_id:
+        record["transcripts"].add(transcript_id)
+
+    if hint and hint not in (".", "unannotated"):
+        record["hints"].add(hint)
+
+# ------------------------------------------------------------
+# 3. retain ALL comparative GFF models
+# ------------------------------------------------------------
+
+models = read_tsv(models_file)
+
+for row in models:
+
+    gene_id = row["gene_id"].strip()
+
+    if gene_id in ("", ".", "NA", "None"):
+        gene_id = row["model_id"].strip()
+
+    add_gene(
+        species=row["species"],
+        family=row["family"],
+        chrom=row["chr"],
+        strand=row["strand"],
+        gene_id=gene_id,
+        start=row["start"],
+        end=row["end"],
+        source="comparative_GFF3",
+        transcript_id=row["model_id"],
+        hint=row["functional_hint"]
+    )
+
+# ------------------------------------------------------------
+# 4. extract all G. ussuriensis Funannotate genes
+# ------------------------------------------------------------
+
+guss_regions = {
+    family: regions[("Gloydius_ussuriensis", family)]
+    for family in families
+}
+
+guss_genes = {}
+guss_transcripts = defaultdict(list)
+
+with guss_gff.open() as handle:
+
+    for line in handle:
+
+        if not line.strip() or line.startswith("#"):
+            continue
+
+        f = line.rstrip("\n").split("\t")
+
+        if len(f) < 9:
+            continue
+
+        if f[2] not in ("gene", "mRNA", "transcript"):
+            continue
+
+        start = int(f[3])
+        end = int(f[4])
+        attrs = parse_attrs(f[8])
+
+        for family, region in guss_regions.items():
+
+            if f[0] != region["chr"]:
+                continue
+
+            if (
+                start > region["end"]
+                or end < region["start"]
+            ):
+                continue
+
+            if f[2] == "gene":
+
+                gene_id = attrs.get("ID", "")
+
+                if not gene_id:
+                    continue
+
+                guss_genes[(family, gene_id)] = {
+                    "chr": f[0],
+                    "start": start,
+                    "end": end,
+                    "strand": f[6],
+                    "hints": descriptions(attrs)
+                }
+
+            else:
+
+                tx_id = attrs.get("ID", "")
+
+                parents = [
+                    p for p in
+                    attrs.get("Parent", "").split(",")
+                    if p
+                ]
+
+                if not parents:
+                    parents = [tx_id] if tx_id else []
+
+                for parent in parents:
+
+                    guss_transcripts[
+                        (family, parent)
+                    ].append({
+                        "id": tx_id,
+                        "chr": f[0],
+                        "start": start,
+                        "end": end,
+                        "strand": f[6],
+                        "hints": descriptions(attrs)
+                    })
+
+# ------------------------------------------------------------
+# 5. consolidate G. ussuriensis gene/transcript models
+# ------------------------------------------------------------
+
+all_guss_keys = (
+    set(guss_genes) | set(guss_transcripts)
+)
+
+for key in sorted(all_guss_keys):
+
+    family, gene_id = key
+
+    gene = guss_genes.get(key)
+    transcripts = guss_transcripts.get(key, [])
+
+    if gene:
+
+        chrom = gene["chr"]
+        strand = gene["strand"]
+        start = gene["start"]
+        end = gene["end"]
+        hints = set(gene["hints"])
+
+    elif transcripts:
+
+        chrom = transcripts[0]["chr"]
+        strand = transcripts[0]["strand"]
+        start = min(t["start"] for t in transcripts)
+        end = max(t["end"] for t in transcripts)
+        hints = set()
+
+    else:
+        continue
+
+    for transcript in transcripts:
+        start = min(start, transcript["start"])
+        end = max(end, transcript["end"])
+        hints.update(transcript["hints"])
+
+    add_gene(
+        species="Gloydius_ussuriensis",
+        family=family,
+        chrom=chrom,
+        strand=strand,
+        gene_id=gene_id,
+        start=start,
+        end=end,
+        source="Funannotate",
+        hint="; ".join(sorted(hints))
+    )
+
+    for transcript in transcripts:
+
+        if transcript["id"]:
+
+            add_gene(
+                species="Gloydius_ussuriensis",
+                family=family,
+                chrom=chrom,
+                strand=strand,
+                gene_id=gene_id,
+                start=start,
+                end=end,
+                source="Funannotate",
+                transcript_id=transcript["id"]
+            )
+
+# ------------------------------------------------------------
+# 6. assign preliminary annotation hints
+# ------------------------------------------------------------
+
+def classify_hint(family, text):
+
+    value = text.lower()
+
+    if family == "SVMP":
+
+        if "adam28" in value:
+            return "ADAM28_related_candidate"
+
+        if (
+            "svmp" in value
+            or (
+                "venom" in value
+                and "metalloprote" in value
+            )
+        ):
+            return "SVMP_keyword_candidate"
+
+        if (
+            "metalloprote" in value
+            or "disintegrin" in value
+            or re.search(r"\badam[0-9]", value)
+        ):
+            return "other_metalloprotease_hint"
+
+        if any(
+            name in value
+            for name in ("stc1", "nefm", "nefl", "dock5")
+        ):
+            return "flanking_gene_hint"
+
+    if family == "PLA2":
+
+        if (
+            "pla2g2f" in value
+            or "pla2-g2f" in value
+        ):
+            return "PLA2G2F_paralog_candidate"
+
+        if (
+            "pla2" in value
+            or "phospholipase a2" in value
+            or "phospholipase a(2)" in value
+        ):
+            return "PLA2_family_keyword_candidate"
+
+        if any(
+            name in value
+            for name in ("otud3", "mul1")
+        ):
+            return "flanking_gene_hint"
+
+    return "unresolved_from_annotation"
+
+# ------------------------------------------------------------
+# 7. cross-reference G. ussuriensis ToxCodAn loci
+# ------------------------------------------------------------
+
+toxin_rows = read_tsv(toxin_file)
+toxins_by_family = defaultdict(list)
+
+for r in toxin_rows:
+    toxins_by_family[r["family"]].append(r)
+
+# ------------------------------------------------------------
+# 8. build final comprehensive inventory
+# ------------------------------------------------------------
+
+rows = []
+
+for record in grouped.values():
+
+    row = {
+        k: v for k, v in record.items()
+        if k not in ("transcripts", "hints")
+    }
+
+    row["transcript_count"] = len(
+        record["transcripts"]
+    )
+
+    row["transcript_ids"] = ";".join(
+        sorted(record["transcripts"])
+    )
+
+    row["functional_hint"] = "; ".join(
+        sorted(record["hints"])
+    )
+
+    row["annotation_hint"] = classify_hint(
+        row["family"],
+        " ".join([
+            row["gene_id"],
+            row["transcript_ids"],
+            row["functional_hint"]
+        ])
+    )
+
+    row["overlapping_ToxCodAn_ids"] = ""
+
+    if row["species"] == "Gloydius_ussuriensis":
+
+        matches = []
+
+        for toxin in toxins_by_family[row["family"]]:
+
+            if toxin["chr"] != row["chr"]:
+                continue
+
+            if (
+                row["start"] <= int(toxin["end"])
+                and row["end"] >= int(toxin["start"])
+            ):
+                matches.append(toxin["gene_id"])
+
+        row["overlapping_ToxCodAn_ids"] = ";".join(
+            sorted(set(matches))
+        )
+
+    row["manual_category"] = ""
+    row["review_notes"] = ""
+
+    rows.append(row)
+
+rows.sort(
+    key=lambda r: (
+        r["family"],
+        species_list.index(r["species"]),
+        r["chr"],
+        r["start"],
+        r["gene_id"]
+    )
+)
+
+# ------------------------------------------------------------
+# 9. export comprehensive annotation inventory
+# ------------------------------------------------------------
+
+output = (
+    outdir /
+    "comparative_all_gene_models_in_regions.tsv"
+)
+
+fields = [
+    "species",
+    "family",
+    "chr",
+    "start",
+    "end",
+    "strand",
+    "gene_id",
+    "source",
+    "transcript_count",
+    "transcript_ids",
+    "functional_hint",
+    "annotation_hint",
+    "overlapping_ToxCodAn_ids",
+    "manual_category",
+    "review_notes"
+]
+
+with output.open("w", newline="") as handle:
+
+    writer = csv.DictWriter(
+        handle,
+        fieldnames=fields,
+        delimiter="\t"
+    )
+
+    writer.writeheader()
+    writer.writerows(rows)
+
+# ------------------------------------------------------------
+# 10. export Naja-specific review table
+# ------------------------------------------------------------
+
+naja_rows = [
+    r for r in rows
+    if r["species"] == "Naja_naja"
+]
+
+naja_output = (
+    outdir /
+    "Naja_all_gene_models_for_review.tsv"
+)
+
+with naja_output.open("w", newline="") as handle:
+
+    writer = csv.DictWriter(
+        handle,
+        fieldnames=fields,
+        delimiter="\t"
+    )
+
+    writer.writeheader()
+    writer.writerows(naja_rows)
+
+# ------------------------------------------------------------
+# 11. summarize all species
+# ------------------------------------------------------------
+
+print("\n===== COMPLETE GENE MODEL INVENTORY =====")
+
+for family in families:
+
+    print(f"\n===== {family} =====")
+
+    for species in species_list:
+
+        subset = [
+            r for r in rows
+            if r["family"] == family
+            and r["species"] == species
+        ]
+
+        print(f"\n--- {species} ---")
+        print("Annotated gene groups:", len(subset))
+
+        hints = defaultdict(int)
+
+        for r in subset:
+            hints[r["annotation_hint"]] += 1
+
+        for hint, count in sorted(hints.items()):
+            print(f"  {hint}: {count}")
+
+# ------------------------------------------------------------
+# 12. print full Naja inventory for manual review
+# ------------------------------------------------------------
+
+print("\n===== NAJA NAJA DETAILED ANNOTATIONS =====")
+
+for family in families:
+
+    print(f"\n===== {family} =====")
+
+    subset = [
+        r for r in naja_rows
+        if r["family"] == family
+    ]
+
+    for r in subset:
+
+        print(
+            f"\n{r['chr']}:"
+            f"{int(r['start']):,}-"
+            f"{int(r['end']):,} "
+            f"{r['strand']}"
+        )
+
+        print(f"  Gene: {r['gene_id']}")
+        print(f"  Transcripts: {r['transcript_ids']}")
+        print(f"  Annotation: {r['functional_hint'][:180]}")
+        print(f"  Hint: {r['annotation_hint']}")
+
+print("\n===== TOXCODAN REFERENCE =====")
+
+for family in families:
+
+    subset = toxins_by_family[family]
+
+    print(
+        f"{family}: {len(subset)} raw "
+        "G. ussuriensis ToxCodAn IDs retained separately"
+    )
+
+print("\n===== OUTPUT FILES =====")
+print(output)
+print(naja_output)
+
+print("\n===== COMPLETE =====")
+PY
+```
+The output can be summarized for each species like so:
+  1) G. ussuriensis: 20 gene groups annotated in the SVMP genomic region, and 23 in the PLA2 genomic region
+  2) C. gasperettii: 20 gene groups annotated in the SVMP genomic region, and 11 in the PLA2 genomic region
+  3) C. adamanteus: 30 gene groups annotated in the SVMP genomic region, and 9 in the PLA2 genomic region
+  4) N. naja: 14 gene groups annotated in the SVMP genomic region, and 8 in the PLA2 genomic region
+
+Note that these represent all annotated gene groups within the selected genomic regions, not exclusively toxin genes.
+
+Below is a per-species summary based on our preliminary annotation classifications:
+
+1) SVMP regions
+   - G. ussuriensis: All 20 Funannotate gene groups remain unclassified by annotation keywords.
+   - C. gasperettii: 13 SVMP candidates, 3 flanking genes, and 4 unresolved genes.
+   - C. adamanteus: 23 SVMP candidates, 4 flanking genes, and 3 unresolved genes.
+   - N. naja: 1 SVMP candidate, 1 metalloproteinase-like gene, and 12 unresolved genes.
+
+2) PLA2 regions
+   - G. ussuriensis: All 23 Funannotate gene groups remain unclassified by annotation keywords.
+   - C. gasperettii: 3 PLA₂ candidates, 1 PLA₂G2F-like paralog, 2 flanking genes, and 5 unresolved genes.
+   - C. adamanteus: 3 PLA₂ candidates and 6 unresolved genes.
+   - N. naja: 1 PLA2 candidate and 7 unresolved genes.
+
+On notable thing is that microsynteny analysis in Mochales-Riaño et al. (2025) shows 6 SVMP segments + ADAM28 for *N. naja* and one toxin PLA2 segment + 2 nontoxin PLA2 segments + nontoxin flanking genes. Given this, the presence of only 1 SVMP candidate and 1 PLA2 candidate is somewhat weird.
+
+Next, let's perform a targeted protein-homology analysis to identify the annotated genes in the *Naja naja* SVMP and PLA2 genomic regions. 
+
+We will determine whether genes currently annotated as hypothetical proteins are actually homologous to known venom toxins, nonvenom paralogs, or conserved flanking genes. The script will first extract *N. naja* proteins using the existing GFF3, protein FASTA, and the gene inventory we created with the script above. Then it will perform BLASTp comparisons, separately for SVMP and PLA2 regions. The comparisons will be made against the full proteomes for *C. adamanteus* and *C. gasperettii*, and a curated venom toxin set for *G. ussuriensis*. Then, the we will summarize the five strongest matches based on protein identity, alignment length, query coverage, E-value, bit score, and reference protein description.
+
+In short, the script identifies, for each *Naja* gene, its closest protein matches in each of the three reference datasets.
+```sh
+# ============================================================
+#
+# consolidated Naja protein homology analysis
+#
+# purpose:
+#   identify homologs of annotated Naja genes within the
+#   SVMP and PLA2 genomic regions.
+#
+# reference datasets:
+#   1. Crotalus adamanteus - complete protein annotation
+#   2. Cerastes gasperettii - complete protein annotation
+#   3. Gloydius ussuriensis - curated core toxin proteins
+#
+# analyses:
+#   - extract Naja proteins using GFF3 and protein FASTA
+#   - build independent reference protein BLAST databases
+#   - run BLASTp separately for SVMP and PLA2 regions
+#   - retain five strongest hits per gene and reference
+#   - export consolidated homology results
+#
+# ============================================================
+
+# the script assumes that you have a relevant conda env activated to access python
+
+# 1. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+SYNTENY="$ROOT/synteny/toxin_microsynteny"
+ASSEMBLIES="$ROOT/synteny/assemblies_synteny"
+OUTDIR="$SYNTENY/05_annotations"
+RUN="$OUTDIR/combined_protein_homology"
+
+mkdir -p "$RUN/db"
+
+# 2. input files
+# Naja genome annotation and proteins
+NAJA_GFF="$ASSEMBLIES/Naja_naja/Naja_naja.annotation.gff3"
+NAJA_PEP="$ASSEMBLIES/Naja_naja/Naja_naja.protein.faa"
+
+# comparison taxa protein annotations
+CADAM_PEP="$ASSEMBLIES/Crotalus_adamanteus/Crotalus_adamanteus.protein.faa"
+CGAS_PEP="$ASSEMBLIES/Cerastes_gasperettii/Cerastes_gasperettii.protein.faa"
+
+# comprehensive Naja gene model inventory
+INVENTORY="$OUTDIR/Naja_all_gene_models_for_review.tsv"
+
+# Gloydius manually curated toxin proteins
+PHYLO="$ROOT/annotation/toxin_gene_annotation_RNAdata_added/SRR35908235_ToxCodAn-Genome/phylogeny"
+
+# 3. verify input files and dependencies
+echo "===== VERIFY INPUT FILES ====="
+
+for FILE in \
+    "$NAJA_GFF" \
+    "$NAJA_PEP" \
+    "$CADAM_PEP" \
+    "$CGAS_PEP" \
+    "$INVENTORY" \
+    "$PHYLO/Guss_SVMP_core.faa" \
+    "$PHYLO/Guss_PLA2_core.faa"
+do
+
+    if [[ ! -s "$FILE" ]]; then
+        echo "ERROR: Missing or empty input: $FILE"
+        exit 1
+    fi
+
+    echo "OK: $FILE"
+
+done
+
+for CMD in python blastp makeblastdb
+do
+    command -v "$CMD" >/dev/null || {
+        echo "ERROR: $CMD not found"
+        exit 1
+    }
+done
+
+# 4. extract proteins corresponding to Naja gene models
+echo
+echo "===== EXTRACT NAJA PROTEINS ====="
+
+python - "$NAJA_GFF" "$NAJA_PEP" "$INVENTORY" "$RUN" <<'PY'
+
+import sys
+import csv
+import re
+
+from pathlib import Path
+from collections import defaultdict
+from urllib.parse import unquote
+
+gff = Path(sys.argv[1])
+proteins = Path(sys.argv[2])
+inventory = Path(sys.argv[3])
+outdir = Path(sys.argv[4])
+
+# ------------------------------------------------------------
+# functions
+# ------------------------------------------------------------
 
 def read_fasta(path):
-    seqs = {}
+
+    sequences = {}
     name = None
     parts = []
 
     with path.open() as handle:
+
         for line in handle:
+
             line = line.strip()
 
-            if not line:
-                continue
-
             if line.startswith(">"):
+
                 if name is not None:
-                    if name in seqs:
-                        raise ValueError(f"Duplicate ID: {name}")
-                    seqs[name] = "".join(parts)
+                    sequences[name] = "".join(parts)
 
                 name = line[1:].split()[0]
                 parts = []
-            else:
+
+            elif line:
                 parts.append(line)
 
     if name is not None:
-        if name in seqs:
-            raise ValueError(f"Duplicate ID: {name}")
-        seqs[name] = "".join(parts)
+        sequences[name] = "".join(parts)
 
-    return seqs
+    return sequences
 
-all_cds = read_fasta(cds_file)
+
+def parse_attributes(text):
+
+    attrs = {}
+
+    for item in text.split(";"):
+
+        if "=" in item:
+
+            key, value = item.split("=", 1)
+
+            attrs[key] = unquote(value)
+
+    return attrs
+
+
+# ------------------------------------------------------------
+# read Naja inventory and protein FASTA
+# ------------------------------------------------------------
+
+with inventory.open() as handle:
+
+    genes = list(
+        csv.DictReader(handle, delimiter="\t")
+    )
+
+sequences = read_fasta(proteins)
+
+# ------------------------------------------------------------
+# link transcripts to parent genes
+# ------------------------------------------------------------
+
+transcript_to_gene = defaultdict(set)
+
+for gene in genes:
+
+    for tx in gene["transcript_ids"].split(";"):
+
+        if tx:
+
+            transcript_to_gene[tx].add(
+                (gene["family"], gene["gene_id"])
+            )
+
+# ------------------------------------------------------------
+# find protein accessions in Naja GFF3
+# ------------------------------------------------------------
+
+gene_proteins = defaultdict(set)
+
+with gff.open() as handle:
+
+    for line in handle:
+
+        if not line.strip() or line.startswith("#"):
+            continue
+
+        fields = line.rstrip("\n").split("\t")
+
+        if len(fields) < 9:
+            continue
+
+        if fields[2] not in (
+            "mRNA", "transcript", "CDS"
+        ):
+            continue
+
+        attrs = parse_attributes(fields[8])
+
+        related = set(
+            attrs.get("Parent", "").split(",")
+        )
+
+        if fields[2] in ("mRNA", "transcript"):
+            related.add(attrs.get("ID", ""))
+
+        matched_genes = set()
+
+        for tx in related:
+
+            matched_genes.update(
+                transcript_to_gene.get(tx, set())
+            )
+
+        if not matched_genes:
+            continue
+
+        accessions = set(
+            re.findall(
+                r"KAG[0-9]+(?:\.[0-9]+)?",
+                fields[8]
+            )
+        )
+
+        if attrs.get("protein_id"):
+
+            accessions.update(
+                attrs["protein_id"].split(",")
+            )
+
+        for key in matched_genes:
+
+            for accession in accessions:
+
+                if accession in sequences:
+                    gene_proteins[key].add(accession)
+
+# ------------------------------------------------------------
+# write separate SVMP and PLA2 region protein FASTAs
+# ------------------------------------------------------------
+
+mapping = []
 
 for family in ("SVMP", "PLA2"):
 
-    proteins = read_fasta(
-        phylo / f"Guss_{family}_core.faa"
+    output = (
+        outdir /
+        f"Naja_{family}_region_proteins.faa"
     )
 
-    missing = [
-        gene for gene in proteins
-        if gene not in all_cds
+    with output.open("w") as fasta:
+
+        for gene in genes:
+
+            if gene["family"] != family:
+                continue
+
+            key = (family, gene["gene_id"])
+
+            accessions = sorted(
+                gene_proteins[key]
+            )
+
+            for accession in accessions:
+
+                sequence = sequences[accession]
+
+                subject_id = (
+                    f"{gene['gene_id']}__{accession}"
+                )
+
+                fasta.write(f">{subject_id}\n")
+
+                for i in range(0, len(sequence), 80):
+
+                    fasta.write(
+                        sequence[i:i+80] + "\n"
+                    )
+
+            mapping.append({
+                "family": family,
+                "gene_id": gene["gene_id"],
+                "chr": gene["chr"],
+                "start": gene["start"],
+                "end": gene["end"],
+                "strand": gene["strand"],
+                "functional_hint": gene["functional_hint"],
+                "transcript_ids": gene["transcript_ids"],
+                "protein_ids": ";".join(accessions),
+                "protein_count": len(accessions)
+            })
+
+    subset = [
+        r for r in mapping
+        if r["family"] == family
     ]
 
-    if missing:
-        raise ValueError(
-            f"Missing {family} CDS: {missing}"
-        )
-
-    dest = (
-        outdir / family /
-        f"Guss_{family}_core_cds.fna"
+    recovered = sum(
+        r["protein_count"] > 0
+        for r in subset
     )
-
-    with dest.open("w") as handle:
-
-        for gene in proteins:
-            seq = all_cds[gene]
-
-            if not seq:
-                raise ValueError(f"Empty CDS: {gene}")
-
-            handle.write(f">{gene}\n")
-
-            for i in range(0, len(seq), 80):
-                handle.write(seq[i:i+80] + "\n")
 
     print(
-        f"{family}: {len(proteins)} proteins, "
-        f"{len(proteins)} matching CDS sequences"
+        f"{family}: {recovered}/{len(subset)} "
+        "gene groups with recovered proteins"
     )
 
-    print(f"CDS output: {dest}")
+    print("FASTA:", output)
+
+    if recovered == 0:
+        raise SystemExit(
+            f"ERROR: No proteins recovered for {family}"
+        )
+
+# ------------------------------------------------------------
+# export gene-to-protein mapping
+# ------------------------------------------------------------
+
+mapping_output = (
+    outdir / "Naja_gene_protein_mapping.tsv"
+)
+
+with mapping_output.open("w", newline="") as handle:
+
+    writer = csv.DictWriter(
+        handle,
+        fieldnames=list(mapping[0].keys()),
+        delimiter="\t"
+    )
+
+    writer.writeheader()
+    writer.writerows(mapping)
+
+print("\nGene-to-protein mapping:", mapping_output)
 
 PY
 
-# 4. build local genomic BLAST databases
+
+# 5. build separate reference BLAST databases
 echo
-echo "===== BUILD GENOMIC BLAST DATABASES ====="
+echo "===== BUILD REFERENCE DATABASES ====="
+
+# Crotalus adamanteus
+makeblastdb \
+    -in "$CADAM_PEP" \
+    -dbtype prot \
+    -out "$RUN/db/Crotalus_adamanteus" \
+    >/dev/null
+
+echo "Crotalus adamanteus database created."
+
+# Cerastes gasperettii
+makeblastdb \
+    -in "$CGAS_PEP" \
+    -dbtype prot \
+    -out "$RUN/db/Cerastes_gasperettii" \
+    >/dev/null
+
+echo "Cerastes gasperettii database created."
+
+# Gloydius ussuriensis curated SVMP and PLA2
+for FAMILY in SVMP PLA2
+do
+
+    makeblastdb \
+        -in "$PHYLO/Guss_${FAMILY}_core.faa" \
+        -dbtype prot \
+        -out "$RUN/db/Gloydius_ussuriensis_${FAMILY}" \
+        >/dev/null
+
+done
+
+echo "Gloydius ussuriensis databases created."
+
+# 6. targeted comparative BLASTP
+echo
+echo "===== COMPARATIVE BLASTP ====="
 
 for FAMILY in SVMP PLA2
 do
-    mkdir -p "$BLASTDIR/$FAMILY/db"
+
+    QUERY="$RUN/Naja_${FAMILY}_region_proteins.faa"
 
     for SPECIES in \
-        Gloydius_ussuriensis \
-        Cerastes_gasperettii \
         Crotalus_adamanteus \
-        Naja_naja
+        Cerastes_gasperettii \
+        Gloydius_ussuriensis
     do
-        GENOME="$INTERVALS/$FAMILY/${SPECIES}_${FAMILY}_anchor_bounded.fa"
 
-        DB="$BLASTDIR/$FAMILY/db/${SPECIES}"
+        if [[ "$SPECIES" == "Gloydius_ussuriensis" ]]; then
 
-        if [[ ! -s "$GENOME" ]]; then
-            echo "ERROR: Missing genomic interval: $GENOME"
-            exit 1
+            DB="$RUN/db/Gloydius_ussuriensis_${FAMILY}"
+
+        else
+
+            DB="$RUN/db/$SPECIES"
+
         fi
 
-        makeblastdb \
-            -in "$GENOME" \
-            -dbtype nucl \
-            -out "$DB" \
-            > /dev/null
-
-        echo "OK: $FAMILY $SPECIES"
-    done
-done
-
-# 5. run TBLASTN and BLASTN
-echo
-echo "===== RUN HOMOLOGY SEARCHES ====="
-
-for FAMILY in SVMP PLA2
-do
-    PROTEINS="$PHYLO/Guss_${FAMILY}_core.faa"
-    NUCLEOTIDES="$BLASTDIR/$FAMILY/Guss_${FAMILY}_core_cds.fna"
-
-    for SPECIES in \
-        Gloydius_ussuriensis \
-        Cerastes_gasperettii \
-        Crotalus_adamanteus \
-        Naja_naja
-    do
-        DB="$BLASTDIR/$FAMILY/db/${SPECIES}"
-
-        OUT_TBLASTN="$BLASTDIR/$FAMILY/Guss_${FAMILY}_vs_${SPECIES}.tblastn.tsv"
-
-        OUT_BLASTN="$BLASTDIR/$FAMILY/Guss_${FAMILY}_vs_${SPECIES}.blastn.tsv"
+        OUTPUT="$RUN/Naja_${FAMILY}_vs_${SPECIES}.blastp.tsv"
 
         echo
-        echo "===== $FAMILY vs $SPECIES ====="
+        echo "Family: $FAMILY"
+        echo "Reference: $SPECIES"
 
-        tblastn \
-            -query "$PROTEINS" \
+        blastp \
+            -query "$QUERY" \
             -db "$DB" \
             -evalue 1e-5 \
-            -num_threads "$THREADS" \
-            -outfmt '6 qseqid sseqid pident length qlen qstart qend sstart send sframe evalue bitscore' \
-            -out "$OUT_TBLASTN"
+            -max_target_seqs 20 \
+            -max_hsps 1 \
+            -num_threads 4 \
+            -outfmt '6 qseqid sseqid pident length qlen slen qcovhsp evalue bitscore stitle' \
+            -out "$OUTPUT"
 
-        blastn \
-            -task blastn \
-            -query "$NUCLEOTIDES" \
-            -db "$DB" \
-            -evalue 1e-5 \
-            -num_threads "$THREADS" \
-            -outfmt '6 qseqid sseqid pident length qlen qstart qend sstart send sstrand evalue bitscore' \
-            -out "$OUT_BLASTN"
+        echo "Significant hits: $(wc -l < "$OUTPUT")"
 
-        echo "TBLASTN HSPs: $(wc -l < "$OUT_TBLASTN")"
-        echo "BLASTN HSPs:  $(wc -l < "$OUT_BLASTN")"
+        echo "Output: $OUTPUT"
+
     done
 done
 
-# 6. verify output files
-echo
-echo "===== SEARCH OUTPUT SUMMARY ====="
-
-for FAMILY in SVMP PLA2
-do
-    for SPECIES in \
-        Gloydius_ussuriensis \
-        Cerastes_gasperettii \
-        Crotalus_adamanteus \
-        Naja_naja
-    do
-        for METHOD in tblastn blastn
-        do
-            FILE="$BLASTDIR/$FAMILY/Guss_${FAMILY}_vs_${SPECIES}.${METHOD}.tsv"
-
-            echo "$FAMILY $SPECIES $METHOD: $(wc -l < "$FILE") HSPs"
-        done
-    done
-done
+# ============================================================
+# 7. consolidate protein homology results
+# ============================================================
 
 echo
-echo "===== COMPLETE ====="
+echo "===== CONSOLIDATE HOMOLOGY RESULTS ====="
+
+python - "$RUN" "$INVENTORY" <<'PY'
+
+import sys
+import csv
+
+from pathlib import Path
+from collections import defaultdict
+
+outdir = Path(sys.argv[1])
+inventory = Path(sys.argv[2])
+
+species_list = [
+    "Crotalus_adamanteus",
+    "Cerastes_gasperettii",
+    "Gloydius_ussuriensis"
+]
+
+# ------------------------------------------------------------
+# read gene inventory
+# ------------------------------------------------------------
+
+with inventory.open() as handle:
+
+    genes = list(
+        csv.DictReader(handle, delimiter="\t")
+    )
+
+# ------------------------------------------------------------
+# output fields
+# ------------------------------------------------------------
+
+fields = [
+    "family",
+    "naja_gene",
+    "reference_species",
+    "subject_id",
+    "identity_pct",
+    "aligned_aa",
+    "query_length",
+    "subject_length",
+    "query_coverage_pct",
+    "evalue",
+    "bitscore",
+    "subject_description"
+]
+
+summary = []
+
+# ------------------------------------------------------------
+# summarize top five matches per Naja gene and reference
+# ------------------------------------------------------------
+
+for family in ("SVMP", "PLA2"):
+
+    for species in species_list:
+
+        path = (
+            outdir /
+            f"Naja_{family}_vs_{species}.blastp.tsv"
+        )
+
+        by_gene = defaultdict(dict)
+
+        with path.open() as handle:
+
+            reader = csv.reader(
+                handle,
+                delimiter="\t"
+            )
+
+            for r in reader:
+
+                if len(r) < 9:
+                    continue
+
+                gene_id = r[0].split("__", 1)[0]
+
+                subject = r[1]
+                score = float(r[8])
+
+                previous = by_gene[gene_id].get(subject)
+
+                if (
+                    previous is None
+                    or score > float(previous[8])
+                ):
+                    by_gene[gene_id][subject] = r
+
+        for gene_id, hits in by_gene.items():
+
+            ranked = sorted(
+                hits.values(),
+                key=lambda r: float(r[8]),
+                reverse=True
+            )
+
+            for r in ranked[:5]:
+
+                summary.append({
+                    "family": family,
+                    "naja_gene": gene_id,
+                    "reference_species": species,
+                    "subject_id": r[1],
+                    "identity_pct": r[2],
+                    "aligned_aa": r[3],
+                    "query_length": r[4],
+                    "subject_length": r[5],
+                    "query_coverage_pct": r[6],
+                    "evalue": r[7],
+                    "bitscore": r[8],
+                    "subject_description": (
+                        r[9] if len(r) > 9 else ""
+                    )
+                })
+
+# ------------------------------------------------------------
+# export consolidated results
+# ------------------------------------------------------------
+
+output = (
+    outdir /
+    "Naja_consolidated_protein_homology.tsv"
+)
+
+with output.open("w", newline="") as handle:
+
+    writer = csv.DictWriter(
+        handle,
+        fieldnames=fields,
+        delimiter="\t"
+    )
+
+    writer.writeheader()
+    writer.writerows(summary)
+
+# ------------------------------------------------------------
+# identify strongest hit for each gene and reference
+# ------------------------------------------------------------
+
+best_lookup = {}
+
+for row in summary:
+
+    key = (
+        row["family"],
+        row["naja_gene"],
+        row["reference_species"]
+    )
+
+    if (
+        key not in best_lookup
+        or float(row["bitscore"]) >
+           float(best_lookup[key]["bitscore"])
+    ):
+        best_lookup[key] = row
+
+# ------------------------------------------------------------
+# print comparative summary
+# ------------------------------------------------------------
+
+print("\n===== CONSOLIDATED NAJA HOMOLOGY SUMMARY =====")
+
+for family in ("SVMP", "PLA2"):
+
+    print(f"\n===== {family} =====")
+
+    for gene in genes:
+
+        if gene["family"] != family:
+            continue
+
+        gene_id = gene["gene_id"]
+
+        print(f"\n{gene_id}")
+
+        for species in species_list:
+
+            hit = best_lookup.get(
+                (family, gene_id, species)
+            )
+
+            if hit is None:
+
+                print(
+                    f"  {species}: No significant hit"
+                )
+
+                continue
+
+            print(
+                f"  {species}: "
+                f"{hit['subject_id']} | "
+                f"identity="
+                f"{float(hit['identity_pct']):.1f}% | "
+                f"aligned={hit['aligned_aa']} aa | "
+                f"query_coverage="
+                f"{float(hit['query_coverage_pct']):.1f}% | "
+                f"bitscore="
+                f"{float(hit['bitscore']):.1f}"
+            )
+
+print("\n===== OUTPUT FILE =====")
+print(output)
+
+print("\n===== COMPLETE =====")
+PY
+```
+The outputs of this script will be saved under:
+```sh
+synteny/toxin_microsynteny/05_annotations/combined_protein_homology/
+```
+
+Importantly, this script DOES NOT do the following:
+  - Discover novel genes or pseudogenes missing from the reference annotations.
+  - Perform chromosome-level or local microsynteny alignments.
+  - Automatically establish orthology, toxin function, or independent gene copy numbers.
+  - Validate protein domains or determine whether predicted coding sequences are complete.
+
+The output of the above script can be summarized into:
+```sh
+Classification	          Naja gene IDs (suffixes)	                                Evidence
+------------------------------------------------------------------------------------------------------------------
+ADAM-like homolog	      `006950`	                       Best match to Cerastes ADAM; 63.8% identity over 782 aa
+SVMP-like 	              `006949`, `006952`,              58–65% identity across approximately 567–614 aa
+                          `006955`, `006957`   
+Additional SVMP-like	  `006954`, `006956`	           Substantial but shorter alignments (330 and 182 aa)
+Short homologous models	  `006951`, `006953`	           Matches spanning only 83–166 aa
+Conserved flanking genes  `006948`, `006958`, `006959`	   STC1, NEFM and NEFL homologs
 ```
