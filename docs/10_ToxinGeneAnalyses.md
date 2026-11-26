@@ -979,7 +979,7 @@ PY
 #### Step 5: Collect homologous sequences from other species
 
 ### Toxin gene microsynteny with other venomous snakes
-Here, we will explore the organization of SVMPs and PLA2s in different venom snake lineages. We will use our *G. ussuriensis* assembly and chromosome-level genomes of *Crotalus adamanteus*, *Cerastes gasperettii*, and *Naja naja*. For this analysis, we will closely follow the methods used by Mochales-Riaño et al. (2025). As outlined in that study, we will use BLASTn to locate SVMPs and PLA2s and their nontoxin paralogs across these genomes. 
+Here, we will explore the organization of SVMPs and PLA2s in different venom snake lineages. We will use our *G. ussuriensis* assembly and chromosome-level genomes of *Crotalus adamanteus*, *Cerastes gasperettii*, and *Naja naja*. For this analysis, we will closely follow the methods used by Mochales-Riaño et al. (2025). As outlined in that study, we will use BLASTn to identify the genomic locations of homologous SVMPs and PLA2s and their nontoxin paralogs/conserved flanking genes. 
 
 These genomes have their respective toxin gene anootation, and we already downloaded these assemblies for chromosomal macrosynteny analysis (see `11_Synteny.md`. I actually ran syteny analysis first, but documentation-wise I tought it would be better placed after these analyses). These assemblies are placed under the following directory:
 ```sh
@@ -1003,6 +1003,42 @@ synteny/
     │   └── PLA2/
     ├── 05_annotations/
     └── 06_figures/
+```
+
+Use the script below to create this directory stucture:
+```sh
+
+# ============================================================
+# create SVMP and PLA2 comparative microsynteny directories
+# ============================================================
+
+# 1. directories
+
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+
+SYNTENY="$ROOT/synteny/toxin_microsynteny"
+
+# 2. create directories
+
+mkdir -p \
+    "$SYNTENY/01_reference_inventory" \
+    "$SYNTENY/02_blast/SVMP" \
+    "$SYNTENY/02_blast/PLA2" \
+    "$SYNTENY/03_genomic_intervals/SVMP" \
+    "$SYNTENY/03_genomic_intervals/PLA2" \
+    "$SYNTENY/04_alignments/SVMP" \
+    "$SYNTENY/04_alignments/PLA2" \
+    "$SYNTENY/05_annotations" \
+    "$SYNTENY/06_figures"
+
+# 3. verify directory structure
+
+echo "===== MICROSYNTENY DIRECTORY STRUCTURE ====="
+
+find "$SYNTENY" -type d | sort
+
+echo
+echo "===== COMPLETE ====="
 ```
 
 #### Step 1: Locate the files needed
@@ -1246,3 +1282,906 @@ find "$ROOT" -maxdepth 6 \
 echo
 echo "===== COMPLETE ====="
 ```
+The coordinate extraction output will tell us that within our G. ussuriensis assembly, 20 SVMPs spanning 747.2 kb are clustered on chromosome 9 (genomic intervals 5,375,758 bp - 6,122,976 bp) and 6 PLA2s spanning 34.5 kb (genomic intervals 278,191 bp - 312,734bp) are clustered on chromosome 16. A seventh PLA₂-labeled model, PLA2-1, is located separately on chromosome 10. However, recall that we reclassified this loci as PLA2 inhibitor-like protein rather than enzymatic PLA2 (see `09_ToxinAnnotationEval.md`).
+
+Also, recall some important considerations from our toxin curation step. The 20 SVMP predictions should not be interpreted as 20 independently supported functional genes. In our previous curation, SVMP-5 and SVMP-6 represented overlapping alternative candidates, with SVMP-5 retained. SVMP-16 and SVMP-17 also have overlapping genomic coordinates and we flagged these as being uncertain gene models. Likewise, the PLA₂ array contains PLA2-4, which had a problematic gene model, and PLA2-5 and PLA2-6, which are distinct tandem loci despite encoding identical proteins.
+
+#### Step 3: Verify the reference assembly and prepare genomic intervals
+For this analysis, we will use unmasked genome (i.e. input FASTA we gave to Earl Grey). Recall that this genome is located in:
+```sh
+/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/final_assembly/curated/Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa
+```
+
+We will use the previously identified toxin clusters and initially include 250 kb of flanking sequence on each side. So for SVMPs and PLA2s, this becomes:
+ - SVMPs: Chromosome 9. Genomic interval including the flanking sequences = 5,125,758–6,372,976 bp. Total length = 1,247,219 bp
+ - PLA2s: Chromosome 16. Genomic interval including the flanking sequences = 28,191–562,734 bp. Total length = 534,544 bp
+
+Use the script below will extract these genomic intervals from our *G. ussuriensis* reference genome.
+```sh
+# ============================================================
+# extract G. ussuriensis SVMP and PLA2 genomic intervals
+# ============================================================
+
+# 1. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+GENOME="$ROOT/final_assembly/curated/Gloydius_ussuriensis_AMNH_21010_curated_scaffold11_split.fa"
+OUTDIR="$ROOT/synteny/toxin_microsynteny/03_genomic_intervals/Gloydius_ussuriensis"
+
+mkdir -p "$OUTDIR"
+
+# 2. verify reference genome
+echo "===== REFERENCE GENOME ====="
+
+for FILE in "$GENOME" "${GENOME}.fai"
+do
+    if [[ ! -s "$FILE" ]]; then
+        echo "ERROR: Missing $FILE"
+        return 1 2>/dev/null || exit 1
+    fi
+done
+
+command -v samtools
+
+# 3. extract genomic intervals
+echo
+echo "===== EXTRACT SVMP REGION ====="
+
+samtools faidx \
+    "$GENOME" \
+    "G_ussuri_chr9:5125758-6372976" \
+    > "$OUTDIR/Guss_SVMP_region.fa"
+
+echo
+echo "===== EXTRACT PLA2 REGION ====="
+
+samtools faidx \
+    "$GENOME" \
+    "G_ussuri_chr16:28191-562734" \
+    > "$OUTDIR/Guss_PLA2_region.fa"
+
+# 4. verify extracted sequences
+echo
+echo "===== EXTRACTED SEQUENCES ====="
+
+for FILE in \
+    "$OUTDIR/Guss_SVMP_region.fa" \
+    "$OUTDIR/Guss_PLA2_region.fa"
+do
+    echo
+    echo "$FILE"
+
+    if [[ ! -s "$FILE" ]]; then
+        echo "ERROR: Missing or empty output"
+        continue
+    fi
+
+    head -n 1 "$FILE"
+
+    awk '
+        !/^>/ {
+            total += length($0)
+        }
+        END {
+            print "Sequence length:", total, "bp"
+        }
+    ' "$FILE"
+done
+
+# 5. locate genome gene annotations
+echo
+echo "===== G. USSURIENSIS GENE ANNOTATIONS ====="
+
+find "$ROOT/annotation/funannotate" -maxdepth 5 -type f \
+    \( -name '*.gff3' -o -name '*.gff' -o -name '*.gtf' \) \
+    -print 2>/dev/null | head -n 30
+
+echo
+echo "===== COMPLETE ====="
+```
+This script will put the genomic region .fa file under the directory `/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/synteny/toxin_microsynteny/03_genomic_intervals/Gloydius_ussuriensis`. The filenames will appear as `Guss_SVMP_region.fa` and `Guss_PLA2_region.fa`. Our directory structure has a separate folder for each gene family. We will thus move these files to their respective directory:
+```sh
+# ============================================================
+# organize SVMP and PLA2 genomic interval files
+# ============================================================
+
+# 1. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+SYNTENY="$ROOT/synteny/toxin_microsynteny"
+SOURCE="$SYNTENY/03_genomic_intervals/Gloydius_ussuriensis"
+
+# 2. organize genomic intervals
+for FAMILY in SVMP PLA2
+do
+    SRC="$SOURCE/Guss_${FAMILY}_region.fa"
+    DEST="$SYNTENY/03_genomic_intervals/$FAMILY/Guss_${FAMILY}_region.fa"
+
+    mkdir -p "$(dirname "$DEST")"
+
+    if [[ -s "$SRC" && ! -e "$DEST" ]]; then
+        mv "$SRC" "$DEST"
+    elif [[ -s "$DEST" ]]; then
+        echo "Destination already exists: $DEST"
+    else
+        echo "WARNING: Missing genomic interval for $FAMILY"
+    fi
+done
+
+# 3. verify files
+echo "===== GENOMIC INTERVALS ====="
+
+find "$SYNTENY/03_genomic_intervals" \
+    -type f -name '*.fa' -print | sort
+```
+
+Before moving on to BLASTn, let's identify the flanking genes around the toxin clusters to establish that we're comparing homologous chromosomal neighborhoods, not merely regions containing similar toxin genes. For this, we will use our Funannotate annotation to identify conserved genes surrounding the *G. ussuriensis* SVMP and PLA₂ arrays.
+
+We should first confirm that the GFF3 contains gene features on the expected chromosomes.
+```sh
+# ============================================================
+# inspect Funannotate genes in SVMP and PLA2 regions
+# ============================================================
+
+# 1. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+GFF="$ROOT/annotation/funannotate/update_results/Gloydius_ussuriensis_AMNH_21010.gff3"
+
+# 2. inspect annotation
+echo "===== FUNANNOTATE ANNOTATION ====="
+
+ls -lh "$GFF"
+
+echo
+echo "===== EXAMPLE GENE RECORDS ====="
+
+awk -F '\t' '
+    $0 !~ /^#/ && $3 == "gene" {
+        print
+        if (++n == 5) exit
+    }
+' "$GFF"
+
+# 3. inspect genes around toxin clusters
+python - "$GFF" <<'PY'
+
+import sys
+from collections import Counter
+
+gff = sys.argv[1]
+
+regions = {
+    "SVMP": ("G_ussuri_chr9", 5125758, 6372976),
+    "PLA2": ("G_ussuri_chr16", 28191, 562734)
+}
+
+for family, (chrom, start, end) in regions.items():
+
+    genes = []
+    features = Counter()
+
+    with open(gff) as handle:
+        for line in handle:
+
+            if not line.strip() or line.startswith("#"):
+                continue
+
+            f = line.rstrip("\n").split("\t")
+
+            if len(f) < 9 or f[0] != chrom:
+                continue
+
+            a = int(f[3])
+            b = int(f[4])
+
+            if a > end or b < start:
+                continue
+
+            features[f[2]] += 1
+
+            if f[2] == "gene":
+                genes.append((a, b, f[6], f[8]))
+
+    genes.sort()
+
+    print(f"\n===== {family} REGION =====")
+
+    print(f"Chromosome: {chrom}")
+    print(f"Interval: {start:,}-{end:,}")
+    print(f"Annotated genes: {len(genes)}")
+    print(f"Feature types: {dict(features)}")
+
+    print("\nFirst 5 genes:")
+
+    for gene in genes[:5]:
+        print(*gene, sep="\t")
+
+    print("\nLast 5 genes:")
+
+    for gene in genes[-5:]:
+        print(*gene, sep="\t")
+
+print("\n===== COMPLETE =====")
+PY
+```
+
+The results should confirm that our Funannotate GFF3 contains gene models surrounding both toxin clusters. Now, we will move on to identifying what these gene models are. The script below will handle this task and create `05_annotations/Guss_SVMP_PLA2_flanking_genes.tsv` as an output.
+```sh
+# ============================================================
+# identify SVMP and PLA2 flanking genes
+# ============================================================
+
+# 1. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+GFF="$ROOT/annotation/funannotate/update_results/Gloydius_ussuriensis_AMNH_21010.gff3"
+OUTDIR="$ROOT/synteny/toxin_microsynteny/05_annotations"
+
+mkdir -p "$OUTDIR"
+
+# 2. extract Funannotate gene annotations
+python - "$GFF" "$OUTDIR" <<'PY'
+
+import sys
+import csv
+from pathlib import Path
+from urllib.parse import unquote
+from collections import defaultdict
+
+gff = Path(sys.argv[1])
+outdir = Path(sys.argv[2])
+
+regions = {
+    "SVMP": {
+        "chr": "G_ussuri_chr9",
+        "region_start": 5125758,
+        "region_end": 6372976,
+        "cluster_start": 5375758,
+        "cluster_end": 6122976
+    },
+    "PLA2": {
+        "chr": "G_ussuri_chr16",
+        "region_start": 28191,
+        "region_end": 562734,
+        "cluster_start": 278191,
+        "cluster_end": 312734
+    }
+}
+
+def parse_attributes(text):
+    result = {}
+    for part in text.strip().split(";"):
+        if "=" in part:
+            key, value = part.split("=", 1)
+            result[key] = unquote(value)
+    return result
+
+genes = {}
+transcripts = defaultdict(list)
+
+with gff.open() as handle:
+    for line in handle:
+
+        if not line.strip() or line.startswith("#"):
+            continue
+
+        f = line.rstrip("\n").split("\t")
+
+        if len(f) < 9:
+            continue
+
+        if f[2] not in ("gene", "mRNA"):
+            continue
+
+        attr = parse_attributes(f[8])
+
+        if f[2] == "gene":
+
+            gene_id = attr.get("ID")
+
+            if not gene_id:
+                continue
+
+            genes[gene_id] = {
+                "chr": f[0],
+                "start": int(f[3]),
+                "end": int(f[4]),
+                "strand": f[6],
+                "gene_name": attr.get("Name", ""),
+                "product": attr.get("product", ""),
+                "note": attr.get("Note", "")
+            }
+
+        elif f[2] == "mRNA":
+
+            for parent in attr.get("Parent", "").split(","):
+                if parent:
+                    transcripts[parent].append(attr)
+
+# Recover functional descriptions from transcripts
+for gene_id, gene in genes.items():
+
+    for tx in transcripts.get(gene_id, []):
+
+        if not gene["product"]:
+            gene["product"] = tx.get("product", "")
+
+        if not gene["note"]:
+            gene["note"] = tx.get("Note", "")
+
+# 3. classify genes relative to toxin clusters
+
+rows = []
+
+for family, r in regions.items():
+
+    for gene_id, gene in genes.items():
+
+        if gene["chr"] != r["chr"]:
+            continue
+
+        start = gene["start"]
+        end = gene["end"]
+
+        if (
+            end < r["region_start"]
+            or start > r["region_end"]
+        ):
+            continue
+
+        if end < r["cluster_start"]:
+            position = "left_flank"
+            distance = r["cluster_start"] - end
+
+        elif start > r["cluster_end"]:
+            position = "right_flank"
+            distance = start - r["cluster_end"]
+
+        else:
+            position = "cluster_overlap"
+            distance = 0
+
+        rows.append({
+            "family": family,
+            "gene_id": gene_id,
+            "chr": gene["chr"],
+            "start": start,
+            "end": end,
+            "strand": gene["strand"],
+            "position": position,
+            "distance_bp": distance,
+            "gene_name": gene["gene_name"],
+            "product": gene["product"],
+            "note": gene["note"]
+        })
+
+rows.sort(
+    key=lambda x: (
+        x["family"],
+        x["start"]
+    )
+)
+
+# 4. export annotation table
+
+output = outdir / "Guss_SVMP_PLA2_flanking_genes.tsv"
+
+with output.open("w", newline="") as handle:
+
+    writer = csv.DictWriter(
+        handle,
+        fieldnames=[
+            "family",
+            "gene_id",
+            "chr",
+            "start",
+            "end",
+            "strand",
+            "position",
+            "distance_bp",
+            "gene_name",
+            "product",
+            "note"
+        ],
+        delimiter="\t"
+    )
+
+    writer.writeheader()
+    writer.writerows(rows)
+
+# 5. print closest flanking genes
+
+for family in ("SVMP", "PLA2"):
+
+    print(f"\n===== {family} REGION =====")
+
+    subset = [
+        r for r in rows
+        if r["family"] == family
+    ]
+
+    for side in ("left_flank", "right_flank"):
+
+        flank = sorted(
+            [r for r in subset if r["position"] == side],
+            key=lambda x: x["distance_bp"]
+        )
+
+        print(f"\n===== {side.upper()} =====")
+
+        if not flank:
+            print("No genes identified in working interval.")
+
+        for r in flank[:8]:
+
+            description = (
+                r["product"]
+                or r["gene_name"]
+                or r["note"]
+                or "UNANNOTATED"
+            )
+
+            print(
+                f"{r['gene_id']:<14}"
+                f"{r['start']:>10,}-"
+                f"{r['end']:<10,} "
+                f"{r['strand']} "
+                f"{r['distance_bp']:>9,} bp  "
+                f"{description[:90]}"
+            )
+
+    print(
+        "\nFunannotate genes overlapping cluster:",
+        sum(r["position"] == "cluster_overlap" for r in subset)
+    )
+
+print("\n===== OUTPUT FILE =====")
+print(output)
+
+PY
+```
+The output should indicate that we have successfully identified candidate flanking genes around both *G. ussuriensis* toxin clusters, but their functional identities remain unresolved (flanking genes marked as either `hypothetical protein` or `UNANNOTATED`). Therefore, the next step is to identify their homologs in *Cerastes gasperettii*, *Crotalus adamanteus*, and *Naja naja*. Because we already have annotated proteomes for these three comparative species, we will protein homology searches to establish conserved flanking genes.
+```sh
+# ============================================================
+# identify protein sequences for SVMP and PLA2 flanking genes
+# ============================================================
+
+# 1. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+ANNOTATION="$ROOT/annotation/funannotate"
+
+# 2. locate protein FASTA files
+echo "===== FUNANNOTATE PROTEIN FILES ====="
+
+find "$ANNOTATION" -maxdepth 4 -type f \
+    \( -iname '*proteins*.fa' \
+       -o -iname '*proteins*.fasta' \
+       -o -iname '*proteins*.faa' \) \
+    -print | sort
+
+# 3. inspect protein FASTA headers
+
+echo
+echo "===== PROTEIN FASTA HEADERS ====="
+
+for FILE in \
+    "$ANNOTATION/update_results/"*proteins* \
+    "$ANNOTATION/annotate_results/"*proteins*
+do
+    if [[ ! -f "$FILE" ]]; then
+        continue
+    fi
+
+    echo
+    echo "FILE: $FILE"
+
+    grep -m 5 '^>' "$FILE" || true
+done
+
+# 4. search candidate flanking genes
+echo
+echo "===== FLANKING GENE PROTEIN IDS ====="
+
+for FILE in \
+    "$ANNOTATION/update_results/"*proteins* \
+    "$ANNOTATION/annotate_results/"*proteins*
+do
+    if [[ ! -f "$FILE" ]]; then
+        continue
+    fi
+
+    echo
+    echo "FILE: $FILE"
+
+    grep '^>' "$FILE" |
+        grep -E \
+        'FUN_01451[123]|FUN_01452[67]|FUN_01805[78]|FUN_01807[23]' \
+        || true
+done
+
+# 5. check homology search software
+echo
+echo "===== HOMOLOGY SEARCH SOFTWARE ====="
+
+for TOOL in blastp makeblastdb blastn seqkit gffread
+do
+    if command -v "$TOOL" >/dev/null 2>&1; then
+        echo "$TOOL: $(command -v "$TOOL")"
+    else
+        echo "$TOOL: NOT_FOUND"
+    fi
+done
+
+echo
+echo "===== COMPLETE ====="
+```
+The output of this script will verify that we have the Funannotate protein sequences needed for our flanking-gene analysis, and that all the necessary BLAST tools are installed. We will use the protein sequences from `annotation/funannotate/update_results/Gloydius_ussuriensis_AMNH_21010.proteins.fa`.
+
+#### Step 4: BLASTp of flanking genes
+Our immediate objective now is to identify candidate homologs of the *G. ussuriensis* flanking genes in the three comparison taxa.
+
+The approach will be:
+ 1. Extract proteins corresponding to the closest eight annotated genes on each side of each toxin cluster, where available.
+ 2. Build BLAST databases from the existing comparative proteomes.
+ 3. Run BLASTp separately for SVMP and PLA₂ flanking-gene sets.
+ 4. Record the top 20 matches per query for subsequent orthology assessment.
+
+ The script below will do the job:
+ ```sh
+ #!/bin/bash
+#SBATCH --job-name=toxin_flank_blastp
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=04:00:00
+#SBATCH --partition=compute
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=yshin@amnh.org
+#SBATCH --output=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.out
+#SBATCH --error=/home/yshin/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo/scripts/outfiles/slurm-%x_%j.err
+
+# ============================================================
+# activate environment
+# ============================================================
+source "$HOME/mendel-nas1/miniconda3/etc/profile.d/conda.sh"
+conda activate funannotate
+
+# ============================================================
+# run blastp to identify SVMP and PLA2 flanking gene homologs
+# ============================================================
+
+# activate conda environment
+source ~/.bash_profile
+conda activate funannotate
+
+set -euo pipefail
+
+# 1. directories
+ROOT="$HOME/mendel-nas1/snake_genome_ass/G_ussuriensis_Chromo"
+SYNTENY="$ROOT/synteny/toxin_microsynteny"
+ASSEMBLIES="$ROOT/synteny/assemblies_synteny"
+ANNOTATION="$ROOT/annotation/funannotate/update_results"
+PROTEINS="$ANNOTATION/Gloydius_ussuriensis_AMNH_21010.proteins.fa"
+FLANKING="$SYNTENY/05_annotations/Guss_SVMP_PLA2_flanking_genes.tsv"
+BLASTDIR="$SYNTENY/02_blast"
+
+mkdir -p "$BLASTDIR/SVMP" "$BLASTDIR/PLA2"
+
+# 2. verify input files
+echo "===== VERIFY INPUTS ====="
+for FILE in "$PROTEINS" "$FLANKING"
+do
+    if [[ ! -s "$FILE" ]]; then
+        echo "ERROR: Missing input: $FILE"
+        exit 1
+    fi
+    echo "OK: $FILE"
+done
+
+for TOOL in python blastp makeblastdb
+do
+    command -v "$TOOL"
+done
+
+# 3. extract flanking gene proteins
+echo
+echo "===== EXTRACT FLANKING PROTEINS ====="
+
+python - "$PROTEINS" "$FLANKING" "$BLASTDIR" <<'PY'
+
+import sys
+import csv
+import re
+from pathlib import Path
+from collections import defaultdict
+
+proteins_file = Path(sys.argv[1])
+flanking_file = Path(sys.argv[2])
+outdir = Path(sys.argv[3])
+
+# Read protein FASTA
+proteins = defaultdict(list)
+
+header = None
+seq = []
+
+def save():
+    if header is None:
+        return
+
+    parts = header.split()
+    transcript = parts[0]
+
+    gene = (
+        parts[1]
+        if len(parts) > 1
+        else re.sub(r"-T\d+$", "", transcript)
+    )
+
+    proteins[gene].append(
+        (transcript, "".join(seq))
+    )
+
+with proteins_file.open() as handle:
+    for line in handle:
+        line = line.strip()
+
+        if line.startswith(">"):
+            save()
+            header = line[1:]
+            seq = []
+        elif line:
+            seq.append(line)
+
+    save()
+
+# Read flanking-gene inventory
+with flanking_file.open() as handle:
+    rows = list(
+        csv.DictReader(handle, delimiter="\t")
+    )
+
+for family in ("SVMP", "PLA2"):
+
+    selected = []
+
+    for side in ("left_flank", "right_flank"):
+
+        subset = [
+            row for row in rows
+            if row["family"] == family
+            and row["position"] == side
+        ]
+
+        subset.sort(
+            key=lambda x: int(x["distance_bp"])
+        )
+
+        selected.extend(subset[:8])
+
+    fasta_out = (
+        outdir / family /
+        f"Guss_{family}_flanking_proteins.faa"
+    )
+
+    manifest_out = (
+        outdir / family /
+        f"Guss_{family}_query_manifest.tsv"
+    )
+
+    manifest = []
+
+    with fasta_out.open("w") as fasta:
+
+        for row in selected:
+
+            gene = row["gene_id"]
+
+            candidates = proteins.get(gene, [])
+
+            if not candidates:
+                print(
+                    f"WARNING: No protein found for {gene}"
+                )
+                continue
+
+            # Prefer T1 when available.
+            t1 = [
+                x for x in candidates
+                if x[0] == f"{gene}-T1"
+            ]
+
+            if t1:
+                transcript, sequence = t1[0]
+            else:
+                transcript, sequence = max(
+                    candidates,
+                    key=lambda x: len(x[1])
+                )
+
+            if not sequence:
+                print(
+                    f"WARNING: Empty protein for {gene}"
+                )
+                continue
+
+            fasta.write(f">{transcript} {gene}\n")
+
+            for i in range(0, len(sequence), 80):
+                fasta.write(sequence[i:i+80] + "\n")
+
+            manifest.append({
+                "gene_id": gene,
+                "transcript_id": transcript,
+                "position": row["position"],
+                "distance_bp": row["distance_bp"],
+                "length_aa": len(sequence)
+            })
+
+    with manifest_out.open("w", newline="") as handle:
+
+        fields = [
+            "gene_id",
+            "transcript_id",
+            "position",
+            "distance_bp",
+            "length_aa"
+        ]
+
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=fields,
+            delimiter="\t"
+        )
+
+        writer.writeheader()
+        writer.writerows(manifest)
+
+    if not manifest:
+        raise ValueError(
+            f"No proteins recovered for {family}"
+        )
+
+    print(f"\n===== {family} =====")
+
+    for row in manifest:
+        print(
+            f"{row['transcript_id']:<20}"
+            f"{row['length_aa']:>5} aa  "
+            f"{row['position']}"
+        )
+
+    print(f"\nTotal proteins: {len(manifest)}")
+    print(f"FASTA: {fasta_out}")
+    print(f"Manifest: {manifest_out}")
+
+PY
+
+# 4. prepare comparative protein BLAST databases
+echo
+echo "===== PREPARE BLAST DATABASES ====="
+
+for SPECIES in \
+    Cerastes_gasperettii \
+    Crotalus_adamanteus \
+    Naja_naja
+do
+    PROTEOME="$ASSEMBLIES/$SPECIES/${SPECIES}.protein.faa"
+
+    DB="$BLASTDIR/${SPECIES}_proteins_db"
+
+    if [[ ! -s "$PROTEOME" ]]; then
+        echo "ERROR: Missing proteome: $PROTEOME"
+        exit 1
+    fi
+
+    echo
+    echo "Species: $SPECIES"
+
+    if [[ ! -s "${DB}.pin" && ! -s "${DB}.pdb" ]]; then
+
+        makeblastdb \
+            -in "$PROTEOME" \
+            -dbtype prot \
+            -out "$DB"
+
+    else
+        echo "Existing BLAST database found."
+    fi
+done
+
+# 5. run comparative BLASTP
+echo
+echo "===== RUN BLASTP ====="
+
+for FAMILY in SVMP PLA2
+do
+    QUERY="$BLASTDIR/$FAMILY/Guss_${FAMILY}_flanking_proteins.faa"
+
+    for SPECIES in \
+        Cerastes_gasperettii \
+        Crotalus_adamanteus \
+        Naja_naja
+    do
+        DB="$BLASTDIR/${SPECIES}_proteins_db"
+
+        OUTPUT="$BLASTDIR/$FAMILY/Guss_${FAMILY}_vs_${SPECIES}.blastp.tsv"
+
+        echo
+        echo "$FAMILY vs $SPECIES"
+
+        blastp \
+            -query "$QUERY" \
+            -db "$DB" \
+            -evalue 1e-5 \
+            -max_target_seqs 20 \
+            -num_threads 2 \
+            -outfmt '6 qseqid sseqid pident length qlen slen qcovs evalue bitscore' \
+            -out "$OUTPUT"
+
+        echo "Output: $OUTPUT"
+    done
+done
+
+# 6. summarize best BLASTP hits
+echo
+echo "===== BEST BLASTP HITS ====="
+
+python - "$BLASTDIR" <<'PY'
+import sys
+import csv
+from pathlib import Path
+from collections import defaultdict
+
+blastdir = Path(sys.argv[1])
+
+species_list = (
+    "Cerastes_gasperettii",
+    "Crotalus_adamanteus",
+    "Naja_naja"
+)
+
+for family in ("SVMP", "PLA2"):
+
+    print(f"\n===== {family} =====")
+
+    for species in species_list:
+
+        path = (
+            blastdir / family /
+            f"Guss_{family}_vs_{species}.blastp.tsv"
+        )
+
+        hits = defaultdict(list)
+
+        with path.open() as handle:
+            reader = csv.reader(handle, delimiter="\t")
+
+            for row in reader:
+                if len(row) < 9:
+                    continue
+
+                hits[row[0]].append(row)
+
+        print(f"\n--- {species} ---")
+
+        if not hits:
+            print("No hits passing the search threshold.")
+            continue
+
+        for query in sorted(hits):
+
+            best = max(
+                hits[query],
+                key=lambda x: float(x[8])
+            )
+
+            print(
+                f"{query:<20} "
+                f"{best[1]:<28} "
+                f"ID={float(best[2]):5.1f}% "
+                f"Qcov={float(best[6]):5.1f}% "
+                f"E={best[7]}"
+            )
+
+print("\n===== COMPLETE =====")
+PY
+ ```
