@@ -1,0 +1,74 @@
+family	species	gene_id	evidence_role	chr	start	end	strand	annotation_hint	functional_hint	manual_category	review_notes
+PLA2	Gloydius_ussuriensis	FUN_018054	unresolved_annotation	G_ussuri_chr16	245589	250971	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018055	unresolved_annotation	G_ussuri_chr16	251781	256148	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018056	unresolved_annotation	G_ussuri_chr16	265499	267115	-	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018057	unresolved_annotation	G_ussuri_chr16	269786	271723	-	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018058	unresolved_annotation	G_ussuri_chr16	273607	275172	-	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018059	gene_model_overlapping_ToxCodAn	G_ussuri_chr16	277070	279062	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018060	gene_model_overlapping_ToxCodAn	G_ussuri_chr16	280992	284409	-	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018062	gene_model_overlapping_ToxCodAn	G_ussuri_chr16	284505	286732	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018061	unresolved_annotation	G_ussuri_chr16	284942	285421	-	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018063	unresolved_annotation	G_ussuri_chr16	287776	288540	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018064	unresolved_annotation	G_ussuri_chr16	291577	293488	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018065	gene_model_overlapping_ToxCodAn	G_ussuri_chr16	293721	297239	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018066	unresolved_annotation	G_ussuri_chr16	298134	298493	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018071	gene_model_overlapping_ToxCodAn	G_ussuri_chr16	298482	312833	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018067	unresolved_annotation	G_ussuri_chr16	300276	302187	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018068	gene_model_overlapping_ToxCodAn	G_ussuri_chr16	302420	304043	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018069	unresolved_annotation	G_ussuri_chr16	305173	307089	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018070	unresolved_annotation	G_ussuri_chr16	308957	309721	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018072	unresolved_annotation	G_ussuri_chr16	321403	322226	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018073	unresolved_annotation	G_ussuri_chr16	322805	329620	-	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018074	unresolved_annotation	G_ussuri_chr16	332184	338841	-	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018075	unresolved_annotation	G_ussuri_chr16	339550	344839	-	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Gloydius_ussuriensis	FUN_018076	unresolved_annotation	G_ussuri_chr16	345103	357137	-	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Cerastes_gasperettii	gene-22970	unresolved_annotation	CM101942.1	7852791	7862133	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Cerastes_gasperettii	gene-22971	unresolved_annotation	CM101942.1	7862930	7867362	+	unresolved_from_annotation	Peptidyl-prolyl cis-trans isomerase	NA	NA
+PLA2	Cerastes_gasperettii	gene-23182	unresolved_annotation	CM101942.1	7868852	7870037	-	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Cerastes_gasperettii	gene-22972	unresolved_annotation	CM101942.1	7869290	7873783	+	unresolved_from_annotation	Nuclease-sensitive element-binding protein 1; Y box binding protein 1	NA	NA
+PLA2	Cerastes_gasperettii	gene-22973	flanking_gene_hint	CM101942.1	7877254	7881525	+	flanking_gene_hint	ubiquitinyl hydrolase 1	NA	NA
+PLA2	Cerastes_gasperettii	Pla2g2F	related_nonvenom_or_uncertain	CM101942.1	7910975	7912628	+	PLA2G2F_paralog_candidate	Phospholipase A2, group IIF; phospholipase A2	NA	NA
+PLA2	Cerastes_gasperettii	gene-22976	flanking_gene_hint	CM101942.1	7914584	7916827	+	flanking_gene_hint	RING-type E3 ubiquitin transferase	NA	NA
+PLA2	Cerastes_gasperettii	gene-23185	unresolved_annotation	CM101942.1	7921839	7937160	-	unresolved_from_annotation	von Willebrand factor A domain-containing protein 5B1	NA	NA
+PLA2	Crotalus_adamanteus	gene-NXF25_017761	unresolved_annotation	CM077932.1	12849946	12854166	+	unresolved_from_annotation	coiled-coil domain-containing protein 30	NA	NA
+PLA2	Crotalus_adamanteus	gene-NXF25_017762	unresolved_annotation	CM077932.1	12855051	12866945	+	unresolved_from_annotation	peptidyl-prolyl cis-trans isomerase H	NA	NA
+PLA2	Crotalus_adamanteus	gene-NXF25_017763	unresolved_annotation	CM077932.1	12869623	12875698	+	unresolved_from_annotation	OTU domain-containing protein-3	NA	NA
+PLA2	Crotalus_adamanteus	gene-NXF25_017767	unresolved_annotation	CM077932.1	12904714	12906658	+	unresolved_from_annotation	ubiquitin ligase activator of NFKB	NA	NA
+PLA2	Crotalus_adamanteus	gene-NXF25_017768	unresolved_annotation	CM077932.1	12909196	12910736	+	unresolved_from_annotation	CAMK2N2: Calcium/calmodulin-dependent protein kinase II inhibitor 2	NA	NA
+PLA2	Crotalus_adamanteus	gene-NXF25_017769	unresolved_annotation	CM077932.1	12919970	12934997	-	unresolved_from_annotation	von Willebrand factor A domain-containing protein 5B1	NA	NA
+PLA2	Naja_naja	gene-E2320_006362	unresolved_annotation	CM019158.1	9712736	9722487	+	unresolved_from_annotation	hypothetical protein	NA	NA
+PLA2	Naja_naja	gene-E2320_006359	unresolved_annotation	CM019158.1	9723758	9729117	+	unresolved_from_annotation	putative Peptidyl-prolyl cis-trans isomerase protein	NA	NA
+PLA2	Naja_naja	gene-E2320_006364	toxin_family_keyword_candidate	CM019158.1	9743528	9750474	-	PLA2_family_keyword_candidate	putative Phospholipase A2 Group IIE protein	NA	NA
+PLA2	Naja_naja	gene-E2320_006357	unresolved_annotation	CM019158.1	9762249	9763403	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014513	unresolved_annotation	G_ussuri_chr9	5248666	5267255	-	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014514	gene_model_overlapping_ToxCodAn	G_ussuri_chr9	5455916	5461030	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014515	unresolved_annotation	G_ussuri_chr9	5498811	5499170	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014516	gene_model_overlapping_ToxCodAn	G_ussuri_chr9	5510726	5530224	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014517	unresolved_annotation	G_ussuri_chr9	5541891	5566822	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014518	unresolved_annotation	G_ussuri_chr9	5714445	5714783	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014519	gene_model_overlapping_ToxCodAn	G_ussuri_chr9	5724123	5748537	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014520	gene_model_overlapping_ToxCodAn	G_ussuri_chr9	5755259	5756254	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014521	gene_model_overlapping_ToxCodAn	G_ussuri_chr9	5775072	5776493	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014522	gene_model_overlapping_ToxCodAn	G_ussuri_chr9	5836993	5838020	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014523	gene_model_overlapping_ToxCodAn	G_ussuri_chr9	5876062	5877709	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014524	gene_model_overlapping_ToxCodAn	G_ussuri_chr9	5936426	5945743	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014525	unresolved_annotation	G_ussuri_chr9	5960822	5964712	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_023349	gene_model_overlapping_ToxCodAn	G_ussuri_chr9	6105731	6123380	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014526	unresolved_annotation	G_ussuri_chr9	6211110	6220426	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014527	unresolved_annotation	G_ussuri_chr9	6228837	6237358	-	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014528	unresolved_annotation	G_ussuri_chr9	6278188	6375539	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014529	unresolved_annotation	G_ussuri_chr9	6375586	6375897	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014530	unresolved_annotation	G_ussuri_chr9	6381886	6384879	-	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	FUN_014531	unresolved_annotation	G_ussuri_chr9	6393948	6412051	-	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Cerastes_gasperettii	gene-24094	unresolved_annotation	CM101933.1	16308264	16325811	+	unresolved_from_annotation	BTB/POZ domain-containing protein KCTD9 (Fragment)	NA	NA
+SVMP	Cerastes_gasperettii	gene-24095	unresolved_annotation	CM101933.1	16331395	16333484	+	unresolved_from_annotation	Gonadotropin releasing hormone 1	NA	NA
+SVMP	Cerastes_gasperettii	gene-23784	unresolved_annotation	CM101933.1	16343540	16432559	-	unresolved_from_annotation	Dedicator of cytokinesis 5	NA	NA
+SVMP	Crotalus_adamanteus	gene-NXF25_014521	unresolved_annotation	CM077925.1	25299253	25315922	+	unresolved_from_annotation	BTB/POZ domain-containing protein KCTD9	NA	NA
+SVMP	Crotalus_adamanteus	gene-NXF25_014522	unresolved_annotation	CM077925.1	25322760	25325977	+	unresolved_from_annotation	progonadoliberin-1	NA	NA
+SVMP	Crotalus_adamanteus	gene-NXF25_014523	flanking_gene_hint	CM077925.1	25332156	25400126	-	flanking_gene_hint	dedicator of cytokinesis protein 5	NA	NA
+SVMP	Crotalus_adamanteus	gene-NXF25_014550	flanking_gene_hint	CM077925.1	26548234	26565562	+	flanking_gene_hint	stanniocalcin-1	NA	NA
+SVMP	Naja_naja	gene-E2320_006951	unresolved_annotation	CM019156.1	8040830	8043018	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Naja_naja	gene-E2320_006953	unresolved_annotation	CM019156.1	8314517	8319294	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Naja_naja	gene-E2320_006961	unresolved_annotation	CM019156.1	8829577	8922708	+	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Naja_naja	gene-E2320_006962	unresolved_annotation	CM019156.1	8940748	8958798	-	unresolved_from_annotation	hypothetical protein	NA	NA
+SVMP	Gloydius_ussuriensis	SVMP-6	ToxCodAn_candidate	G_ussuri_chr9	5576045	5590030	+	curated_separately	NA	NA	NA
