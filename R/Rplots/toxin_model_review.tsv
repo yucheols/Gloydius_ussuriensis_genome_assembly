@@ -1,0 +1,75 @@
+species	family	gene_id	toxin_evidence	on_curated_list	chr	start	end	strand
+Cerastes_gasperettii	PLA2	gene-23184	Reference toxin-family annotation	FALSE	CM101942.1	7882542	7884606	-
+Cerastes_gasperettii	PLA2	CG-PLA2-gD	Reference toxin-family annotation	FALSE	CM101942.1	7891295	7892874	-
+Cerastes_gasperettii	PLA2	CG-PLA2-gC	Reference toxin-family annotation	FALSE	CM101942.1	7901523	7904795	+
+Crotalus_adamanteus	PLA2	gene-NXF25_017764	Reference toxin-family annotation	FALSE	CM077932.1	12876747	12878641	-
+Crotalus_adamanteus	PLA2	gene-NXF25_017765	Reference toxin-family annotation	FALSE	CM077932.1	12889157	12890527	-
+Crotalus_adamanteus	PLA2	gene-NXF25_017766	Reference toxin-family annotation	FALSE	CM077932.1	12894053	12895632	+
+Naja_naja	PLA2	gene-E2320_006365	Naja protein-supported homolog (provisional)	FALSE	CM019158.1	9752391	9753977	-
+Cerastes_gasperettii	SVMP	SVMP-1	Reference toxin-family annotation	FALSE	CM101933.1	16643530	16673046	-
+Cerastes_gasperettii	SVMP	SVMP-2	Reference toxin-family annotation	FALSE	CM101933.1	16691343	16714915	-
+Cerastes_gasperettii	SVMP	SVMP-3	Reference toxin-family annotation	FALSE	CM101933.1	16734146	16775347	-
+Cerastes_gasperettii	SVMP	SVMP-4	Reference toxin-family annotation	FALSE	CM101933.1	16798430	16830457	-
+Cerastes_gasperettii	SVMP	SVMP-5	Reference toxin-family annotation	FALSE	CM101933.1	16845987	16875658	-
+Cerastes_gasperettii	SVMP	SVMP-6	Reference toxin-family annotation	FALSE	CM101933.1	16888907	16915014	-
+Cerastes_gasperettii	SVMP	SVMP-7	Reference toxin-family annotation	FALSE	CM101933.1	16948436	16977793	-
+Cerastes_gasperettii	SVMP	SVMP-8	Reference toxin-family annotation	FALSE	CM101933.1	17002809	17022975	-
+Cerastes_gasperettii	SVMP	SVMP-9	Reference toxin-family annotation	FALSE	CM101933.1	17069033	17095868	-
+Cerastes_gasperettii	SVMP	SVMP-10	Reference toxin-family annotation	FALSE	CM101933.1	17116178	17156754	+
+Cerastes_gasperettii	SVMP	SVMP-11	Reference toxin-family annotation	FALSE	CM101933.1	17183459	17209500	-
+Cerastes_gasperettii	SVMP	SVMP-12	Reference toxin-family annotation	FALSE	CM101933.1	17230229	17264837	-
+Cerastes_gasperettii	SVMP	SVMP-13	Reference toxin-family annotation	FALSE	CM101933.1	17279480	17308729	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014526	Reference toxin-family annotation	FALSE	CM077925.1	25551454	25577197	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014527	Reference toxin-family annotation	FALSE	CM077925.1	25623274	25631065	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014528	Reference toxin-family annotation	FALSE	CM077925.1	25638345	25654726	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014529	Reference toxin-family annotation	FALSE	CM077925.1	25668901	25685614	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014530	Reference toxin-family annotation	FALSE	CM077925.1	25694329	25722429	+
+Crotalus_adamanteus	SVMP	gene-NXF25_014531	Reference toxin-family annotation	FALSE	CM077925.1	25729253	25766828	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014532	Reference toxin-family annotation	FALSE	CM077925.1	25788813	25804771	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014533	Reference toxin-family annotation	FALSE	CM077925.1	25825518	25850617	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014534	Reference toxin-family annotation	FALSE	CM077925.1	25862854	25884839	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014535	Reference toxin-family annotation	FALSE	CM077925.1	25890712	25912093	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014536	Reference toxin-family annotation	FALSE	CM077925.1	25922473	25946147	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014537	Reference toxin-family annotation	FALSE	CM077925.1	25959394	25994839	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014538	Reference toxin-family annotation	FALSE	CM077925.1	26011646	26032567	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014539	Reference toxin-family annotation	FALSE	CM077925.1	26052808	26092258	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014540	Reference toxin-family annotation	FALSE	CM077925.1	26095715	26112700	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014541	Reference toxin-family annotation	FALSE	CM077925.1	26121103	26142942	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014542	Reference toxin-family annotation	FALSE	CM077925.1	26157056	26190189	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014543	Reference toxin-family annotation	FALSE	CM077925.1	26200933	26217729	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014544	Reference toxin-family annotation	FALSE	CM077925.1	26224696	26241549	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014545	Reference toxin-family annotation	FALSE	CM077925.1	26249766	26267865	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014546	Reference toxin-family annotation	FALSE	CM077925.1	26286406	26312096	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014547	Reference toxin-family annotation	FALSE	CM077925.1	26321898	26345060	-
+Crotalus_adamanteus	SVMP	gene-NXF25_014548	Reference toxin-family annotation	FALSE	CM077925.1	26355079	26376262	-
+Naja_naja	SVMP	gene-E2320_006949	Naja protein-supported homolog (provisional)	FALSE	CM019156.1	8119900	8150244	+
+Naja_naja	SVMP	gene-E2320_006954	Naja protein-supported homolog (provisional)	FALSE	CM019156.1	8217797	8242494	+
+Naja_naja	SVMP	gene-E2320_006952	Naja protein-supported homolog (provisional)	FALSE	CM019156.1	8256061	8285625	+
+Naja_naja	SVMP	gene-E2320_006956	Naja protein-supported homolog (provisional)	FALSE	CM019156.1	8342688	8352238	+
+Naja_naja	SVMP	gene-E2320_006957	Naja protein-supported homolog (provisional)	FALSE	CM019156.1	8439319	8484479	+
+Naja_naja	SVMP	gene-E2320_006955	Naja protein-supported homolog (provisional)	FALSE	CM019156.1	8522867	8559760	+
+Gloydius_ussuriensis	PLA2	PLA2-2	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr16	278191	278997	+
+Gloydius_ussuriensis	PLA2	PLA2-3	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr16	281098	282719	-
+Gloydius_ussuriensis	PLA2	PLA2-4	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr16	285580	286640	+
+Gloydius_ussuriensis	PLA2	PLA2-5	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr16	293721	295345	+
+Gloydius_ussuriensis	PLA2	PLA2-6	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr16	302420	304043	+
+Gloydius_ussuriensis	PLA2	PLA2-7	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr16	311102	312734	+
+Gloydius_ussuriensis	SVMP	SVMP-1	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5375758	5408590	+
+Gloydius_ussuriensis	SVMP	SVMP-2	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5437220	5460804	+
+Gloydius_ussuriensis	SVMP	SVMP-3	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5473066	5492796	+
+Gloydius_ussuriensis	SVMP	SVMP-4	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5509085	5517607	+
+Gloydius_ussuriensis	SVMP	SVMP-5	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5573335	5590030	+
+Gloydius_ussuriensis	SVMP	SVMP-7	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5598614	5620782	+
+Gloydius_ussuriensis	SVMP	SVMP-8	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5631830	5658810	+
+Gloydius_ussuriensis	SVMP	SVMP-9	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5671821	5687300	+
+Gloydius_ussuriensis	SVMP	SVMP-10	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5698118	5713611	+
+Gloydius_ussuriensis	SVMP	SVMP-11	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5723153	5748537	+
+Gloydius_ussuriensis	SVMP	SVMP-12	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5753421	5776493	+
+Gloydius_ussuriensis	SVMP	SVMP-13	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5835114	5855873	+
+Gloydius_ussuriensis	SVMP	SVMP-14	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5874183	5894941	+
+Gloydius_ussuriensis	SVMP	SVMP-15	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5943692	5951811	+
+Gloydius_ussuriensis	SVMP	SVMP-16	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5976620	5997909	+
+Gloydius_ussuriensis	SVMP	SVMP-17	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	5983904	6004744	+
+Gloydius_ussuriensis	SVMP	SVMP-18	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	6015882	6045158	+
+Gloydius_ussuriensis	SVMP	SVMP-19	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	6051842	6082760	+
+Gloydius_ussuriensis	SVMP	SVMP-20	Gloydius ToxCodAn candidate	FALSE	G_ussuri_chr9	6098515	6122976	+
