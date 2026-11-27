@@ -1,8 +1,7 @@
-
 # ============================================================
 #
-# SVMP and PLA2 comparative microsynteny
-# G. ussuriensis, C. gasperettii, C. adamanteus, N. naja
+# SVMP comparative microsynteny
+# G. ussuriensis, C. adamanteus, C. gasperettii, N. naja
 #
 # ============================================================
 
@@ -28,34 +27,24 @@ datadir <- file.path(root, 'R', 'Rdata', 'toxin_microsynteny')
 outdir <- file.path(root, 'R', 'Rplots')
 dir.create(outdir, recursive = T, showWarnings = F)
 
-# SVMP only: reverse-complement display orientation (not source coordinates)
-# PLA2 orientation is unchanged pending separate validation
-FLIP_SVMP <- c('Gloydius_ussuriensis', 'Naja_naja')
-FLIP_PLA2 <- character(0)
-
-TOXIN_MODE <- 'annotation_supported' # or 'curated_only'
-SHOW_PROVISIONAL_NAJA <- T
-SHOW_TOXIN_LABELS <- F
-SHOW_ANCHOR_LABELS <- T
-
-species_order <- c('Gloydius_ussuriensis', 'Cerastes_gasperettii', 'Crotalus_adamanteus', 'Naja_naja')
-family_order <- c('SVMP', 'PLA2')
-species_labels <- c('G. ussuriensis', 'C. gasperettii', 'C. adamanteus', 'N. naja')
-
-# Same anchor symbol has the same color in every species
-colors <- c('Gloydius ToxCodAn candidate' = '#B83F40', 'Reference toxin-family annotation' = '#D87348', 'Naja protein-supported homolog (provisional)' = '#E4A446', 'Curated toxin model' = '#B83F40', 'Anchor: STC1' = '#427DA5', 'Anchor: NEFM' = '#7561A6', 'Anchor: NEFL' = '#2C9B89', 'Anchor: OTUD3' = '#427DA5', 'Anchor: MUL1' = '#2C9B89', 'Anchor: VWA5B1' = '#7561A6', 'ADAM: ADAM28' = '#8E629C', 'ADAM: ADAM-like' = '#B49AC0')
-
-# ------------------------------------------------------------
-# 2. import genomic intervals and gene catalog
-# ------------------------------------------------------------
-
 interval_file <- file.path(datadir, 'anchor_bounded_regions.tsv')
-gene_file <- file.path(datadir, 'gene_feature_catalog.tsv')
-curated_file <- file.path(datadir, 'curated_toxin_gene_ids.tsv')
+gene_file <- file.path(datadir, 'comparative_all_gene_models_in_regions.tsv')
 
 for (f in c(interval_file, gene_file)) {
   if (!file.exists(f)) stop('Missing input file: ', f)
 }
+
+FLIP_SPECIES <- c('Gloydius_ussuriensis', 'Naja_naja')
+
+species_order <- c('Gloydius_ussuriensis', 'Crotalus_adamanteus', 'Cerastes_gasperettii', 'Naja_naja')
+species_labels <- c('G. ussuriensis', 'C. adamanteus', 'C. gasperettii', 'N. naja')
+names(species_labels) <- species_order
+
+colors <- c('Flanking genes' = '#9FA6AD', 'SVMPs' = '#168A72', 'ADAM' = '#8E629C')
+
+# ------------------------------------------------------------
+# 2. import genomic intervals and gene catalog
+# ------------------------------------------------------------
 
 read_table <- function(path) {
   read_tsv(path, col_types = cols(.default = col_character()), show_col_types = F, progress = F)
@@ -64,7 +53,7 @@ read_table <- function(path) {
 intervals <- read_table(interval_file)
 genes <- read_table(gene_file)
 
-required <- list(intervals = c('family', 'species', 'chromosome', 'start', 'end'), genes = c('feature_id', 'family', 'species', 'chr', 'gene_id', 'start', 'end', 'strand', 'evidence_role'))
+required <- list(intervals = c('family', 'species', 'chromosome', 'start', 'end'), genes = c('family', 'species', 'chr', 'gene_id', 'start', 'end', 'strand', 'plot_role', 'plot_include', 'anchor_symbol'))
 
 for (nm in names(required)) {
   missing <- setdiff(required[[nm]], names(get(nm)))
@@ -72,260 +61,227 @@ for (nm in names(required)) {
 }
 
 intervals <- intervals %>%
-  mutate(start = as.numeric(start), end = as.numeric(end), length_bp = end - start + 1, flip = (family == 'SVMP' & species %in% FLIP_SVMP) | (family == 'PLA2' & species %in% FLIP_PLA2)) %>%
-  filter(family %in% family_order, species %in% species_order)
+  filter(family == 'SVMP', species %in% species_order) %>%
+  mutate(start = as.numeric(start), end = as.numeric(end), length_bp = end - start + 1, flip = species %in% FLIP_SPECIES)
 
-if (nrow(intervals) != 8) stop('Expected eight species-by-family intervals.')
-if (anyDuplicated(intervals[c('family', 'species')])) stop('Duplicated interval entry.')
+if (nrow(intervals) != 4) stop('Expected four SVMP interval entries.')
+if (anyDuplicated(intervals[c('family', 'species')])) stop('Duplicated SVMP interval entry.')
+if (any(is.na(intervals$length_bp) | intervals$length_bp <= 0)) stop('Invalid SVMP interval coordinates.')
 
 genes <- genes %>%
+  filter(family == 'SVMP', species %in% species_order, plot_include == '1') %>%
   mutate(start = as.numeric(start), end = as.numeric(end)) %>%
-  filter(family %in% family_order, species %in% species_order) %>%
-  left_join(intervals %>% select(family, species, interval_start = start, interval_end = end, length_bp, flip), by = c('family', 'species')) %>%
-  filter(!is.na(interval_start), end >= interval_start, start <= interval_end) %>%
-  mutate(local_start = pmax(start, interval_start) - interval_start + 1, local_end = pmin(end, interval_end) - interval_start + 1, plot_start = if_else(flip, length_bp - local_end + 1, local_start), plot_end = if_else(flip, length_bp - local_start + 1, local_end), forward = if_else(flip, strand == '-', strand == '+'), center = (plot_start + plot_end) / 2, y = match(species, rev(species_order)))
+  left_join(intervals %>% select(family, species, interval_chr = chromosome, interval_start = start, interval_end = end, length_bp, flip), by = c('family', 'species'))
+
+if (any(is.na(genes$interval_start))) stop('Some gene records lack an SVMP interval.')
+if (any(genes$chr != genes$interval_chr)) stop('Gene and interval chromosomes disagree.')
+
+genes <- genes %>%
+  filter(end >= interval_start, start <= interval_end) %>%
+  mutate(local_start = pmax(start, interval_start) - interval_start + 1, local_end = pmin(end, interval_end) - interval_start + 1, plot_start = if_else(flip, length_bp - local_end + 1, local_start), plot_end = if_else(flip, length_bp - local_start + 1, local_end), forward = if_else(flip, strand == '-', strand == '+'))
 
 # ------------------------------------------------------------
-# 3. select toxin-family models and homologous flanking anchors
+# 3. classify plotted genes
 # ------------------------------------------------------------
 
-# Step 9 records annotation evidence, not a core whitelist
-# Reference keyword annotations and Naja homolog assignments are provisional
+anchor_roles <- c('conserved_anchor_candidate', 'provisional_VWA5B1_anchor_group')
 
-naja_svmp <- c('006949', '006952', '006954', '006955', '006956', '006957')
-naja_pla2 <- '006365'
+genes <- genes %>%
+  mutate(plot_class = case_when(plot_role %in% anchor_roles & anchor_symbol %in% c('NEFL', 'NEFM', 'STC1') ~ 'Flanking genes', plot_role == 'unannotated_anchor_candidate' ~ 'ADAM', plot_role %in% anchor_roles & anchor_symbol %in% c('ADAM', 'ADAM-like', 'ADAM28') ~ 'ADAM', plot_role %in% c('putative_venom_toxin', 'SVMP_like_candidate') ~ 'SVMPs', TRUE ~ 'Other annotated gene'),
+         anchor_label = case_when(plot_class == 'Flanking genes' & anchor_symbol %in% c('NEFL', 'NEFM', 'STC1') ~ anchor_symbol, plot_class == 'ADAM' ~ 'ADAM', TRUE ~ NA_character_))
 
-# Known Naja anchors from Step 7B protein-homology review
-naja_anchor_ids <- c('006948' = 'STC1', '006950' = 'ADAM-like', '006958' = 'NEFM', '006959' = 'NEFL', '006360' = 'OTUD3', '006356' = 'MUL1', '006373' = 'VWA5B1')
-anchor_symbols <- list(SVMP = c('STC1', 'NEFM', 'NEFL', 'ADAM28', 'ADAM-like'), PLA2 = c('OTUD3', 'MUL1', 'VWA5B1'))
+# ------------------------------------------------------------
+# 4. replace the Gloydius dashed ADAM region with its
+#    overlapping gene arrow
+# ------------------------------------------------------------
 
-# Optional manually validated gene-to-anchor mappings
-anchor_file <- file.path(datadir, 'curated_flanking_anchors.tsv')
-anchor_map <- if (file.exists(anchor_file)) read_table(anchor_file) else tibble(species = character(), family = character(), gene_id = character(), anchor_symbol = character())
+adam_region <- genes %>%
+  filter(species == 'Gloydius_ussuriensis', plot_role == 'unannotated_anchor_candidate')
 
-if (!all(c('species', 'family', 'gene_id', 'anchor_symbol') %in% names(anchor_map))) stop('curated_flanking_anchors.tsv requires species,family,gene_id,anchor_symbol.')
-if (anyDuplicated(anchor_map[c('species', 'family', 'gene_id')])) stop('Duplicate curated flanking anchor assignments.')
+if (nrow(adam_region) != 1) stop('Expected exactly one Gloydius provisional ADAM interval.')
 
-# Optional curated toxin gene whitelist
-curated_map <- if (file.exists(curated_file)) read_table(curated_file) else tibble(species = character(), family = character(), gene_id = character())
+adam_matches <- genes %>%
+  filter(species == 'Gloydius_ussuriensis', plot_role != 'unannotated_anchor_candidate', chr == adam_region$chr[1], start <= adam_region$end[1], end >= adam_region$start[1]) %>%
+  mutate(overlap_bp = pmin(end, adam_region$end[1]) - pmax(start, adam_region$start[1]) + 1, distance = abs((start + end) / 2 - (adam_region$start[1] + adam_region$end[1]) / 2)) %>%
+  arrange(desc(overlap_bp), distance)
 
-if (!all(c('species', 'family', 'gene_id') %in% names(curated_map))) stop('curated_toxin_gene_ids.tsv requires species,family,gene_id.')
-if (TOXIN_MODE == 'curated_only' && !nrow(curated_map)) stop('TOXIN_MODE=curated_only requires curated_toxin_gene_ids.tsv with validated IDs.')
+if (!nrow(adam_matches)) stop('No plotted Gloydius gene arrow overlaps the provisional ADAM interval.')
 
-# Identify anchors using curated mappings, Naja homology, or annotation names
-identify_anchor <- function(i) {
+adam_gene <- adam_matches[1, ]
+
+adam_index <- which(genes$species == 'Gloydius_ussuriensis' & genes$chr == adam_gene$chr & genes$gene_id == adam_gene$gene_id & genes$start == adam_gene$start & genes$end == adam_gene$end & genes$plot_role != 'unannotated_anchor_candidate')
+
+if (length(adam_index) != 1) stop('Could not uniquely identify the overlapping Gloydius gene arrow.')
+
+cat('Gloydius ADAM display arrow:', genes$gene_id[adam_index], '| original classification:', genes$plot_class[adam_index], '| overlap:', adam_gene$overlap_bp, 'bp\n')
+
+genes$plot_class[adam_index] <- 'ADAM'
+genes$anchor_label[adam_index] <- 'ADAM'
+
+genes <- genes %>%
+  filter(!(species == 'Gloydius_ussuriensis' & plot_role == 'unannotated_anchor_candidate'))
+
+# ------------------------------------------------------------
+# 5. remove non-plotted classes
+# ------------------------------------------------------------
+
+genes <- genes %>%
+  filter(plot_class != 'Other annotated gene')
+
+if (!all(genes$plot_class %in% names(colors))) {
+  stop('Missing plot colors for: ', paste(setdiff(unique(genes$plot_class), names(colors)), collapse = ', '))
+}
+
+# ------------------------------------------------------------
+# 6. collapse overlapping Gloydius toxin candidates
+# ------------------------------------------------------------
+
+collapse_overlapping_gloydius <- function(df) {
   
-  g <- genes[i, ]
-  sym <- NA_character_
+  tox <- df %>%
+    filter(species == 'Gloydius_ussuriensis', plot_class == 'SVMPs') %>%
+    arrange(start, end)
   
-  manual <- anchor_map %>%
-    filter(species == g$species, family == g$family, gene_id == g$gene_id)
+  if (nrow(tox) <= 1) return(df)
   
-  if (nrow(manual)) {
-    
-    sym <- manual$anchor_symbol[1]
-    
-  } else {
-    
-    code <- str_extract(g$gene_id, '006[0-9]{3}')
-    
-    if (g$species == 'Naja_naja' && !is.na(code) && code %in% names(naja_anchor_ids)) {
-      
-      sym <- unname(naja_anchor_ids[code])
-      
+  cluster_id <- integer(nrow(tox))
+  cluster_id[1] <- 1
+  current_cluster <- 1
+  current_end <- tox$end[1]
+  
+  for (i in 2:nrow(tox)) {
+    if (tox$start[i] <= current_end) {
+      cluster_id[i] <- current_cluster
+      current_end <- max(current_end, tox$end[i])
     } else {
-      
-      cols <- intersect(c('gene_id', 'functional_hint', 'manual_category', 'annotation_hint', 'review_notes'), names(g))
-      annotation <- toupper(paste(na.omit(unlist(g[1, cols], use.names = F)), collapse = ' '))
-      
-      if (g$family == 'SVMP') {
-        
-        if (grepl('(?<![A-Z0-9])STC1(?![A-Z0-9])', annotation, perl = T)) {
-          
-          sym <- 'STC1'
-          
-        } else if (grepl('(?<![A-Z0-9])NEFM(?![A-Z0-9])|NEUROFILAMENT[^;]*MEDIUM', annotation, perl = T)) {
-          
-          sym <- 'NEFM'
-          
-        } else if (grepl('(?<![A-Z0-9])NEFL(?![A-Z0-9])|NEUROFILAMENT[^;]*LIGHT', annotation, perl = T)) {
-          
-          sym <- 'NEFL'
-          
-        } else if (grepl('ADAM[- ]?28|ADAM METALLOPEPTIDASE[^;]*28', annotation, perl = T)) {
-          
-          sym <- 'ADAM28'
-          
-        } else if (g$evidence_role == 'related_nonvenom_or_uncertain' && grepl('(?<![A-Z0-9])ADAM(?![A-Z0-9])', annotation, perl = T)) {
-          
-          sym <- 'ADAM-like'
-          
-        }
-        
-      } else if (g$family == 'PLA2') {
-        
-        for (a in anchor_symbols[['PLA2']]) {
-          
-          if (grepl(paste0('(?<![A-Z0-9])', a, '(?![A-Z0-9])'), annotation, perl = T)) {
-            sym <- a
-            break
-          }
-        }
-      }
+      current_cluster <- current_cluster + 1
+      cluster_id[i] <- current_cluster
+      current_end <- tox$end[i]
     }
   }
   
-  if (!is.na(sym) && !(sym %in% anchor_symbols[[g$family]])) stop('Unexpected anchor assignment for ', g$gene_id, ': ', sym)
+  tox$cluster_id <- cluster_id
   
-  sym
+  keep_ids <- tox %>%
+    mutate(model_width = end - start + 1) %>%
+    group_by(cluster_id) %>%
+    slice_max(order_by = model_width, n = 1, with_ties = F) %>%
+    ungroup() %>%
+    pull(gene_id)
+  
+  df %>%
+    filter(!(species == 'Gloydius_ussuriensis' & plot_class == 'SVMPs' & !(gene_id %in% keep_ids)))
 }
 
-genes$anchor_symbol <- vapply(seq_len(nrow(genes)), identify_anchor, character(1))
+genes <- collapse_overlapping_gloydius(genes)
 
-# Correct Cerastes gene assignments from the Step 7 inventory
-# ADAM is an ADAM-family model, not yet verified as ADAM28
-genes$anchor_symbol[genes$species == 'Cerastes_gasperettii' & genes$family == 'SVMP' & genes$gene_id == 'ADAM'] <- 'ADAM-like'
-genes$anchor_symbol[genes$species == 'Cerastes_gasperettii' & genes$family == 'SVMP' & genes$gene_id == 'gene-24098'] <- 'STC1'
+# ------------------------------------------------------------
+# 7. align species by their flanking regions
+# ------------------------------------------------------------
 
-genes$naja_code <- str_extract(genes$gene_id, '006[0-9]{3}')
+left_flank <- genes %>%
+  filter(plot_class == 'Flanking genes', anchor_symbol %in% c('NEFM', 'NEFL')) %>%
+  group_by(species) %>%
+  summarise(left_anchor = mean((plot_start + plot_end) / 2), left_genes = paste(sort(unique(anchor_symbol)), collapse = '/'), .groups = 'drop')
 
-# Classify toxin-family candidates
-genes <- genes %>%
-  mutate(toxin_evidence = case_when(species == 'Gloydius_ussuriensis' & evidence_role == 'ToxCodAn_candidate' ~ 'Gloydius ToxCodAn candidate', species %in% c('Cerastes_gasperettii', 'Crotalus_adamanteus') & evidence_role == 'toxin_family_keyword_candidate' ~ 'Reference toxin-family annotation', SHOW_PROVISIONAL_NAJA & species == 'Naja_naja' & family == 'SVMP' & naja_code %in% naja_svmp ~ 'Naja protein-supported homolog (provisional)', SHOW_PROVISIONAL_NAJA & species == 'Naja_naja' & family == 'PLA2' & naja_code %in% naja_pla2 ~ 'Naja protein-supported homolog (provisional)', TRUE ~ NA_character_), toxin_evidence = if_else(species == 'Gloydius_ussuriensis' & ((family == 'SVMP' & gene_id %in% c('SVMP-6')) | (family == 'PLA2' & gene_id %in% c('PLA2-1', 'PLA2I-like-1'))), NA_character_, toxin_evidence), curated_id = paste(species, family, gene_id, sep = '|'), on_curated_list = curated_id %in% paste(curated_map$species, curated_map$family, curated_map$gene_id, sep = '|'))
+right_flank <- genes %>%
+  filter(plot_class == 'Flanking genes', anchor_symbol == 'STC1') %>%
+  group_by(species) %>%
+  summarise(right_anchor = mean((plot_start + plot_end) / 2), n_STC1 = n(), .groups = 'drop')
 
-# Save candidate review table before curated filtering
-write_tsv(genes %>% filter(!is.na(toxin_evidence)) %>% select(species, family, gene_id, toxin_evidence, on_curated_list, chr, start, end, strand), file.path(outdir, 'toxin_model_review.tsv'))
+flanks <- tibble(species = species_order) %>%
+  left_join(left_flank, by = 'species') %>%
+  left_join(right_flank, by = 'species') %>%
+  mutate(anchor_span = right_anchor - left_anchor)
 
-if (TOXIN_MODE == 'curated_only') {
-  
-  genes <- genes %>%
-    mutate(toxin_evidence = if_else(on_curated_list, 'Curated toxin model', NA_character_))
-  
-} else if (TOXIN_MODE != 'annotation_supported') {
-  
-  stop('Unknown TOXIN_MODE: ', TOXIN_MODE)
-  
-}
-
-# Show every positively identified anchor
-anchor_support <- genes %>%
-  filter(!is.na(anchor_symbol)) %>%
-  distinct(family, anchor_symbol, species) %>%
-  count(family, anchor_symbol, name = 'n_species')
-
-write_tsv(anchor_support, file.path(outdir, 'anchor_species_support.tsv'))
+if (any(is.na(flanks$left_anchor) | is.na(flanks$right_anchor))) stop('Missing NEFM/NEFL or STC1 flanking anchor for one or more species.')
+if (any(flanks$n_STC1 != 1)) stop('Expected one STC1 anchor per species.')
+if (any(flanks$anchor_span <= 0)) stop('Flanking anchors are not ordered left-to-right.')
 
 genes <- genes %>%
-  left_join(anchor_support, by = c('family', 'anchor_symbol')) %>%
-  mutate(plot_class = case_when(anchor_symbol %in% c('ADAM28', 'ADAM-like') ~ paste0('ADAM: ', anchor_symbol), !is.na(toxin_evidence) ~ toxin_evidence, !is.na(anchor_symbol) ~ paste0('Anchor: ', anchor_symbol), TRUE ~ NA_character_))
+  left_join(flanks %>% select(species, left_anchor, anchor_span), by = 'species') %>%
+  mutate(plot_start_bp = plot_start, plot_end_bp = plot_end, plot_start = (plot_start_bp - left_anchor) / anchor_span, plot_end = (plot_end_bp - left_anchor) / anchor_span, center = (plot_start + plot_end) / 2)
 
-# Audit the annotation evidence
-anchor_presence <- bind_rows(lapply(family_order, function(fam) { expand.grid(family = fam, species = species_order, anchor_symbol = anchor_symbols[[fam]], stringsAsFactors = F) })) %>%
-  left_join(genes %>% filter(!is.na(anchor_symbol)) %>% group_by(family, species, anchor_symbol) %>% summarise(identified_models = n_distinct(gene_id), .groups = 'drop'), by = c('family', 'species', 'anchor_symbol')) %>%
-  mutate(identified_models = if_else(is.na(identified_models), 0L, as.integer(identified_models)), status = if_else(identified_models > 0, 'identified_in_catalog', 'not_identified_in_catalog'))
+intervals <- intervals %>%
+  left_join(flanks %>% select(species, left_anchor, anchor_span), by = 'species') %>%
+  mutate(track_start = (1 - left_anchor) / anchor_span, track_end = (length_bp - left_anchor) / anchor_span)
 
-write_tsv(anchor_presence, file.path(outdir, 'anchor_presence_by_species.tsv'))
-write_tsv(genes %>% filter(!is.na(anchor_symbol)) %>% select(family, species, gene_id, anchor_symbol, evidence_role, chr, start, end, strand), file.path(outdir, 'identified_anchor_models.tsv'))
+y_map <- c('Gloydius_ussuriensis' = 3.1, 'Crotalus_adamanteus' = 2.4, 'Cerastes_gasperettii' = 1.7, 'Naja_naja' = 1.0)
 
-# Suppress duplicate Gloydius Funannotate arrows when they
-# substantially overlap displayed ToxCodAn toxin models
+genes <- genes %>%
+  mutate(y = unname(y_map[species]))
 
-for (fam in family_order) {
-  
-  tox <- genes %>%
-    filter(family == fam, species == 'Gloydius_ussuriensis', !is.na(toxin_evidence), evidence_role == 'ToxCodAn_candidate')
-  
-  idx <- which(genes$family == fam & genes$species == 'Gloydius_ussuriensis' & genes$evidence_role != 'ToxCodAn_candidate' & !is.na(genes$plot_class))
-  
-  for (i in idx) {
-    
-    if (!nrow(tox)) next
-    
-    ov <- pmax(0, pmin(genes$end[i], tox$end) - pmax(genes$start[i], tox$start) + 1)
-    shorter <- pmin(genes$end[i] - genes$start[i] + 1, tox$end - tox$start + 1)
-    
-    if (is.na(genes$anchor_symbol[i]) && any(ov / shorter >= 0.60)) {
-      genes$plot_class[i] <- NA_character_
-    }
-  }
+intervals <- intervals %>%
+  mutate(y = unname(y_map[species]))
+
+gene_models <- genes
+
+cat('===== FLANKING REGION ALIGNMENT =====\n')
+print(flanks, n = Inf)
+
+# ------------------------------------------------------------
+# 8. draw plot
+# ------------------------------------------------------------
+
+plot_theme <- theme_classic(base_size = 13) +
+  theme(
+    plot.title = element_text(face = 'bold', size = 18),
+    plot.title.position = 'plot',
+    axis.text.y = element_text(face = 'italic', size = 15),
+    axis.ticks.y = element_blank(),
+    axis.line.y = element_blank(),
+    panel.grid = element_blank(),
+    axis.line.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.title.x = element_blank(),
+    legend.position = 'bottom',
+    legend.direction = 'horizontal',
+    legend.text = element_text(size = 13),
+    legend.title = element_blank(),
+    legend.key.width = grid::unit(1.0, 'cm'),
+    legend.key.height = grid::unit(0.75, 'cm'),
+    legend.spacing.x = grid::unit(0.6, 'cm'),
+    plot.margin = margin(10, 18, 8, 12)
+  )
+
+p <- ggplot() +
+  geom_segment(data = intervals, aes(x = track_start, xend = track_end, y = y, yend = y), color = '#929BA3', linewidth = 1.5)
+
+# ------------------------------------------------------------
+# arrows with flush arrowheads and black outlines
+# ------------------------------------------------------------
+
+if (nrow(gene_models) > 0) {
+  p <- p + gggenes::geom_gene_arrow(data = gene_models, aes(xmin = plot_start, xmax = plot_end, y = y, fill = plot_class, forward = forward), arrowhead_width = grid::unit(1.3, 'mm'), arrowhead_height = grid::unit(6.0, 'mm'), arrow_body_height = grid::unit(6.0, 'mm'), colour = 'black', linewidth = 0.7)
 }
 
-plot_genes <- genes %>% filter(!is.na(plot_class))
-if (!nrow(plot_genes)) stop('No selected toxin models or homologous anchors.')
+plot_range <- range(c(intervals$track_start, intervals$track_end, genes$plot_start, genes$plot_end), na.rm = T)
+
+p <- p +
+  scale_fill_manual(values = colors, breaks = c('Flanking genes', 'SVMPs', 'ADAM'), name = NULL) +
+  scale_x_continuous(breaks = NULL, limits = c(min(-0.04, plot_range[1] - 0.02), max(1.04, plot_range[2] + 0.02)), expand = c(0, 0)) +
+  scale_y_continuous(breaks = c(3.1, 2.4, 1.7, 1.0), labels = species_labels[species_order], limits = c(0.5, 3.6), expand = c(0, 0)) +
+  labs(title = '(A)', x = NULL, y = NULL) +
+  plot_theme +
+  guides(fill = guide_legend(nrow = 1, byrow = T, title = NULL))
+
+print(p)
 
 # ------------------------------------------------------------
-# 4. draw gggenes plots with homologous flanking anchors
+# 9. export outputs
 # ------------------------------------------------------------
 
-draw_microsynteny <- function(fam) {
-  
-  tracks <- intervals %>%
-    filter(family == fam) %>%
-    mutate(y = match(species, rev(species_order)))
-  
-  g <- plot_genes %>% filter(family == fam)
-  maxlen <- max(tracks$length_bp)
-  
-  p <- ggplot() +
-    geom_segment(data = tracks, aes(x = 1, xend = length_bp, y = y, yend = y), color = '#929BA3', linewidth = 0.8)
-  
-  p <- p +
-    gggenes::geom_gene_arrow(data = g, aes(xmin = plot_start, xmax = plot_end, y = y, fill = plot_class, forward = forward), arrowhead_width = grid::unit(1.8, 'mm'), arrowhead_height = grid::unit(3.3, 'mm'), arrow_body_height = grid::unit(2.7, 'mm'), colour = '#34404A', linewidth = 0.24) +
-    scale_fill_manual(values = colors, breaks = intersect(names(colors), unique(g$plot_class)), name = 'Gene annotation / homolog') +
-    scale_y_continuous(breaks = 4:1, labels = species_labels, limits = c(0.65, 4.45), expand = c(0, 0)) +
-    scale_x_continuous(breaks = pretty(c(0, maxlen), n = 6), labels = function(x) format(round(x / ifelse(fam == 'SVMP', 1e6, 1e3), 2), trim = T, scientific = F), limits = c(0, maxlen * 1.06), expand = c(0, 0)) +
-    labs(title = paste0(ifelse(fam == 'PLA2', 'PLA₂', 'SVMP'), ' | Toxin genes and conserved anchors'), subtitle = if (fam == 'SVMP') 'G. ussuriensis and N. naja reversed for visual comparison' else 'Reference interval orientations retained', x = paste0('Position within displayed interval (', ifelse(fam == 'SVMP', 'Mb', 'kb'), ')'), y = NULL) +
-    theme_classic(base_size = 12) +
-    theme(plot.title = element_text(face = 'bold', size = 14), plot.subtitle = element_text(size = 9, color = '#626A70'), axis.text.y = element_text(face = 'italic', size = 10), axis.ticks.y = element_blank(), axis.line.y = element_blank(), panel.grid.major.x = element_line(color = '#EEEEEE', linewidth = 0.3), legend.position = 'bottom', legend.text = element_text(size = 8), legend.key.size = grid::unit(0.35, 'cm'), plot.margin = margin(10, 18, 12, 12)) +
-    guides(fill = guide_legend(nrow = 2, byrow = T))
-  
-  if (SHOW_ANCHOR_LABELS) {
-    
-    a <- g %>% filter(!is.na(anchor_symbol))
-    
-    if (nrow(a)) {
-      p <- p + geom_text(data = a, aes(x = center, y = y + 0.17, label = anchor_symbol), size = 2.8, check_overlap = T)
-    }
-  }
-  
-  if (SHOW_TOXIN_LABELS) {
-    
-    a <- g %>% filter(is.na(anchor_symbol))
-    
-    if (nrow(a)) {
-      p <- p + geom_text(data = a, aes(x = center, y = y + 0.18, label = gene_id), size = 2.2, angle = 45, hjust = 0, check_overlap = T)
-    }
-  }
-  
-  p
-}
+plot_prefix <- file.path(outdir, 'SVMP_gene_overview_revised')
 
-# ------------------------------------------------------------
-# 5. export gene-only figures and plotting inventories
-# ------------------------------------------------------------
+ggsave(paste0(plot_prefix, '.png'), p, width = 14, height = 5.2, dpi = 300)
+ggsave(paste0(plot_prefix, '.pdf'), p, width = 14, height = 5.2)
 
-write_tsv(genes %>% select(-curated_id), file.path(outdir, 'gene_plot_inventory.tsv'))
-write_tsv(plot_genes %>% select(family, species, gene_id, plot_class, anchor_symbol, chr, start, end, strand, plot_start, plot_end, forward), file.path(outdir, 'displayed_gene_models.tsv'))
-write_tsv(genes %>% filter(is.na(anchor_symbol), is.na(toxin_evidence)) %>% select(family, species, gene_id, evidence_role, chr, start, end, strand, any_of(c('annotation_hint', 'functional_hint', 'manual_category', 'review_notes'))), file.path(outdir, 'unresolved_gene_models.tsv'))
+write_tsv(genes %>% select(family, species, chr, gene_id, start, end, strand, plot_role, plot_class, anchor_label, plot_start_bp, plot_end_bp, plot_start, plot_end, forward), file.path(outdir, 'SVMP_displayed_gene_models_revised.tsv'))
 
-for (fam in family_order) {
-  
-  fig <- draw_microsynteny(fam)
-  print(fig)
-  
-  prefix <- file.path(outdir, paste0(fam, '_gene_overview'))
-  
-  ggsave(paste0(prefix, '.png'), fig, width = 14, height = 6, dpi = 300)
-  ggsave(paste0(prefix, '.pdf'), fig, width = 14, height = 6)
-  
-  cat(fam, ':', prefix, '\n')
-}
+cat('===== SVMP PLOT SUMMARY =====\n')
+print(genes %>% count(species, plot_class), n = Inf)
 
-cat('\n===== GENE SELECTION SUMMARY =====\n')
-print(plot_genes %>% count(family, species, plot_class), n = Inf)
-
-cat('\n===== ANCHOR IDENTIFICATION STATUS =====\n')
-print(tibble::as_tibble(anchor_presence), n = Inf, width = Inf)
-
-cat('Output directory:', outdir, '\n')
+cat('Output plot:', paste0(plot_prefix, '.png'), '\n')
+cat('Output table:', file.path(outdir, 'SVMP_displayed_gene_models_revised.tsv'), '\n')
 cat('===== COMPLETE =====\n')
