@@ -15,8 +15,7 @@
 /outputs/repeat_landscape/Gloydius_ussuriensis.filteredRepeats.withDivergence.gff 
 /inputs/
 #/docs/etc/
-/docs/12_SMC_Demography.md
-/docs/ARCHIVE_10_ToxinGeneAnalyses.md
+/docs/doc_archive/
 
 /Shell/unused
 /R/Rplots/*.tsv
