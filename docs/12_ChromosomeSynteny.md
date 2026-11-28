@@ -1,4 +1,4 @@
-## 11) Chromosomal synteny
+## 11) Chromosomal macrosynteny
 ### Step 1: Setup directory and prepare data downloads
 First, set up a directory for synteny analyses.
 ```sh

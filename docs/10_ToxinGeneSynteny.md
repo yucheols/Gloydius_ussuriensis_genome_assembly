@@ -1,4 +1,4 @@
-## 10) Toxin gene analyses
+## 10) Toxin gene microsynteny
 In this section, we will investigate the chromosomal microsynteny and phylogenetic relationships of two major snake venom components: snake venom metalloproteinases (SVMPs) and phospholipases A2 (PLA2s). In addition to our focal species, *Gloydius ussuriensis*, we will use four comparison taxa: *G. shedaoensis*, *Crotalus adamanteus*, *Cerastes gasperettii*, and *Naja naja*.
 
 For *G. ussuriensis*, we will use our previously curated ToxCodAn-Genome annotations. For *C. adamanteus*, *C. gasperettii*, and *N. naja*, we will leverage published toxin gene annotations and/or genomic coordinate catalogs. For *G. shedaoensis*, we will use the ToxCodAn-Genome predictions I generated, supplemented by homology-based searches and the general genome annotation.
