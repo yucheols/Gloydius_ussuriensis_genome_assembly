@@ -17,7 +17,7 @@ __Note:__ I created this documentation in the hopes that my friends and future R
 9. __[Curation of annotated toxin genes](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/09_ToxinAnnotationEval.md#9-post-hi-c-finalizing-toxin-gene-annotation)__
 10. __[Toxin gene evolution](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/10_ToxinGeneAnalyses.md#10-toxin-gene-evolution)__
 
-12. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/12_Synteny.md#12-chromosomal-macrosynteny)__  
+12. __[Chromosomal synteny](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/12_ChromosomeSynteny.md#12-chromosomal-macrosynteny)__  
 13. __[Historical demography](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/13_Demography.md#13-demographic-history-using-psmc)__
 14. __[Circos plot](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/14_CircosPlot.md#14-circos-plot)__
 15. __[Repeat landscape plot](https://github.com/yucheols/Gloydius_ussuriensis_genome_assembly/blob/main/docs/15_PlotRepeats.md#15-plotting-the-repeat-landscape)__
