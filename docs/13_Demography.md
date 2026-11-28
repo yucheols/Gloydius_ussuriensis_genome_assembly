@@ -1,4 +1,4 @@
-# 12) Demographic history using PSMC
+# 13) Demographic history using PSMC
 We will use PSMC to infer the demographic history of *G. ussuriensis.* Our reference individual (AMNH 21010) has both chromosome-level assembly and Illumina reads. PSMC requires a whole-genome diploid consensus sequence from one individual as an input. The assembly fasta largely represents one sequence state at heterozygous sites. PSMC needs the spatial pattern of heterozygous versus homozygous regions along the genome. This is where the Illumina reads from the same individual is useful. By mapping the Illumina WGS reads back to the reference assembly, we can identify homozygous vs heterozygous sites, and from there we can construct the diploid consensus needed for PSMC.
 
 ### Step 1: Setup
